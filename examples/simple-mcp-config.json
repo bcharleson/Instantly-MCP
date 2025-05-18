@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "instantly": {
+      "command": "npx",
+      "args": ["instantly-mcp", "--api-key", "YOUR_INSTANTLY_API_KEY_HERE"]
+    },
+    "instantly-local": {
+      "command": "node",
+      "args": ["/path/to/your/instantly-mcp/dist/index.js", "--api-key", "YOUR_INSTANTLY_API_KEY_HERE"]
+    }
+  }
+}

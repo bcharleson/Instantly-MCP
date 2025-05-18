@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Build
+      run: npm run build
+      
+    - name: Test (when tests are added)
+      run: npm test --if-present
+      
+    - name: Lint (when linter is added)
+      run: npm run lint --if-present
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - uses: actions/setup-node@v3
+      with:
+        node-version: '20.x'
+        registry-url: 'https://registry.npmjs.org'
+    
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Build
+      run: npm run build
+    
+    - name: Check if version changed
+      id: version-check
+      run: |
+        PUBLISHED_VERSION=$(npm view instantly-mcp version || echo "0.0.0")
+        PACKAGE_VERSION=$(node -p "require('./package.json').version")
+        if [ "$PUBLISHED_VERSION" != "$PACKAGE_VERSION" ]; then
+          echo "Version changed from $PUBLISHED_VERSION to $PACKAGE_VERSION"
+          echo "should_publish=true" >> $GITHUB_OUTPUT
+        else
+          echo "Version unchanged: $PACKAGE_VERSION"
+          echo "should_publish=false" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Publish to npm
+      if: steps.version-check.outputs.should_publish == 'true'
+      run: npm publish
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

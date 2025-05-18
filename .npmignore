@@ -1,0 +1,24 @@
+# Source files
+src/
+examples/
+tests/
+
+# Config files
+.github/
+.gitignore
+tsconfig.json
+test-endpoints.ts
+
+# Development files
+*.log
+.DS_Store
+node_modules/
+.env
+.env.*
+
+# Editor files
+.vscode/
+.idea/
+
+# Only publish built files
+!dist/
