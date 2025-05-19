@@ -46,6 +46,9 @@ const makeInstantlyRequest = async (endpoint: string, method: string = 'GET', da
   }
 
   const url = `${INSTANTLY_API_URL}${endpoint}`;
+  console.error(`[Instantly MCP] Request: ${method} ${url}`);
+  console.error(`[Instantly MCP] API Key: ${INSTANTLY_API_KEY?.substring(0, 10)}...${INSTANTLY_API_KEY?.substring(INSTANTLY_API_KEY.length - 4)}`);
+  
   const options: RequestInit = {
     method,
     headers: {
@@ -56,10 +59,24 @@ const makeInstantlyRequest = async (endpoint: string, method: string = 'GET', da
 
   if (data && method !== 'GET') {
     options.body = JSON.stringify(data);
+    console.error(`[Instantly MCP] Request body: ${JSON.stringify(data, null, 2)}`);
   }
 
   try {
-    const response = await fetch(url);
+    let response = await fetch(url, options);
+    console.error(`[Instantly MCP] Response status: ${response.status} ${response.statusText}`);
+    
+    // For 400 errors, log the response body for debugging
+    if (response.status === 400) {
+      const responseText = await response.text();
+      console.error(`[Instantly MCP] 400 Response body: ${responseText}`);
+      // Re-create response with the text we already read
+      response = new Response(responseText, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers
+      });
+    }
     
     // Update rate limit info from response headers
     rateLimiter.updateFromHeaders(response.headers);
@@ -74,6 +91,7 @@ const makeInstantlyRequest = async (endpoint: string, method: string = 'GET', da
     
     return result;
   } catch (error) {
+    console.error(`[Instantly MCP] Error:`, error);
     handleInstantlyError(error, 'makeInstantlyRequest');
   }
 };
@@ -116,6 +134,27 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           from_name: { type: 'string', description: 'Sender name' },
           subject: { type: 'string', description: 'Email subject' },
           body: { type: 'string', description: 'Email body content' },
+          account_id: { type: 'string', description: 'Account ID (optional - try to get it from your account list)' },
+          timezone: { 
+            type: 'string', 
+            description: 'Timezone for campaign schedule (default: America/New_York). Examples: America/Los_Angeles, Europe/London, Asia/Tokyo',
+            enum: ["America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "Europe/London", "Europe/Paris", "Asia/Tokyo", "Asia/Singapore", "Australia/Sydney"]
+          },
+          days: {
+            type: 'object',
+            description: 'Days to send emails (default: Monday-Friday)',
+            properties: {
+              monday: { type: 'boolean', description: 'Send on Monday (default: true)' },
+              tuesday: { type: 'boolean', description: 'Send on Tuesday (default: true)' },
+              wednesday: { type: 'boolean', description: 'Send on Wednesday (default: true)' },
+              thursday: { type: 'boolean', description: 'Send on Thursday (default: true)' },
+              friday: { type: 'boolean', description: 'Send on Friday (default: true)' },
+              saturday: { type: 'boolean', description: 'Send on Saturday (default: false)' },
+              sunday: { type: 'boolean', description: 'Send on Sunday (default: false)' }
+            }
+          },
+          link_tracking: { type: 'boolean', description: 'Track links (default: false)' },
+          open_tracking: { type: 'boolean', description: 'Track email opens (default: false)' }
         },
         required: ['name', 'from_email', 'from_name', 'subject', 'body'],
       },
@@ -189,9 +228,17 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           email: { type: 'string', description: 'Email address' },
           username: { type: 'string', description: 'Username' },
           password: { type: 'string', description: 'Password' },
-          provider: { type: 'string', description: 'Email provider' },
+          smtp_host: { type: 'string', description: 'SMTP host (e.g., smtp.gmail.com)' },
+          smtp_port: { type: 'number', description: 'SMTP port (e.g., 587)' },
+          imap_host: { type: 'string', description: 'IMAP host (optional)' },
+          imap_port: { type: 'number', description: 'IMAP port (optional)' },
+          provider: { type: 'string', description: 'Email provider (optional)' },
+          warmup_enabled: { type: 'boolean', description: 'Enable warmup (optional, default: true)' },
+          max_daily_limit: { type: 'number', description: 'Max daily sending limit (optional, default: 30)' },
+          warmup_limit: { type: 'number', description: 'Warmup daily limit (optional, default: 20)' },
+          warmup_reply_rate: { type: 'number', description: 'Warmup reply rate percentage (optional, default: 50)' },
         },
-        required: ['email', 'username', 'password', 'provider'],
+        required: ['email', 'username', 'password', 'smtp_host', 'smtp_port'],
       },
     },
     {
@@ -243,9 +290,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         type: 'object',
         properties: {
           email: { type: 'string', description: 'Lead email address' },
-          first_name: { type: 'string', description: 'First name' },
-          last_name: { type: 'string', description: 'Last name' },
-          company: { type: 'string', description: 'Company name' },
+          firstName: { type: 'string', description: 'First name' },
+          lastName: { type: 'string', description: 'Last name' },
+          companyName: { type: 'string', description: 'Company name' },
+          website: { type: 'string', description: 'Company website' },
+          personalization: { type: 'string', description: 'Personalization field' },
           custom_fields: { type: 'object', description: 'Custom fields as key-value pairs' },
         },
         required: ['email'],
@@ -331,6 +380,29 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           limit: { type: 'number', description: 'Number of emails to return per page (default: 20)' },
           page: { type: 'number', description: 'Page number (default: 1)' },
         },
+      },
+    },
+    {
+      name: 'get_email',
+      description: 'Get a specific email by ID',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          email_id: { type: 'string', description: 'Email ID/UUID' },
+        },
+        required: ['email_id'],
+      },
+    },
+    {
+      name: 'reply_to_email',
+      description: 'Reply to an existing email',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          email_id: { type: 'string', description: 'Email ID to reply to' },
+          body: { type: 'string', description: 'Reply body content' },
+        },
+        required: ['email_id', 'body'],
       },
     },
     // Email Verification
@@ -423,16 +495,125 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           }
         }
         
-        const result = await makeInstantlyRequest('/campaigns', 'POST', args);
+        // Get timezone from args with default
+        const timezone = args?.timezone || 'America/New_York';
         
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
+        // Get days from args with defaults
+        const userDays = (args?.days as any) || {};
+        const days = {
+          monday: userDays.monday !== false,  // Default true
+          tuesday: userDays.tuesday !== false,  // Default true
+          wednesday: userDays.wednesday !== false,  // Default true
+          thursday: userDays.thursday !== false,  // Default true
+          friday: userDays.friday !== false,  // Default true
+          saturday: userDays.saturday === true,  // Default false
+          sunday: userDays.sunday === true  // Default false
         };
+        
+        // Convert days object to Instantly's format (0-6)
+        const daysConfig = {
+          '0': days.monday,
+          '1': days.tuesday,
+          '2': days.wednesday,
+          '3': days.thursday,
+          '4': days.friday,
+          '5': days.saturday,
+          '6': days.sunday
+        };
+        
+        // First try the simple structure from api-fixes.ts
+        let campaignData: any = {
+          name: args!.name,
+          from_email: args!.from_email,
+          from_name: args!.from_name,
+          subject: args!.subject,
+          body: args!.body,
+          // Try with account_id if provided
+          ...(args?.account_id ? { account_id: args.account_id } : {}),
+          // Optional fields
+          reply_to: args?.reply_to || args!.from_email,
+          tracking_enabled: args?.tracking_enabled !== false,
+          link_tracking: args?.link_tracking || false,
+          open_tracking: args?.open_tracking || false
+        };
+        
+        // Log which structure we're trying
+        console.error('[Instantly MCP] Trying simple campaign structure...');
+        
+        try {
+          const result = await makeInstantlyRequest('/campaigns', 'POST', campaignData);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(result, null, 2),
+              },
+            ],
+          };
+        } catch (error: any) {
+          // If simple structure fails with 400, try complex structure
+          if (error.status === 400) {
+            console.error('[Instantly MCP] Simple structure failed, trying complex structure...');
+            
+            // Build complex structure
+            campaignData = {
+              name: args!.name,
+              campaign_schedule: {
+                schedules: [{
+                  name: 'Default Schedule',
+                  timing: {
+                    from: '09:00',
+                    to: '17:00'
+                  },
+                  days: daysConfig,
+                  timezone: timezone
+                }],
+                timezone: timezone
+              },
+              pl_value: 100,
+              is_evergreen: false,
+              sequences: [{
+                name: 'Main Sequence',
+                steps: [{
+                  subject: args!.subject,
+                  body: args!.body
+                }]
+              }],
+              email_gap: 10,
+              random_wait_max: 10,
+              text_only: false,
+              // Try with email_list if we have account_id  
+              email_list: args?.account_id ? [args!.from_email] : undefined,
+              from_email: args!.from_email,
+              from_name: args!.from_name,
+              daily_limit: 100,
+              stop_on_reply: true,
+              link_tracking: args?.link_tracking || false,
+              open_tracking: args?.open_tracking || false,
+              stop_on_auto_reply: false,
+              daily_max_leads: 100,
+              prioritize_new_leads: false,
+              match_lead_esp: false,
+              stop_for_company: false,
+              insert_unsubscribe_header: false,
+              allow_risky_contacts: false,
+              disable_bounce_protect: false
+            };
+            
+            const result = await makeInstantlyRequest('/campaigns', 'POST', campaignData);
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify(result, null, 2),
+                },
+              ],
+            };
+          }
+          
+          // Re-throw if not a 400 error
+          throw error;
+        }
       }
 
       case 'update_campaign': {
@@ -510,34 +691,49 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       // Account endpoints
       case 'list_accounts': {
-        const queryParams = buildPaginationQuery({
-          page: Number(args?.page) || 1,
-          limit: Number(args?.limit) || 20,
-        });
+        const queryParams = new URLSearchParams();
+        if (args?.limit) queryParams.append('limit', String(args.limit));
+        if (args?.page) queryParams.append('page', String(args.page));
         
         const endpoint = `/accounts${queryParams.toString() ? `?${queryParams}` : ''}`;
         const result = await makeInstantlyRequest(endpoint);
-        const paginatedResult = parsePaginatedResponse(result);
         
+        // Don't use pagination parsing, return raw results
         return {
           content: [
             {
               type: 'text',
-              text: JSON.stringify(paginatedResult, null, 2),
+              text: JSON.stringify(result, null, 2),
             },
           ],
         };
       }
 
       case 'create_account': {
-        const requiredFields = ['email', 'username', 'password', 'provider'];
+        const requiredFields = ['email', 'username', 'password', 'smtp_host', 'smtp_port'];
         for (const field of requiredFields) {
           if (!args?.[field]) {
             throw new McpError(ErrorCode.InvalidParams, `${field} is required`);
           }
         }
         
-        const result = await makeInstantlyRequest('/accounts', 'POST', args);
+        // Ensure numeric values for port and proper data structure
+        const accountData = {
+          email: args!.email,
+          username: args!.username,
+          password: args!.password,
+          smtp_host: args!.smtp_host,
+          smtp_port: Number(args!.smtp_port),
+          imap_host: args?.imap_host,
+          imap_port: args?.imap_port ? Number(args.imap_port) : undefined,
+          max_daily_limit: args?.max_daily_limit || 30,
+          warmup_limit: args?.warmup_limit || 20,
+          warmup_reply_rate: args?.warmup_reply_rate || 50,
+          warmup_enabled: args?.warmup_enabled !== false, // Default to true
+          provider: args?.provider
+        };
+        
+        const result = await makeInstantlyRequest('/accounts', 'POST', accountData);
         
         return {
           content: [
@@ -572,7 +768,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           throw new McpError(ErrorCode.InvalidParams, 'account_id is required');
         }
         
-        const result = await makeInstantlyRequest('/accounts/warmup-analytics', 'POST', args);
+        const result = await makeInstantlyRequest('/accounts/warmup_analytics', 'POST', args);
         
         return {
           content: [
@@ -586,32 +782,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       // Lead endpoints
       case 'list_leads': {
-        const paginationParams = {
-          limit: Number(args?.limit) || 20,
-          skip: args?.skip,
-          page: args?.page,
-        };
+        const queryParams = new URLSearchParams();
+        if (args?.limit) queryParams.append('limit', String(args.limit || 20));
+        if (args?.page) queryParams.append('page', String(args.page || 1));
+        if (args?.campaign_id) queryParams.append('campaign_id', String(args.campaign_id));
+        if (args?.list_id) queryParams.append('list_id', String(args.list_id));
+        if (args?.status) queryParams.append('status', String(args.status));
         
-        // Convert page to skip if page is provided
-        if (paginationParams.page && !paginationParams.skip) {
-          paginationParams.skip = (Number(paginationParams.page) - 1) * Number(paginationParams.limit);
-        }
+        const endpoint = `/lead/list${queryParams.toString() ? `?${queryParams}` : ''}`;
+        const result = await makeInstantlyRequest(endpoint, 'POST', {});
         
-        const requestData = {
-          ...paginationParams,
-          campaign_id: args?.campaign_id,
-          list_id: args?.list_id,
-          status: args?.status,
-        };
-        
-        const result = await makeInstantlyRequest('/leads/list', 'POST', requestData);
-        const paginatedResult = parsePaginatedResponse(result);
-        
+        // Return raw results without pagination parsing
         return {
           content: [
             {
               type: 'text',
-              text: JSON.stringify(paginatedResult, null, 2),
+              text: JSON.stringify(result, null, 2),
             },
           ],
         };
@@ -676,8 +862,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           limit: Number(args?.limit) || 20,
         });
         
-        const endpoint = `/lead-lists${queryParams.toString() ? `?${queryParams}` : ''}`;
-        const result = await makeInstantlyRequest(endpoint);
+        const endpoint = `/lists${queryParams.toString() ? `?${queryParams}` : ''}`;
+        const result = await makeInstantlyRequest(endpoint, 'GET');
         const paginatedResult = parsePaginatedResponse(result);
         
         return {
@@ -695,7 +881,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           throw new McpError(ErrorCode.InvalidParams, 'name is required');
         }
         
-        const result = await makeInstantlyRequest('/lead-lists', 'POST', args);
+        const result = await makeInstantlyRequest('/lists', 'POST', args);
         
         return {
           content: [
@@ -716,7 +902,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           }
         }
         
-        const result = await makeInstantlyRequest('/emails', 'POST', args);
+        const result = await makeInstantlyRequest('/emails/send', 'POST', args);
         
         return {
           content: [
@@ -751,13 +937,47 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
+      case 'get_email': {
+        if (!args?.email_id) {
+          throw new McpError(ErrorCode.InvalidParams, 'email_id is required');
+        }
+        
+        const result = await makeInstantlyRequest(`/emails/${args.email_id}`);
+        
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      case 'reply_to_email': {
+        if (!args?.email_id || !args?.body) {
+          throw new McpError(ErrorCode.InvalidParams, 'email_id and body are required');
+        }
+        
+        const result = await makeInstantlyRequest(`/emails/${args.email_id}/reply`, 'POST', { body: args.body });
+        
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
       // Email Verification
       case 'verify_email': {
         if (!args?.email) {
           throw new McpError(ErrorCode.InvalidParams, 'email is required');
         }
         
-        const result = await makeInstantlyRequest('/email-verification', 'POST', args);
+        const result = await makeInstantlyRequest('/verify-email', 'POST', { email: args.email });
         
         return {
           content: [
