@@ -3,7 +3,20 @@
 [![npm version](https://badge.fury.io/js/instantly-mcp.svg)](https://badge.fury.io/js/instantly-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A Model Context Protocol (MCP) server that provides seamless integration with the Instantly.ai v2 API, allowing AI assistants to manage email campaigns, accounts, and analytics.
+MCP server for Instantly.ai v2 API - Manage email campaigns, accounts, leads, and analytics through Claude AI. Perfect for email automation and cold outreach campaigns.
+
+## Overview
+
+The Instantly MCP Server is a powerful integration that brings Instantly.ai's email automation capabilities directly into Claude and other AI assistants through the Model Context Protocol. This enables AI-powered management of:
+
+- 📧 Email campaigns and sequences
+- 👥 Account management and warmup
+- 📊 Analytics and performance tracking
+- 🎯 Lead management and segmentation
+- ✉️ Email sending and verification
+- 🔑 API key management
+
+Perfect for sales teams, marketers, and developers who want to automate their cold outreach workflows using AI.
 
 ## Quick Start
 
@@ -174,6 +187,22 @@ MIT
 - 🔐 Secure API key handling
 - 📚 Example scripts included
 
+## Recent Updates
+
+### v2.0.13 (Latest)
+- Fixed campaign creation with improved field structure
+- Added timezone and days configuration for campaigns
+- Enhanced debug logging for troubleshooting
+- Fallback mechanism for different API structures
+
+See [CHANGELOG.md](CHANGELOG.md) for complete version history.
+
+## Known Issues
+
+- Campaign creation may require specific account configuration
+- Some endpoints return empty results despite data existing (working on fixes)
+- Email sending requires verified sender accounts
+
 ## Contributing
 
 Pull requests are welcome! Please ensure all tests pass and follow the existing code style.
@@ -183,6 +212,12 @@ Pull requests are welcome! Please ensure all tests pass and follow the existing 
 3. Commit your changes (`git commit -m 'Add some amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
+
+## Support
+
+- **Issues**: [GitHub Issues](https://github.com/bcharleson/Instantly-MCP/issues)
+- **Documentation**: [Instantly API Docs](https://developer.instantly.ai/)
+- **MCP Protocol**: [Model Context Protocol](https://github.com/modelcontextprotocol)
 
 ## Publishing
 
