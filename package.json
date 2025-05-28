@@ -1,8 +1,14 @@
 {
   "name": "instantly-mcp",
-  "version": "2.0.13",
+  "version": "2.4.0",
   "description": "MCP server for Instantly v2 API integration",
-  "keywords": ["mcp", "instantly", "api", "email", "automation"],
+  "keywords": [
+    "mcp",
+    "instantly",
+    "api",
+    "email",
+    "automation"
+  ],
   "license": "MIT",
   "author": "bcharleson",
   "repository": {
@@ -15,13 +21,17 @@
   "homepage": "https://github.com/bcharleson/Instantly-MCP#readme",
   "type": "module",
   "bin": {
-    "instantly-mcp": "./dist/index.js"
+    "instantly-mcp": "dist/index.js"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "test:endpoints": "npm run build && tsx test-mcp-endpoints.ts",
+    "test:quick": "tsx test-mcp-endpoints.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^0.5.0"

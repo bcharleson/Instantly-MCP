@@ -1,60 +1,63 @@
 export interface PaginationParams {
-  page?: number;
   limit?: number;
-  offset?: number;
-  cursor?: string;
+  starting_after?: string;
 }
 
 export interface PaginatedResponse<T> {
   data: T[];
-  total: number;
-  page: number;
+  total?: number;
   limit: number;
   hasMore: boolean;
-  nextCursor?: string;
+  next_starting_after?: string;
 }
 
-export function buildPaginationQuery(params: PaginationParams): URLSearchParams {
+export function buildInstantlyPaginationQuery(params: PaginationParams): URLSearchParams {
   const query = new URLSearchParams();
-  
-  if (params.page !== undefined) {
-    query.append('page', params.page.toString());
-  }
   
   if (params.limit !== undefined) {
     query.append('limit', params.limit.toString());
   }
   
-  if (params.offset !== undefined) {
-    query.append('offset', params.offset.toString());
-  }
-  
-  if (params.cursor !== undefined) {
-    query.append('cursor', params.cursor);
+  if (params.starting_after !== undefined) {
+    query.append('starting_after', params.starting_after);
   }
   
   return query;
 }
 
+export function buildQueryParams(args: any, additionalParams: string[] = []): URLSearchParams {
+  const query = new URLSearchParams();
+  
+  // Add pagination parameters
+  if (args?.limit) query.append('limit', String(args.limit));
+  if (args?.starting_after) query.append('starting_after', String(args.starting_after));
+  
+  // Add additional parameters
+  additionalParams.forEach(param => {
+    if (args?.[param]) {
+      query.append(param, String(args[param]));
+    }
+  });
+  
+  return query;
+}
+
 export function parsePaginatedResponse<T>(response: any): PaginatedResponse<T> {
-  // Handle different pagination response formats
+  // Handle Instantly API response format
   if (response.data && Array.isArray(response.data)) {
     return {
       data: response.data as T[],
-      total: response.total || response.count || response.data.length,
-      page: response.page || 1,
-      limit: response.limit || response.per_page || response.data.length,
-      hasMore: response.has_more || response.hasMore || false,
-      nextCursor: response.next_cursor || response.nextCursor,
+      total: response.total,
+      limit: response.limit || response.data.length,
+      hasMore: !!response.next_starting_after,
+      next_starting_after: response.next_starting_after,
     };
   }
   
-  // Handle array response with pagination info in headers
+  // Handle array response
   if (Array.isArray(response)) {
     return {
       data: response as T[],
-      total: response.length,
-      page: 1,
       limit: response.length,
       hasMore: false,
     };
@@ -63,21 +66,30 @@ export function parsePaginatedResponse<T>(response: any): PaginatedResponse<T> {
   // Default case
   return {
     data: [],
-    total: 0,
-    page: 1,
     limit: 0,
     hasMore: false,
   };
 }
 
 export function createPaginationInfo(
-  currentPage: number,
-  totalItems: number,
-  itemsPerPage: number
+  currentLimit: number,
+  totalItems?: number,
+  hasMore?: boolean,
+  nextStartingAfter?: string
 ): string {
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  const startItem = (currentPage - 1) * itemsPerPage + 1;
-  const endItem = Math.min(currentPage * itemsPerPage, totalItems);
+  let info = `Showing ${currentLimit} items`;
   
-  return `Page ${currentPage} of ${totalPages} (${startItem}-${endItem} of ${totalItems} items)`;
+  if (totalItems !== undefined) {
+    info += ` of ${totalItems} total`;
+  }
+  
+  if (hasMore) {
+    info += ` (more available)`;
+  }
+  
+  if (nextStartingAfter) {
+    info += ` - Next page token: ${nextStartingAfter}`;
+  }
+  
+  return info;
 }

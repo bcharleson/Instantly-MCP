@@ -1,21 +1,63 @@
-// Based on testing feedback, here are the corrections needed:
+// Corrected API endpoint paths based on official Instantly v2 API documentation and testing
 
-// Correct endpoint paths based on Instantly v2 API:
 export const API_ENDPOINTS = {
-  // Working endpoints
+  // Working endpoints (confirmed)
   campaigns: '/campaigns',
-  accounts: '/accounts', 
+  accounts: '/accounts',
   leads: '/leads',
-  
-  // Endpoints that need correction (these returned 404)
-  leadLists: '/lists', // likely should be /lists instead of /lead_lists
-  apiKeys: '/api-key', // likely singular instead of plural
-  emailVerification: '/verify', // simpler path
-  emails: '/emails', // for sending emails
-  
+  apiKeys: '/api-keys',
+  emails: '/emails',
+
+  // Fixed endpoints (corrected paths)
+  leadLists: '/lead-lists',
+  emailVerification: '/email-verification',
+
   // Analytics endpoints
-  campaignAnalytics: '/analytics/campaigns',
-  accountWarmup: '/accounts/warmup',
+  campaignAnalytics: '/campaigns/analytics',
+  campaignAnalyticsOverview: '/campaigns/analytics/overview',
+  accountWarmup: '/accounts/warmup-analytics',
+
+  // Email operations
+  sendEmail: '/emails/send', // May need verification
+  replyEmail: '/emails/{id}/reply',
+
+  // Lead operations
+  listLeads: '/leads', // Changed from /lead/list
+  createLead: '/leads',
+  updateLead: '/leads/{id}',
+  moveLeads: '/leads/move',
+};
+
+// Endpoint method mappings
+export const API_METHODS = {
+  // GET endpoints
+  listCampaigns: 'GET',
+  getCampaign: 'GET',
+  listAccounts: 'GET',
+  listLeads: 'GET', // Changed from POST
+  listEmails: 'GET',
+  listApiKeys: 'GET',
+  listLeadLists: 'GET',
+  getCampaignAnalytics: 'GET',
+  getCampaignAnalyticsOverview: 'GET',
+
+  // POST endpoints
+  createCampaign: 'POST',
+  createAccount: 'POST',
+  createLead: 'POST',
+  createApiKey: 'POST',
+  createLeadList: 'POST',
+  sendEmail: 'POST',
+  verifyEmail: 'POST',
+  activateCampaign: 'POST',
+  getWarmupAnalytics: 'POST', // Requires POST with data
+  moveLeads: 'POST',
+  replyToEmail: 'POST',
+
+  // PATCH endpoints
+  updateCampaign: 'PATCH',
+  updateAccount: 'PATCH',
+  updateLead: 'PATCH',
 };
 
 // Required fields for creating resources (to fix 400 errors)

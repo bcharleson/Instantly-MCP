@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2025-01-20
+
+### 🚀 Major Fixes & Improvements
+- **CRITICAL FIX**: Fixed `create_campaign` endpoint to match official API documentation
+  - Changed from `from_email` to `email_list` array parameter
+  - Added proper validation for verified sending accounts
+  - Fixed campaign data structure to match API requirements
+  - Added comprehensive input validation with helpful error messages
+
+### 🔧 Endpoint Path Corrections
+- **Fixed `list_leads`**: Changed from `POST /lead/list` to `GET /leads`
+- **Fixed `verify_email`**: Changed from `/verify-email` to `/email-verification`
+- **Fixed `get_warmup_analytics`**: Corrected endpoint path to `/accounts/warmup-analytics`
+
+### ✅ Enhanced Validation & Error Handling
+- Added email address format validation
+- Added timezone validation with supported timezone list
+- Added time format validation (HH:MM)
+- Improved error messages with specific guidance
+- Added validation for campaign creation requirements
+
+### 🧪 Comprehensive Testing Suite
+- Added automated test script for all 25+ endpoints
+- Realistic test data generation
+- Edge case testing for validation
+- Detailed reporting with HTTP status analysis
+- NPM scripts for easy test execution
+- CI/CD ready with proper exit codes
+
+### 📚 Documentation & API Improvements
+- Updated `api-fixes.ts` with corrected endpoint mappings
+- Added `TEST_GUIDE.md` with comprehensive testing documentation
+- Fixed server version to match package version
+- Updated input schemas to reflect API changes
+
+### 🛠️ Developer Experience
+- Added `npm run test:endpoints` for full testing
+- Added `npm run test:quick` for rapid testing
+- Improved error reporting with HTTP status codes
+- Better debugging information for troubleshooting
+
 ## [2.0.13] - 2025-05-18
 
 ### Fixed
