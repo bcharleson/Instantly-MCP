@@ -26,7 +26,7 @@ if (!INSTANTLY_API_KEY) {
 const server = new Server(
   {
     name: 'instantly-mcp',
-    version: '2.5.2',
+    version: '2.5.3',
   },
   {
     capabilities: {
@@ -149,7 +149,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     // Campaign Creation Wizard - NEW!
     {
       name: 'campaign_creation_wizard',
-      description: 'Guided campaign creation workflow that checks verified accounts first, then gathers all required information step-by-step to prevent errors',
+      description: 'Guided campaign creation workflow that checks available accounts first, then gathers all required information step-by-step to prevent errors',
       inputSchema: {
         type: 'object',
         properties: {
@@ -163,7 +163,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           name: { type: 'string', description: 'Campaign name (required)' },
           subject: { type: 'string', description: 'Email subject line (required)' },
           body: { type: 'string', description: 'Email body content (required)' },
-          selected_email: { type: 'string', description: 'Selected verified sending account email (must be from the verified accounts list)' },
+          selected_email: { type: 'string', description: 'Selected sending account email (must be from the available accounts list)' },
 
           // Optional Configuration (with defaults)
           timezone: {
@@ -214,7 +214,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: 'create_campaign',
-      description: 'Create a new email campaign with complete configuration (Advanced users only - use campaign_creation_wizard for guided setup)',
+      description: 'Create a new email campaign with complete configuration',
       inputSchema: {
         type: 'object',
         properties: {
@@ -580,30 +580,26 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         switch (step) {
           case 'start': {
-            // Step 1: Check verified sending accounts
-            console.error('[Campaign Wizard] Step 1: Checking verified accounts...');
+            // Step 1: Check available sending accounts
+            console.error('[Campaign Wizard] Step 1: Checking available sending accounts...');
 
             try {
               const accountsResult = await makeInstantlyRequest('/accounts');
 
-              // Filter for verified/active accounts
+              // Get all accounts returned by the API - trust that they're usable
               const allAccounts = accountsResult.data || accountsResult.accounts || accountsResult;
-              const verifiedAccounts = Array.isArray(allAccounts)
-                ? allAccounts.filter((account: any) =>
-                    account.status === 'active' || account.status === 'verified' || account.verified === true
-                  )
-                : [];
+              const availableAccounts = Array.isArray(allAccounts) ? allAccounts : [];
 
-              if (verifiedAccounts.length === 0) {
+              if (availableAccounts.length === 0) {
                 return {
                   content: [{
                     type: 'text',
                     text: JSON.stringify({
                       step: 'error',
-                      message: 'No verified sending accounts found',
-                      action_required: 'Please add and verify sending accounts in your Instantly dashboard',
+                      message: 'No sending accounts found in your Instantly workspace',
+                      action_required: 'Please add sending accounts in your Instantly dashboard',
                       dashboard_url: 'https://app.instantly.ai/app/accounts',
-                      help: 'You need at least one verified sending account to create campaigns'
+                      help: 'You need at least one sending account to create campaigns'
                     }, null, 2)
                   }]
                 };
@@ -614,12 +610,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                   type: 'text',
                   text: JSON.stringify({
                     step: 'accounts_checked',
-                    message: 'Found verified sending accounts. Please select one and provide campaign details.',
-                    verified_accounts: verifiedAccounts.map((account: any, index: number) => ({
+                    message: 'Found available sending accounts. Please select one and provide campaign details.',
+                    available_accounts: availableAccounts.map((account: any, index: number) => ({
                       index: index + 1,
                       email: account.email,
-                      status: account.status || 'active',
-                      daily_limit: account.daily_limit || 'Not set'
+                      status: account.status || 'available',
+                      daily_limit: account.daily_limit || 'Not set',
+                      name: account.name || account.first_name || 'Not set'
                     })),
                     next_step: 'Call campaign_creation_wizard with step="info_gathered" and provide: name, subject, body, selected_email (from the list above)',
                     example: {
@@ -627,7 +624,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                       name: 'My Campaign Name',
                       subject: 'Email Subject Line',
                       body: 'Email body content...',
-                      selected_email: verifiedAccounts[0]?.email || 'your-verified-email@domain.com'
+                      selected_email: availableAccounts[0]?.email || 'your-account-email@domain.com'
                     }
                   }, null, 2)
                 }]
@@ -668,7 +665,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                       name: 'My Campaign Name',
                       subject: 'Email Subject Line',
                       body: 'Email body content...',
-                      selected_email: 'your-verified-email@domain.com'
+                      selected_email: 'your-account-email@domain.com'
                     }
                   }, null, 2)
                 }]
@@ -805,7 +802,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                     body: campaignData.body
                   }]
                 }],
-                // Use provided verified sending account
+                // Use provided sending account
                 email_list: campaignData.email_list,
 
                 // Campaign configuration
@@ -862,7 +859,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                     error: error.message,
                     campaign_data: campaignData,
                     troubleshooting: {
-                      check_email: 'Ensure the selected email is verified in your Instantly account',
+                      check_email: 'Ensure the selected email exists in your Instantly account',
                       check_api_key: 'Verify your API key has campaign creation permissions',
                       check_limits: 'Check if you have reached your campaign limits'
                     }

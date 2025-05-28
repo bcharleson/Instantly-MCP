@@ -2,7 +2,7 @@
 # Quick test script for the Campaign Creation Wizard v2.5.1
 # Usage: ./test-wizard.sh YOUR_API_KEY
 
-echo "🧙‍♂️ Testing Campaign Creation Wizard v2.5.2"
+echo "🧙‍♂️ Testing Campaign Creation Wizard v2.5.3"
 echo "=============================================="
 
 if [ -z "$1" ]; then
@@ -15,11 +15,11 @@ API_KEY="$1"
 
 echo ""
 echo "🔍 Step 1: Checking verified sending accounts..."
-echo "Command: npx instantly-mcp@2.5.2 --api-key YOUR_API_KEY"
+echo "Command: npx instantly-mcp@2.5.3 --api-key YOUR_API_KEY"
 echo ""
 
 # Test Step 1: Check accounts
-npx instantly-mcp@2.5.2 --api-key "$API_KEY" <<EOF
+npx instantly-mcp@2.5.3 --api-key "$API_KEY" <<EOF
 campaign_creation_wizard {"step": "start"}
 EOF
 
@@ -28,7 +28,7 @@ echo "📝 Step 2: Test validation with missing fields..."
 echo ""
 
 # Test Step 2: Missing fields validation
-npx instantly-mcp@2.5.2 --api-key "$API_KEY" <<EOF
+npx instantly-mcp@2.5.3 --api-key "$API_KEY" <<EOF
 campaign_creation_wizard {"step": "info_gathered", "name": "Test Campaign"}
 EOF
 

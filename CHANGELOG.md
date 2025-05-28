@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.3] - 2025-01-20
+
+### 🎯 MAJOR FIX: Removed Restrictive Account Filtering
+- **FIXED**: Wizard now shows ALL accounts from your Instantly workspace
+- **REMOVED**: Overly restrictive "verified" status filtering that excluded valid accounts
+- **IMPROVED**: Trusts Instantly API - any returned account is considered usable
+- **RESOLVED**: "No verified sending accounts found" error for workspaces with pre-loaded accounts
+
+### 🔧 What Changed
+- ✅ **Step 1**: Now calls `/accounts` and shows ALL returned accounts
+- ✅ **No filtering**: Removed `status === 'active' || status === 'verified'` restrictions
+- ✅ **Better messaging**: Changed from "verified accounts" to "available accounts"
+- ✅ **Trust API**: If Instantly returns an account, it's available for use
+- ✅ **Complete tool registration**: Both definition and implementation properly connected
+
+### 🧙‍♂️ Wizard Behavior Now
+1. **Step 1 (`start`)**: Shows ALL accounts from your workspace
+2. **Step 2 (`info_gathered`)**: Validates campaign information
+3. **Step 3 (`create`)**: Creates campaign with any selected account
+4. **No restrictions**: Uses whatever accounts Instantly provides
+
+### 💡 For Users with Pre-loaded Workspaces
+- ✅ **Works immediately**: No need to verify accounts separately
+- ✅ **Shows all accounts**: Pre-configured accounts are now visible
+- ✅ **No false errors**: Won't claim "no accounts found" when accounts exist
+- ✅ **Streamlined workflow**: Use any account returned by the API
+
 ## [2.5.2] - 2025-01-20
 
 ### 🚨 CRITICAL FIX: Complete Campaign Creation Wizard Implementation
