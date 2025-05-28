@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.1] - 2025-01-20
+
+### 🔧 HOTFIX: Campaign Creation Wizard Tool Definition
+- **FIXED**: Added missing `campaign_creation_wizard` tool definition to tools list
+- **COMPLETED**: Wizard now fully functional with proper tool registration
+- **VERIFIED**: Both tool definition and implementation are properly connected
+- **READY**: Wizard is now available for testing and use
+
+### 📋 What's Working Now
+- ✅ `campaign_creation_wizard` appears in tools list
+- ✅ Step-by-step workflow fully implemented
+- ✅ Account validation and error prevention
+- ✅ Clear guidance and helpful error messages
+- ✅ Backward compatibility with `create_campaign`
+
 ## [2.5.0] - 2025-01-20
 
 ### 🧙‍♂️ NEW FEATURE: Campaign Creation Wizard
