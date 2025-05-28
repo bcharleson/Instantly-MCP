@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.0] - 2025-01-20
+
+### 🧙‍♂️ NEW FEATURE: Campaign Creation Wizard
+- **ADDED**: `campaign_creation_wizard` tool for guided campaign creation
+- **PREVENTS**: 400 Bad Request errors by validating accounts and information first
+- **WORKFLOW**: 3-step process: check accounts → gather info → create campaign
+- **VALIDATION**: Ensures only verified sending accounts are used
+- **USER-FRIENDLY**: Clear step-by-step guidance with helpful error messages
+
+### 🔧 Workflow Steps
+1. **Step 1 (`start`)**: Automatically checks and displays verified sending accounts
+2. **Step 2 (`info_gathered`)**: Validates campaign information and shows configuration
+3. **Step 3 (`create`)**: Creates campaign with validated data
+
+### 💡 Benefits
+- ✅ Eliminates 400 Bad Request errors from unverified accounts
+- ✅ Provides clear guidance at each step
+- ✅ Shows configuration summary before creation
+- ✅ Includes sensible defaults for all optional settings
+- ✅ Comprehensive error handling with actionable solutions
+
+### 📚 Documentation
+- Added `CAMPAIGN_CREATION_WIZARD.md` with complete workflow guide
+- Added `examples/campaign-creation-wizard.ts` demonstration script
+- Updated tool descriptions to recommend wizard for new users
+
+### 🔄 Migration
+- `create_campaign` still available for advanced users
+- New users should use `campaign_creation_wizard` for guided experience
+- Existing integrations continue to work unchanged
+
 ## [2.4.1] - 2025-01-20
 
 ### 🔧 Hotfix: Create Campaign Validation

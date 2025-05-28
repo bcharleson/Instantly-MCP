@@ -64,9 +64,10 @@ npm run build
 ## Available Tools
 
 ### Campaign Management
+- `campaign_creation_wizard` - **🧙‍♂️ NEW!** Guided campaign creation (recommended for all users)
 - `list_campaigns` - List all campaigns with optional filters and pagination
 - `get_campaign` - Get details of a specific campaign
-- `create_campaign` - Create a new email campaign
+- `create_campaign` - Create a new email campaign (advanced users only)
 - `update_campaign` - Update an existing campaign
 - `activate_campaign` - Activate a campaign
 
@@ -101,13 +102,43 @@ npm run build
 - `list_api_keys` - List all API keys
 - `create_api_key` - Create a new API key
 
+## Campaign Creation Wizard 🧙‍♂️
+
+**NEW in v2.5.0!** The Campaign Creation Wizard prevents 400 Bad Request errors by guiding you through a step-by-step process:
+
+### Quick Start
+```bash
+# Step 1: Check your verified accounts
+campaign_creation_wizard { "step": "start" }
+
+# Step 2: Provide campaign info (using verified email from step 1)
+campaign_creation_wizard {
+  "step": "info_gathered",
+  "name": "My Campaign",
+  "subject": "Hello!",
+  "body": "Email content...",
+  "selected_email": "verified@yourdomain.com"
+}
+
+# Step 3: Create the campaign
+campaign_creation_wizard { "step": "create", ... }
+```
+
+### Benefits
+✅ **Prevents 400 errors** by validating accounts first
+✅ **Step-by-step guidance** with clear instructions
+✅ **Sensible defaults** for all optional settings
+✅ **Configuration preview** before creation
+
+See [CAMPAIGN_CREATION_WIZARD.md](CAMPAIGN_CREATION_WIZARD.md) for the complete guide.
+
 ## Example Usage
 
 Once configured, you can use natural language to interact with Instantly:
 
+- "Create a campaign using the wizard"
 - "List all my active campaigns"
 - "Show me the analytics for campaign XYZ"
-- "Create a new campaign called 'Summer Sale'"
 - "List all my sending accounts"
 
 ## Development
