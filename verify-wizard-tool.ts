@@ -19,7 +19,7 @@ async function verifyWizardTool() {
 
   const transport = new StdioClientTransport({
     command: 'npx',
-    args: ['instantly-mcp@2.5.1', '--api-key', apiKey],
+    args: ['instantly-mcp@2.5.2', '--api-key', apiKey],
   });
 
   const client = new Client({
@@ -31,7 +31,7 @@ async function verifyWizardTool() {
 
   try {
     await client.connect(transport);
-    console.log('✅ Connected to Instantly MCP server v2.5.1');
+    console.log('✅ Connected to Instantly MCP server v2.5.2');
 
     // List all available tools
     console.log('\n🔍 Checking available tools...');
