@@ -26,7 +26,7 @@ if (!INSTANTLY_API_KEY) {
 const server = new Server(
   {
     name: 'instantly-mcp',
-    version: '2.4.0',
+    version: '2.4.1',
   },
   {
     capabilities: {
@@ -581,6 +581,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           throw new McpError(ErrorCode.InvalidParams, 'email_list is required and must contain at least one verified sending account email address');
         }
 
+        // Check for placeholder emails that won't work
+        const placeholderEmails = ['your-verified-email@example.com', 'example@example.com', 'test@example.com'];
+        const hasPlaceholder = args.email_list.some((email: string) => placeholderEmails.includes(email.toLowerCase()));
+        if (hasPlaceholder) {
+          throw new McpError(ErrorCode.InvalidParams,
+            'email_list contains placeholder email addresses. Please use actual verified sending accounts from your Instantly account. ' +
+            'You can check your verified accounts by running the list_accounts tool first.'
+          );
+        }
+
         // Validate campaign data
         validateCampaignData(args);
 
@@ -624,14 +634,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               timezone: timezone
             }]
           },
-          // Sequences with email content
+          // Sequences with email content (REQUIRED by API)
           sequences: [{
             steps: [{
               subject: args!.subject,
               body: args!.body
             }]
           }],
-          // Use provided verified sending accounts
+          // Use provided verified sending accounts (REQUIRED by API)
           email_list: args!.email_list,
 
           // Campaign configuration with proper defaults

@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.1] - 2025-01-20
+
+### 🔧 Hotfix: Create Campaign Validation
+- **FIXED**: Added validation to reject placeholder emails (`your-verified-email@example.com`, etc.)
+- **IMPROVED**: Better error messages guiding users to use actual verified sending accounts
+- **ENHANCED**: Clear guidance to run `list_accounts` first to see available verified accounts
+- **ADDED**: Email format validation with specific error messages
+- **CONFIRMED**: Sequences field properly included as required by Instantly API
+
+### 💡 User Experience
+- Users now get helpful error messages instead of generic 400 Bad Request
+- Clear instructions on how to fix campaign creation issues
+- Validation prevents common mistakes before API calls
+
 ## [2.4.0] - 2025-01-20
 
 ### 🚀 Major Fixes & Improvements
