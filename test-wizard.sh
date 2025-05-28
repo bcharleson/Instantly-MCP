@@ -1,8 +1,8 @@
 #!/bin/bash
-# Quick test script for the Campaign Creation Wizard
+# Quick test script for the Campaign Creation Wizard v2.5.1
 # Usage: ./test-wizard.sh YOUR_API_KEY
 
-echo "🧙‍♂️ Testing Campaign Creation Wizard v2.5.0"
+echo "🧙‍♂️ Testing Campaign Creation Wizard v2.5.1"
 echo "=============================================="
 
 if [ -z "$1" ]; then
@@ -15,11 +15,11 @@ API_KEY="$1"
 
 echo ""
 echo "🔍 Step 1: Checking verified sending accounts..."
-echo "Command: npx instantly-mcp@latest --api-key YOUR_API_KEY"
+echo "Command: npx instantly-mcp@2.5.1 --api-key YOUR_API_KEY"
 echo ""
 
 # Test Step 1: Check accounts
-npx instantly-mcp@latest --api-key "$API_KEY" <<EOF
+npx instantly-mcp@2.5.1 --api-key "$API_KEY" <<EOF
 campaign_creation_wizard {"step": "start"}
 EOF
 
@@ -28,12 +28,15 @@ echo "📝 Step 2: Test validation with missing fields..."
 echo ""
 
 # Test Step 2: Missing fields validation
-npx instantly-mcp@latest --api-key "$API_KEY" <<EOF
+npx instantly-mcp@2.5.1 --api-key "$API_KEY" <<EOF
 campaign_creation_wizard {"step": "info_gathered", "name": "Test Campaign"}
 EOF
 
 echo ""
-echo "✅ Campaign Creation Wizard test completed!"
+echo "✅ Campaign Creation Wizard basic test completed!"
+echo ""
+echo "🚀 For complete workflow test, run:"
+echo "   tsx test-complete-wizard.ts YOUR_API_KEY"
 echo ""
 echo "💡 Next Steps:"
 echo "1. Use a verified email from Step 1 in your actual campaign creation"

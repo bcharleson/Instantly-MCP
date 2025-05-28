@@ -26,7 +26,7 @@ if (!INSTANTLY_API_KEY) {
 const server = new Server(
   {
     name: 'instantly-mcp',
-    version: '2.5.1',
+    version: '2.5.2',
   },
   {
     capabilities: {
@@ -574,6 +574,320 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   try {
     switch (name) {
+      // Campaign Creation Wizard - Guided workflow
+      case 'campaign_creation_wizard': {
+        const step = args?.step || 'start';
+
+        switch (step) {
+          case 'start': {
+            // Step 1: Check verified sending accounts
+            console.error('[Campaign Wizard] Step 1: Checking verified accounts...');
+
+            try {
+              const accountsResult = await makeInstantlyRequest('/accounts');
+
+              // Filter for verified/active accounts
+              const allAccounts = accountsResult.data || accountsResult.accounts || accountsResult;
+              const verifiedAccounts = Array.isArray(allAccounts)
+                ? allAccounts.filter((account: any) =>
+                    account.status === 'active' || account.status === 'verified' || account.verified === true
+                  )
+                : [];
+
+              if (verifiedAccounts.length === 0) {
+                return {
+                  content: [{
+                    type: 'text',
+                    text: JSON.stringify({
+                      step: 'error',
+                      message: 'No verified sending accounts found',
+                      action_required: 'Please add and verify sending accounts in your Instantly dashboard',
+                      dashboard_url: 'https://app.instantly.ai/app/accounts',
+                      help: 'You need at least one verified sending account to create campaigns'
+                    }, null, 2)
+                  }]
+                };
+              }
+
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    step: 'accounts_checked',
+                    message: 'Found verified sending accounts. Please select one and provide campaign details.',
+                    verified_accounts: verifiedAccounts.map((account: any, index: number) => ({
+                      index: index + 1,
+                      email: account.email,
+                      status: account.status || 'active',
+                      daily_limit: account.daily_limit || 'Not set'
+                    })),
+                    next_step: 'Call campaign_creation_wizard with step="info_gathered" and provide: name, subject, body, selected_email (from the list above)',
+                    example: {
+                      step: 'info_gathered',
+                      name: 'My Campaign Name',
+                      subject: 'Email Subject Line',
+                      body: 'Email body content...',
+                      selected_email: verifiedAccounts[0]?.email || 'your-verified-email@domain.com'
+                    }
+                  }, null, 2)
+                }]
+              };
+            } catch (error: any) {
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    step: 'error',
+                    message: 'Failed to check sending accounts',
+                    error: error.message,
+                    action_required: 'Verify your API key has account access permissions'
+                  }, null, 2)
+                }]
+              };
+            }
+          }
+
+          case 'info_gathered': {
+            // Step 2: Validate required information and show configuration options
+            console.error('[Campaign Wizard] Step 2: Validating campaign information...');
+
+            const requiredFields = ['name', 'subject', 'body', 'selected_email'];
+            const missingFields = requiredFields.filter(field => !args?.[field]);
+
+            if (missingFields.length > 0) {
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    step: 'error',
+                    message: 'Missing required campaign information',
+                    missing_fields: missingFields,
+                    action_required: 'Please provide all required fields',
+                    example: {
+                      step: 'info_gathered',
+                      name: 'My Campaign Name',
+                      subject: 'Email Subject Line',
+                      body: 'Email body content...',
+                      selected_email: 'your-verified-email@domain.com'
+                    }
+                  }, null, 2)
+                }]
+              };
+            }
+
+            // Build configuration with defaults
+            const config = {
+              name: args!.name,
+              subject: args!.subject,
+              body: args!.body,
+              selected_email: args!.selected_email,
+
+              // Schedule configuration with defaults
+              timezone: args?.timezone || 'America/New_York',
+              timing_from: args?.timing_from || '09:00',
+              timing_to: args?.timing_to || '17:00',
+
+              // Email configuration with defaults
+              daily_limit: args?.daily_limit || 50,
+              email_gap_minutes: args?.email_gap_minutes || 10,
+              text_only: args?.text_only || false,
+
+              // Tracking configuration with defaults
+              open_tracking: args?.open_tracking !== false, // Default true
+              link_tracking: args?.link_tracking !== false, // Default true
+              stop_on_reply: args?.stop_on_reply !== false, // Default true
+
+              // Days configuration with defaults
+              send_weekdays: args?.send_weekdays !== false, // Default true
+              send_weekends: args?.send_weekends === true   // Default false
+            };
+
+            return {
+              content: [{
+                type: 'text',
+                text: JSON.stringify({
+                  step: 'validated',
+                  message: 'Campaign information validated successfully. Review the configuration below.',
+                  campaign_config: config,
+                  next_step: 'If everything looks correct, call campaign_creation_wizard with step="create" and the same parameters to create the campaign',
+                  modify_step: 'To modify any settings, call again with step="info_gathered" and updated parameters'
+                }, null, 2)
+              }]
+            };
+          }
+
+          case 'create': {
+            // Step 3: Create the campaign with validated information
+            console.error('[Campaign Wizard] Step 3: Creating campaign...');
+
+            // Validate required fields again
+            const requiredFields = ['name', 'subject', 'body', 'selected_email'];
+            const missingFields = requiredFields.filter(field => !args?.[field]);
+
+            if (missingFields.length > 0) {
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    step: 'error',
+                    message: 'Missing required fields for campaign creation',
+                    missing_fields: missingFields,
+                    action_required: 'Go back to step="info_gathered" and provide all required information'
+                  }, null, 2)
+                }]
+              };
+            }
+
+            // Prepare campaign data for create_campaign
+            const campaignData = {
+              name: args!.name,
+              subject: args!.subject,
+              body: args!.body,
+              email_list: [args!.selected_email],
+
+              // Optional configuration with defaults
+              timezone: args?.timezone || 'America/New_York',
+              timing_from: args?.timing_from || '09:00',
+              timing_to: args?.timing_to || '17:00',
+              daily_limit: args?.daily_limit || 50,
+              email_gap_minutes: args?.email_gap_minutes || 10,
+              open_tracking: args?.open_tracking !== false,
+              link_tracking: args?.link_tracking !== false,
+              stop_on_reply: args?.stop_on_reply !== false,
+              text_only: args?.text_only === true,
+
+              // Days configuration
+              days: {
+                monday: args?.send_weekdays !== false,
+                tuesday: args?.send_weekdays !== false,
+                wednesday: args?.send_weekdays !== false,
+                thursday: args?.send_weekdays !== false,
+                friday: args?.send_weekdays !== false,
+                saturday: args?.send_weekends === true,
+                sunday: args?.send_weekends === true
+              }
+            };
+
+            try {
+              // Use the same campaign creation logic as create_campaign
+              const timezone = campaignData.timezone;
+              const days = campaignData.days;
+
+              // Convert days object to Instantly's format (0-6)
+              const daysConfig = {
+                '0': days.sunday,    // Sunday = 0
+                '1': days.monday,    // Monday = 1
+                '2': days.tuesday,   // Tuesday = 2
+                '3': days.wednesday, // Wednesday = 3
+                '4': days.thursday,  // Thursday = 4
+                '5': days.friday,    // Friday = 5
+                '6': days.saturday   // Saturday = 6
+              };
+
+              // Build comprehensive campaign data according to API documentation
+              const apiCampaignData: any = {
+                name: campaignData.name,
+                campaign_schedule: {
+                  schedules: [{
+                    name: 'Wizard Schedule',
+                    timing: {
+                      from: campaignData.timing_from,
+                      to: campaignData.timing_to
+                    },
+                    days: daysConfig,
+                    timezone: timezone
+                  }]
+                },
+                // Sequences with email content
+                sequences: [{
+                  steps: [{
+                    subject: campaignData.subject,
+                    body: campaignData.body
+                  }]
+                }],
+                // Use provided verified sending account
+                email_list: campaignData.email_list,
+
+                // Campaign configuration
+                daily_limit: campaignData.daily_limit,
+                email_gap: campaignData.email_gap_minutes,
+                text_only: campaignData.text_only,
+                link_tracking: campaignData.link_tracking,
+                open_tracking: campaignData.open_tracking,
+                stop_on_reply: campaignData.stop_on_reply,
+                stop_on_auto_reply: true,
+
+                // Additional required campaign settings
+                pl_value: 100,
+                is_evergreen: false,
+                random_wait_max: 10,
+                daily_max_leads: campaignData.daily_limit,
+                prioritize_new_leads: false,
+                match_lead_esp: false,
+                stop_for_company: false,
+                insert_unsubscribe_header: true,
+                allow_risky_contacts: false,
+                disable_bounce_protect: false
+              };
+
+              const result = await makeInstantlyRequest('/campaigns', 'POST', apiCampaignData);
+
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    step: 'completed',
+                    message: 'Campaign created successfully!',
+                    campaign: result,
+                    summary: {
+                      name: campaignData.name,
+                      sending_from: campaignData.email_list[0],
+                      daily_limit: campaignData.daily_limit,
+                      schedule: `${campaignData.timing_from}-${campaignData.timing_to} ${timezone}`,
+                      tracking: {
+                        opens: campaignData.open_tracking,
+                        links: campaignData.link_tracking
+                      }
+                    }
+                  }, null, 2)
+                }]
+              };
+            } catch (error: any) {
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    step: 'error',
+                    message: 'Failed to create campaign',
+                    error: error.message,
+                    campaign_data: campaignData,
+                    troubleshooting: {
+                      check_email: 'Ensure the selected email is verified in your Instantly account',
+                      check_api_key: 'Verify your API key has campaign creation permissions',
+                      check_limits: 'Check if you have reached your campaign limits'
+                    }
+                  }, null, 2)
+                }]
+              };
+            }
+          }
+
+          default: {
+            return {
+              content: [{
+                type: 'text',
+                text: JSON.stringify({
+                  step: 'error',
+                  message: 'Invalid step provided',
+                  valid_steps: ['start', 'info_gathered', 'create'],
+                  action_required: 'Use step="start" to begin the campaign creation wizard'
+                }, null, 2)
+              }]
+            };
+          }
+        }
+      }
+
       // Campaign endpoints
       case 'list_campaigns': {
         const queryParams = buildQueryParams(args, ['search', 'status']);

@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.2] - 2025-01-20
+
+### 🚨 CRITICAL FIX: Complete Campaign Creation Wizard Implementation
+- **FIXED**: Added missing `campaign_creation_wizard` implementation to request handler
+- **RESOLVED**: "Unknown tool: campaign_creation_wizard" error completely eliminated
+- **COMPLETED**: Full 3-step wizard workflow now functional
+- **TESTED**: Both tool definition and implementation properly connected
+
+### 🔧 What's Fixed
+- ✅ Tool definition properly registered in tools list
+- ✅ Complete wizard implementation added to request handler
+- ✅ All 3 steps (start, info_gathered, create) fully functional
+- ✅ Account validation and error prevention working
+- ✅ Clear guidance and helpful error messages
+- ✅ Backward compatibility with `create_campaign` maintained
+
+### 🧙‍♂️ Wizard Features Now Working
+- **Step 1 (`start`)**: Checks verified sending accounts automatically
+- **Step 2 (`info_gathered`)**: Validates campaign information with defaults
+- **Step 3 (`create`)**: Creates campaign with validated data
+- **Error Handling**: Clear messages for missing accounts, fields, or API issues
+- **Configuration Preview**: Shows settings before campaign creation
+
 ## [2.5.1] - 2025-01-20
 
 ### 🔧 HOTFIX: Campaign Creation Wizard Tool Definition
