@@ -26,7 +26,7 @@ if (!INSTANTLY_API_KEY) {
 const server = new Server(
   {
     name: 'instantly-mcp',
-    version: '3.0.0',
+    version: '3.0.1',
   },
   {
     capabilities: {
@@ -482,18 +482,41 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     // Email Operations
     {
-      name: 'send_email',
-      description: 'Send a single email',
+      name: 'reply_to_email',
+      description: 'Reply to an existing email. **IMPORTANT**: This can only be used to reply to existing emails, not to send new emails. You must provide the ID of an existing email to reply to. Use campaigns for sending new emails.',
       inputSchema: {
         type: 'object',
         properties: {
-          to: { type: 'string', description: 'Recipient email' },
-          from: { type: 'string', description: 'Sender email' },
-          subject: { type: 'string', description: 'Email subject' },
-          body: { type: 'string', description: 'Email body' },
-          html: { type: 'boolean', description: 'Is HTML email' },
+          reply_to_uuid: {
+            type: 'string',
+            description: 'The ID of the email to reply to (REQUIRED). Get this from list_emails or get_email endpoints.'
+          },
+          eaccount: {
+            type: 'string',
+            description: 'The email account to send from (REQUIRED). Must be an email address from list_accounts that exists in your workspace.'
+          },
+          subject: {
+            type: 'string',
+            description: 'Reply subject line (REQUIRED). Usually starts with "Re: "'
+          },
+          body: {
+            type: 'object',
+            description: 'Email body content (REQUIRED). Provide either html or text, or both.',
+            properties: {
+              html: { type: 'string', description: 'HTML body content' },
+              text: { type: 'string', description: 'Plain text body content' }
+            }
+          },
+          cc_address_email_list: {
+            type: 'string',
+            description: 'Comma-separated list of CC email addresses (optional)'
+          },
+          bcc_address_email_list: {
+            type: 'string',
+            description: 'Comma-separated list of BCC email addresses (optional)'
+          },
         },
-        required: ['to', 'from', 'subject', 'body'],
+        required: ['reply_to_uuid', 'eaccount', 'subject', 'body'],
       },
     },
     {
@@ -1043,11 +1066,35 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'reply_to_email': {
-        if (!args?.email_id || !args?.body) {
-          throw new McpError(ErrorCode.InvalidParams, 'email_id and body are required');
+        const requiredFields = ['reply_to_uuid', 'eaccount', 'subject', 'body'];
+        for (const field of requiredFields) {
+          if (!args?.[field]) {
+            throw new McpError(ErrorCode.InvalidParams, `${field} is required`);
+          }
         }
 
-        const result = await makeInstantlyRequest(`/emails/${args.email_id}/reply`, 'POST', { body: args.body });
+        // Validate body object has either html or text
+        const bodyObj = args?.body as any;
+        if (!bodyObj?.html && !bodyObj?.text) {
+          throw new McpError(ErrorCode.InvalidParams, 'body must contain either html or text content');
+        }
+
+        const emailData: any = {
+          reply_to_uuid: args!.reply_to_uuid,
+          eaccount: args!.eaccount,
+          subject: args!.subject,
+          body: args!.body,
+        };
+
+        if (args?.cc_address_email_list) {
+          emailData.cc_address_email_list = args.cc_address_email_list;
+        }
+
+        if (args?.bcc_address_email_list) {
+          emailData.bcc_address_email_list = args.bcc_address_email_list;
+        }
+
+        const result = await makeInstantlyRequest('/emails/reply', 'POST', emailData);
 
         return {
           content: [

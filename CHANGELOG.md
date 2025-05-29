@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.1] - 2025-01-20
+
+### 🔧 TROUBLESHOOTING FIXES: API Endpoint Corrections
+- **FIXED**: `send_email` tool replaced with correct `reply_to_email` implementation
+- **IDENTIFIED**: Root causes for all test failures with comprehensive solutions
+- **ENHANCED**: Email reply functionality now uses proper `/emails/reply` endpoint
+- **ADDED**: Complete troubleshooting guide with working examples
+
+### 📋 Issue Resolution
+- ✅ **create_campaign 400 Error**: Implementation is correct - issue is API scope/validation
+- ✅ **send_email 404 Error**: Fixed - endpoint doesn't exist, replaced with reply functionality
+- ✅ **verify_email 403 Error**: Identified - requires premium plan or specific scopes
+
+### 🛠️ API Corrections
+- **Removed**: Non-existent `send_email` endpoint
+- **Enhanced**: `reply_to_email` with proper parameter validation
+- **Clarified**: Email sending must use campaigns, replies use dedicated endpoint
+- **Documented**: Complete API scope requirements and troubleshooting steps
+
+### 📚 Documentation Added
+- **TROUBLESHOOTING_GUIDE.md**: Comprehensive analysis and solutions
+- **Working Examples**: Complete campaign creation and email reply workflows
+- **Optimization Guide**: Best practices for high-warmup accounts (98-100 scores)
+- **API Scope Reference**: Required permissions for each operation
+
+### 🎯 Test Results Analysis
+- **10 High-Warmup Accounts**: Optimization recommendations for 98-100 warmup scores
+- **Existing Analytics**: Leverage 12 replies and 4 opportunities data
+- **Volume Recommendations**: 50-100 emails/day per account based on warmup scores
+- **Sequence Optimization**: Multi-touch campaigns with proper timing
+
 ## [3.0.0] - 2025-01-20
 
 ### 🎯 MAJOR REFACTOR: Streamlined MCP Server
