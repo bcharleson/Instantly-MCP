@@ -26,7 +26,7 @@ if (!INSTANTLY_API_KEY) {
 const server = new Server(
   {
     name: 'instantly-mcp',
-    version: '2.5.3',
+    version: '3.0.0',
   },
   {
     capabilities: {
@@ -146,47 +146,6 @@ const makeInstantlyRequest = async (endpoint: string, method: string = 'GET', da
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
-    // Campaign Creation Wizard - NEW!
-    {
-      name: 'campaign_creation_wizard',
-      description: 'Guided campaign creation workflow that checks available accounts first, then gathers all required information step-by-step to prevent errors',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          step: {
-            type: 'string',
-            enum: ['start', 'info_gathered', 'create'],
-            description: 'Current step in the workflow: start (check accounts), info_gathered (gather info), create (final creation)'
-          },
-
-          // Campaign Information (gathered in step 2)
-          name: { type: 'string', description: 'Campaign name (required)' },
-          subject: { type: 'string', description: 'Email subject line (required)' },
-          body: { type: 'string', description: 'Email body content (required)' },
-          selected_email: { type: 'string', description: 'Selected sending account email (must be from the available accounts list)' },
-
-          // Optional Configuration (with defaults)
-          timezone: {
-            type: 'string',
-            description: 'Timezone for campaign schedule (default: "America/New_York")',
-            enum: ["America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "Europe/London", "Europe/Paris", "Asia/Tokyo", "Asia/Singapore", "Australia/Sydney"]
-          },
-          timing_from: { type: 'string', description: 'Start time in HH:MM format (default: "09:00")' },
-          timing_to: { type: 'string', description: 'End time in HH:MM format (default: "17:00")' },
-          daily_limit: { type: 'number', description: 'Daily sending limit (default: 50)' },
-          email_gap_minutes: { type: 'number', description: 'Minutes between emails (default: 10)' },
-          open_tracking: { type: 'boolean', description: 'Enable open tracking (default: true)' },
-          link_tracking: { type: 'boolean', description: 'Enable link tracking (default: true)' },
-          stop_on_reply: { type: 'boolean', description: 'Stop campaign on reply (default: true)' },
-          text_only: { type: 'boolean', description: 'Send text-only emails (default: false)' },
-
-          // Days configuration
-          send_weekdays: { type: 'boolean', description: 'Send on weekdays (default: true)' },
-          send_weekends: { type: 'boolean', description: 'Send on weekends (default: false)' }
-        },
-        required: ['step']
-      },
-    },
     // Campaign Management
     {
       name: 'list_campaigns',
@@ -214,76 +173,110 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: 'create_campaign',
-      description: 'Create a new email campaign with complete configuration',
+      description: 'Create a new email campaign with complete configuration. **CRITICAL WORKFLOW**: Before calling this tool, you MUST first call list_accounts to obtain valid sending email addresses. The email_list parameter can ONLY contain email addresses returned by list_accounts - using any other addresses will result in 400 Bad Request errors. This tool creates comprehensive email campaigns with sequences, scheduling, and tracking capabilities.',
       inputSchema: {
         type: 'object',
         properties: {
-          name: { type: 'string', description: 'Campaign name (required)' },
-          subject: { type: 'string', description: 'Email subject line (required)' },
-          body: { type: 'string', description: 'Email body content (required)' },
+          // CRITICAL REQUIRED FIELDS - Campaign will fail without these
+          name: {
+            type: 'string',
+            description: 'Campaign name (REQUIRED). Choose a descriptive name that identifies the campaign purpose.'
+          },
+          subject: {
+            type: 'string',
+            description: 'Email subject line (REQUIRED). This is the subject for the first email in the sequence. Supports personalization variables like {{firstName}}.'
+          },
+          body: {
+            type: 'string',
+            description: 'Email body content (REQUIRED). This is the content for the first email in the sequence. Supports personalization variables like {{firstName}}, {{lastName}}, {{companyName}}. Use \\n for line breaks.'
+          },
           email_list: {
             type: 'array',
             items: { type: 'string' },
-            description: 'Array of verified sending account email addresses (required) - these must be accounts you have added and verified in Instantly'
+            description: 'Array of sending account email addresses (REQUIRED). **CRITICAL**: These MUST be email addresses obtained from list_accounts tool - you cannot use arbitrary email addresses. Each email in this array must exist in the user\'s Instantly workspace. Example: ["sender1@company.com", "sender2@company.com"]'
           },
 
-          // Schedule configuration
-          schedule_name: { type: 'string', description: 'Schedule name (optional, default: "Default Schedule")' },
-          timing_from: { type: 'string', description: 'Start time in HH:MM format (optional, default: "09:00")' },
-          timing_to: { type: 'string', description: 'End time in HH:MM format (optional, default: "17:00")' },
+          // SCHEDULE CONFIGURATION - Controls when emails are sent
+          schedule_name: {
+            type: 'string',
+            description: 'Schedule name (optional, default: "Default Schedule"). Internal name for the sending schedule.'
+          },
+          timing_from: {
+            type: 'string',
+            description: 'Daily start time in HH:MM format (optional, default: "09:00"). Emails will only be sent after this time each day. Example: "09:00" for 9 AM.'
+          },
+          timing_to: {
+            type: 'string',
+            description: 'Daily end time in HH:MM format (optional, default: "17:00"). Emails will stop being sent after this time each day. Example: "17:00" for 5 PM.'
+          },
           timezone: {
             type: 'string',
-            description: 'Timezone for campaign schedule (optional, default: "America/New_York")',
+            description: 'Timezone for campaign schedule (optional, default: "America/New_York"). All timing_from and timing_to values will be interpreted in this timezone.',
             enum: ["America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "Europe/London", "Europe/Paris", "Asia/Tokyo", "Asia/Singapore", "Australia/Sydney", "Etc/GMT+12"]
           },
           days: {
             type: 'object',
-            description: 'Days to send emails (optional, default: Monday-Friday only)',
+            description: 'Days of the week to send emails (optional, default: Monday-Friday only). Specify which days the campaign should send emails. Weekend sending is disabled by default for better deliverability.',
             properties: {
-              monday: { type: 'boolean', description: 'Send on Monday (default: true)' },
-              tuesday: { type: 'boolean', description: 'Send on Tuesday (default: true)' },
-              wednesday: { type: 'boolean', description: 'Send on Wednesday (default: true)' },
-              thursday: { type: 'boolean', description: 'Send on Thursday (default: true)' },
-              friday: { type: 'boolean', description: 'Send on Friday (default: true)' },
-              saturday: { type: 'boolean', description: 'Send on Saturday (default: false)' },
-              sunday: { type: 'boolean', description: 'Send on Sunday (default: false)' }
+              monday: { type: 'boolean', description: 'Send emails on Monday (default: true)' },
+              tuesday: { type: 'boolean', description: 'Send emails on Tuesday (default: true)' },
+              wednesday: { type: 'boolean', description: 'Send emails on Wednesday (default: true)' },
+              thursday: { type: 'boolean', description: 'Send emails on Thursday (default: true)' },
+              friday: { type: 'boolean', description: 'Send emails on Friday (default: true)' },
+              saturday: { type: 'boolean', description: 'Send emails on Saturday (default: false)' },
+              sunday: { type: 'boolean', description: 'Send emails on Sunday (default: false)' }
             }
           },
 
-          // Sequence configuration
+          // SEQUENCE CONFIGURATION - Controls follow-up emails
           sequence_steps: {
             type: 'number',
-            description: 'Number of follow-up steps in the sequence (optional, default: 1 for just the initial email)',
+            description: 'Number of follow-up steps in the sequence (optional, default: 1 for just the initial email). If set to 2 or more, the system will automatically create follow-up emails with the same subject/body but with "Follow-up N:" prefix. Maximum 10 steps.',
             minimum: 1,
             maximum: 10
           },
           step_delay_days: {
             type: 'number',
-            description: 'Days to wait between sequence steps (optional, default: 3 days)',
+            description: 'Days to wait between sequence steps (optional, default: 3 days). This is the delay between the initial email and first follow-up, then between each subsequent follow-up. Minimum 1 day, maximum 30 days.',
             minimum: 1,
             maximum: 30
           },
 
-          // Email configuration
-          text_only: { type: 'boolean', description: 'Send as text-only emails (optional, default: false for HTML)' },
+          // EMAIL SENDING CONFIGURATION - Controls delivery behavior
+          text_only: {
+            type: 'boolean',
+            description: 'Send as text-only emails (optional, default: false for HTML). Text-only emails often have better deliverability but no formatting.'
+          },
           daily_limit: {
             type: 'number',
-            description: 'Maximum emails to send per day (optional, default: 50)',
+            description: 'Maximum emails to send per day across all sending accounts (optional, default: 50). Higher limits may affect deliverability. Recommended: 20-100 for new accounts, up to 500 for warmed accounts.',
             minimum: 1,
             maximum: 1000
           },
           email_gap_minutes: {
             type: 'number',
-            description: 'Minutes to wait between individual emails (optional, default: 10)',
+            description: 'Minutes to wait between individual emails (optional, default: 10). Longer gaps improve deliverability. Minimum 1 minute, maximum 1440 minutes (24 hours).',
             minimum: 1,
             maximum: 1440
           },
 
-          // Tracking and behavior
-          link_tracking: { type: 'boolean', description: 'Track link clicks (optional, default: false)' },
-          open_tracking: { type: 'boolean', description: 'Track email opens (optional, default: false)' },
-          stop_on_reply: { type: 'boolean', description: 'Stop campaign when lead replies (optional, default: true)' },
-          stop_on_auto_reply: { type: 'boolean', description: 'Stop on auto-reply detection (optional, default: true)' }
+          // TRACKING AND BEHAVIOR - Controls campaign behavior
+          link_tracking: {
+            type: 'boolean',
+            description: 'Track link clicks in emails (optional, default: false). When enabled, links are replaced with tracking URLs.'
+          },
+          open_tracking: {
+            type: 'boolean',
+            description: 'Track email opens (optional, default: false). When enabled, invisible tracking pixels are added to emails.'
+          },
+          stop_on_reply: {
+            type: 'boolean',
+            description: 'Stop sending follow-ups when lead replies (optional, default: true). Recommended to keep true to avoid annoying engaged prospects.'
+          },
+          stop_on_auto_reply: {
+            type: 'boolean',
+            description: 'Stop sending when auto-reply is detected (optional, default: true). Helps avoid sending to out-of-office or vacation responders.'
+          }
         },
         required: ['name', 'subject', 'body', 'email_list'],
       },
@@ -339,12 +332,18 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     // Account Management
     {
       name: 'list_accounts',
-      description: 'List all sending accounts with pagination',
+      description: 'List all sending accounts in the workspace. **PREREQUISITE FOR CAMPAIGN CREATION**: You MUST call this tool first before creating any campaigns to obtain valid email addresses for the email_list parameter. The returned accounts are the only valid sending addresses that can be used in campaigns. If no accounts are returned, campaigns cannot be created until accounts are added to the workspace.',
       inputSchema: {
         type: 'object',
         properties: {
-          limit: { type: 'number', description: 'Number of accounts to return (1-100, default: 20)' },
-          starting_after: { type: 'string', description: 'ID of the last item from previous page for pagination' },
+          limit: {
+            type: 'number',
+            description: 'Number of accounts to return (1-100, default: 20). If you need all accounts for campaign creation, use a high limit or handle pagination.'
+          },
+          starting_after: {
+            type: 'string',
+            description: 'ID of the last item from previous page for pagination. Use this to get all accounts if there are more than the limit.'
+          },
         },
       },
     },
@@ -574,317 +573,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   try {
     switch (name) {
-      // Campaign Creation Wizard - Guided workflow
-      case 'campaign_creation_wizard': {
-        const step = args?.step || 'start';
-
-        switch (step) {
-          case 'start': {
-            // Step 1: Check available sending accounts
-            console.error('[Campaign Wizard] Step 1: Checking available sending accounts...');
-
-            try {
-              const accountsResult = await makeInstantlyRequest('/accounts');
-
-              // Get all accounts returned by the API - trust that they're usable
-              const allAccounts = accountsResult.data || accountsResult.accounts || accountsResult;
-              const availableAccounts = Array.isArray(allAccounts) ? allAccounts : [];
-
-              if (availableAccounts.length === 0) {
-                return {
-                  content: [{
-                    type: 'text',
-                    text: JSON.stringify({
-                      step: 'error',
-                      message: 'No sending accounts found in your Instantly workspace',
-                      action_required: 'Please add sending accounts in your Instantly dashboard',
-                      dashboard_url: 'https://app.instantly.ai/app/accounts',
-                      help: 'You need at least one sending account to create campaigns'
-                    }, null, 2)
-                  }]
-                };
-              }
-
-              return {
-                content: [{
-                  type: 'text',
-                  text: JSON.stringify({
-                    step: 'accounts_checked',
-                    message: 'Found available sending accounts. Please select one and provide campaign details.',
-                    available_accounts: availableAccounts.map((account: any, index: number) => ({
-                      index: index + 1,
-                      email: account.email,
-                      status: account.status || 'available',
-                      daily_limit: account.daily_limit || 'Not set',
-                      name: account.name || account.first_name || 'Not set'
-                    })),
-                    next_step: 'Call campaign_creation_wizard with step="info_gathered" and provide: name, subject, body, selected_email (from the list above)',
-                    example: {
-                      step: 'info_gathered',
-                      name: 'My Campaign Name',
-                      subject: 'Email Subject Line',
-                      body: 'Email body content...',
-                      selected_email: availableAccounts[0]?.email || 'your-account-email@domain.com'
-                    }
-                  }, null, 2)
-                }]
-              };
-            } catch (error: any) {
-              return {
-                content: [{
-                  type: 'text',
-                  text: JSON.stringify({
-                    step: 'error',
-                    message: 'Failed to check sending accounts',
-                    error: error.message,
-                    action_required: 'Verify your API key has account access permissions'
-                  }, null, 2)
-                }]
-              };
-            }
-          }
-
-          case 'info_gathered': {
-            // Step 2: Validate required information and show configuration options
-            console.error('[Campaign Wizard] Step 2: Validating campaign information...');
-
-            const requiredFields = ['name', 'subject', 'body', 'selected_email'];
-            const missingFields = requiredFields.filter(field => !args?.[field]);
-
-            if (missingFields.length > 0) {
-              return {
-                content: [{
-                  type: 'text',
-                  text: JSON.stringify({
-                    step: 'error',
-                    message: 'Missing required campaign information',
-                    missing_fields: missingFields,
-                    action_required: 'Please provide all required fields',
-                    example: {
-                      step: 'info_gathered',
-                      name: 'My Campaign Name',
-                      subject: 'Email Subject Line',
-                      body: 'Email body content...',
-                      selected_email: 'your-account-email@domain.com'
-                    }
-                  }, null, 2)
-                }]
-              };
-            }
-
-            // Build configuration with defaults
-            const config = {
-              name: args!.name,
-              subject: args!.subject,
-              body: args!.body,
-              selected_email: args!.selected_email,
-
-              // Schedule configuration with defaults
-              timezone: args?.timezone || 'America/New_York',
-              timing_from: args?.timing_from || '09:00',
-              timing_to: args?.timing_to || '17:00',
-
-              // Email configuration with defaults
-              daily_limit: args?.daily_limit || 50,
-              email_gap_minutes: args?.email_gap_minutes || 10,
-              text_only: args?.text_only || false,
-
-              // Tracking configuration with defaults
-              open_tracking: args?.open_tracking !== false, // Default true
-              link_tracking: args?.link_tracking !== false, // Default true
-              stop_on_reply: args?.stop_on_reply !== false, // Default true
-
-              // Days configuration with defaults
-              send_weekdays: args?.send_weekdays !== false, // Default true
-              send_weekends: args?.send_weekends === true   // Default false
-            };
-
-            return {
-              content: [{
-                type: 'text',
-                text: JSON.stringify({
-                  step: 'validated',
-                  message: 'Campaign information validated successfully. Review the configuration below.',
-                  campaign_config: config,
-                  next_step: 'If everything looks correct, call campaign_creation_wizard with step="create" and the same parameters to create the campaign',
-                  modify_step: 'To modify any settings, call again with step="info_gathered" and updated parameters'
-                }, null, 2)
-              }]
-            };
-          }
-
-          case 'create': {
-            // Step 3: Create the campaign with validated information
-            console.error('[Campaign Wizard] Step 3: Creating campaign...');
-
-            // Validate required fields again
-            const requiredFields = ['name', 'subject', 'body', 'selected_email'];
-            const missingFields = requiredFields.filter(field => !args?.[field]);
-
-            if (missingFields.length > 0) {
-              return {
-                content: [{
-                  type: 'text',
-                  text: JSON.stringify({
-                    step: 'error',
-                    message: 'Missing required fields for campaign creation',
-                    missing_fields: missingFields,
-                    action_required: 'Go back to step="info_gathered" and provide all required information'
-                  }, null, 2)
-                }]
-              };
-            }
-
-            // Prepare campaign data for create_campaign
-            const campaignData = {
-              name: args!.name,
-              subject: args!.subject,
-              body: args!.body,
-              email_list: [args!.selected_email],
-
-              // Optional configuration with defaults
-              timezone: args?.timezone || 'America/New_York',
-              timing_from: args?.timing_from || '09:00',
-              timing_to: args?.timing_to || '17:00',
-              daily_limit: args?.daily_limit || 50,
-              email_gap_minutes: args?.email_gap_minutes || 10,
-              open_tracking: args?.open_tracking !== false,
-              link_tracking: args?.link_tracking !== false,
-              stop_on_reply: args?.stop_on_reply !== false,
-              text_only: args?.text_only === true,
-
-              // Days configuration
-              days: {
-                monday: args?.send_weekdays !== false,
-                tuesday: args?.send_weekdays !== false,
-                wednesday: args?.send_weekdays !== false,
-                thursday: args?.send_weekdays !== false,
-                friday: args?.send_weekdays !== false,
-                saturday: args?.send_weekends === true,
-                sunday: args?.send_weekends === true
-              }
-            };
-
-            try {
-              // Use the same campaign creation logic as create_campaign
-              const timezone = campaignData.timezone;
-              const days = campaignData.days;
-
-              // Convert days object to Instantly's format (0-6)
-              const daysConfig = {
-                '0': days.sunday,    // Sunday = 0
-                '1': days.monday,    // Monday = 1
-                '2': days.tuesday,   // Tuesday = 2
-                '3': days.wednesday, // Wednesday = 3
-                '4': days.thursday,  // Thursday = 4
-                '5': days.friday,    // Friday = 5
-                '6': days.saturday   // Saturday = 6
-              };
-
-              // Build comprehensive campaign data according to API documentation
-              const apiCampaignData: any = {
-                name: campaignData.name,
-                campaign_schedule: {
-                  schedules: [{
-                    name: 'Wizard Schedule',
-                    timing: {
-                      from: campaignData.timing_from,
-                      to: campaignData.timing_to
-                    },
-                    days: daysConfig,
-                    timezone: timezone
-                  }]
-                },
-                // Sequences with email content
-                sequences: [{
-                  steps: [{
-                    subject: campaignData.subject,
-                    body: campaignData.body
-                  }]
-                }],
-                // Use provided sending account
-                email_list: campaignData.email_list,
-
-                // Campaign configuration
-                daily_limit: campaignData.daily_limit,
-                email_gap: campaignData.email_gap_minutes,
-                text_only: campaignData.text_only,
-                link_tracking: campaignData.link_tracking,
-                open_tracking: campaignData.open_tracking,
-                stop_on_reply: campaignData.stop_on_reply,
-                stop_on_auto_reply: true,
-
-                // Additional required campaign settings
-                pl_value: 100,
-                is_evergreen: false,
-                random_wait_max: 10,
-                daily_max_leads: campaignData.daily_limit,
-                prioritize_new_leads: false,
-                match_lead_esp: false,
-                stop_for_company: false,
-                insert_unsubscribe_header: true,
-                allow_risky_contacts: false,
-                disable_bounce_protect: false
-              };
-
-              const result = await makeInstantlyRequest('/campaigns', 'POST', apiCampaignData);
-
-              return {
-                content: [{
-                  type: 'text',
-                  text: JSON.stringify({
-                    step: 'completed',
-                    message: 'Campaign created successfully!',
-                    campaign: result,
-                    summary: {
-                      name: campaignData.name,
-                      sending_from: campaignData.email_list[0],
-                      daily_limit: campaignData.daily_limit,
-                      schedule: `${campaignData.timing_from}-${campaignData.timing_to} ${timezone}`,
-                      tracking: {
-                        opens: campaignData.open_tracking,
-                        links: campaignData.link_tracking
-                      }
-                    }
-                  }, null, 2)
-                }]
-              };
-            } catch (error: any) {
-              return {
-                content: [{
-                  type: 'text',
-                  text: JSON.stringify({
-                    step: 'error',
-                    message: 'Failed to create campaign',
-                    error: error.message,
-                    campaign_data: campaignData,
-                    troubleshooting: {
-                      check_email: 'Ensure the selected email exists in your Instantly account',
-                      check_api_key: 'Verify your API key has campaign creation permissions',
-                      check_limits: 'Check if you have reached your campaign limits'
-                    }
-                  }, null, 2)
-                }]
-              };
-            }
-          }
-
-          default: {
-            return {
-              content: [{
-                type: 'text',
-                text: JSON.stringify({
-                  step: 'error',
-                  message: 'Invalid step provided',
-                  valid_steps: ['start', 'info_gathered', 'create'],
-                  action_required: 'Use step="start" to begin the campaign creation wizard'
-                }, null, 2)
-              }]
-            };
-          }
-        }
-      }
-
       // Campaign endpoints
       case 'list_campaigns': {
         const queryParams = buildQueryParams(args, ['search', 'status']);

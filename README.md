@@ -3,11 +3,11 @@
 [![npm version](https://badge.fury.io/js/instantly-mcp.svg)](https://badge.fury.io/js/instantly-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-MCP server for Instantly.ai v2 API - Manage email campaigns, accounts, leads, and analytics through Claude AI. Perfect for email automation and cold outreach campaigns.
+**Streamlined MCP server for Instantly.ai v2 API** - Lightweight, intelligent tools that guide LLMs through proper email campaign creation and management. Perfect for AI-powered email automation and cold outreach.
 
 ## Overview
 
-The Instantly MCP Server is a powerful integration that brings Instantly.ai's email automation capabilities directly into Claude and other AI assistants through the Model Context Protocol. This enables AI-powered management of:
+The Instantly MCP Server v3.0.0 is a streamlined integration that brings Instantly.ai's email automation capabilities directly into Claude and other AI assistants. Built with intelligent tool descriptions that prevent errors through guidance, this enables reliable AI-powered management of:
 
 - 📧 Email campaigns and sequences
 - 👥 Account management and warmup
@@ -17,6 +17,14 @@ The Instantly MCP Server is a powerful integration that brings Instantly.ai's em
 - 🔑 API key management
 
 Perfect for sales teams, marketers, and developers who want to automate their cold outreach workflows using AI.
+
+## ✨ What's New in v3.0.0
+
+- **🎯 Streamlined Architecture**: Removed custom wizard logic in favor of intelligent tool descriptions
+- **🧠 LLM-Friendly**: Enhanced tool descriptions guide proper API usage and prevent errors
+- **⚡ Simplified Workflow**: 2-step process instead of 3-step wizard
+- **🔧 Better Maintainability**: Standard MCP tool pattern throughout
+- **📚 Clear Documentation**: Comprehensive examples and migration guide
 
 ## Quick Start
 
@@ -64,10 +72,9 @@ npm run build
 ## Available Tools
 
 ### Campaign Management
-- `campaign_creation_wizard` - **🧙‍♂️ NEW!** Guided campaign creation (recommended for all users)
 - `list_campaigns` - List all campaigns with optional filters and pagination
 - `get_campaign` - Get details of a specific campaign
-- `create_campaign` - Create a new email campaign (advanced users only)
+- `create_campaign` - **🎯 ENHANCED!** Create email campaigns with intelligent guidance
 - `update_campaign` - Update an existing campaign
 - `activate_campaign` - Activate a campaign
 
@@ -76,7 +83,7 @@ npm run build
 - `get_campaign_analytics_overview` - Get analytics overview for all campaigns
 
 ### Account Management
-- `list_accounts` - List all sending accounts with pagination
+- `list_accounts` - **🔑 PREREQUISITE!** List sending accounts (required before creating campaigns)
 - `create_account` - Create a new sending account
 - `update_account` - Update a sending account
 - `get_warmup_analytics` - Get warmup analytics for an account
@@ -102,44 +109,42 @@ npm run build
 - `list_api_keys` - List all API keys
 - `create_api_key` - Create a new API key
 
-## Campaign Creation Wizard 🧙‍♂️
+## Streamlined Campaign Creation 🎯
 
-**NEW in v2.5.0!** The Campaign Creation Wizard prevents 400 Bad Request errors by guiding you through a step-by-step process:
+**NEW in v3.0.0!** Simplified 2-step workflow with intelligent tool descriptions that guide LLMs through proper API usage:
 
 ### Quick Start
 ```bash
-# Step 1: Check your verified accounts
-campaign_creation_wizard { "step": "start" }
+# Step 1: Get available sending accounts (REQUIRED)
+list_accounts { "limit": 100 }
 
-# Step 2: Provide campaign info (using verified email from step 1)
-campaign_creation_wizard {
-  "step": "info_gathered",
-  "name": "My Campaign",
-  "subject": "Hello!",
-  "body": "Email content...",
-  "selected_email": "verified@yourdomain.com"
+# Step 2: Create campaign with accounts from step 1
+create_campaign {
+  "name": "Q2 2025 Outreach Campaign",
+  "subject": "Quick question about {{companyName}}",
+  "body": "Hi {{firstName}}, interested in exploring a partnership?",
+  "email_list": ["sender@company.com", "sender2@company.com"]
 }
-
-# Step 3: Create the campaign
-campaign_creation_wizard { "step": "create", ... }
 ```
 
 ### Benefits
-✅ **Prevents 400 errors** by validating accounts first
-✅ **Step-by-step guidance** with clear instructions
-✅ **Sensible defaults** for all optional settings
-✅ **Configuration preview** before creation
+✅ **Prevents 400 errors** through intelligent tool descriptions
+✅ **Fewer API calls** (2 steps instead of 3)
+✅ **More flexible** (can use multiple sending accounts)
+✅ **Better error handling** (standard MCP error responses)
+✅ **Easier to understand** (standard tool pattern)
 
-See [CAMPAIGN_CREATION_WIZARD.md](CAMPAIGN_CREATION_WIZARD.md) for the complete guide.
+See [STREAMLINED_WORKFLOW.md](STREAMLINED_WORKFLOW.md) for the complete guide and migration instructions.
 
 ## Example Usage
 
 Once configured, you can use natural language to interact with Instantly:
 
-- "Create a campaign using the wizard"
+- "Create a new email campaign for Q2 outreach"
 - "List all my active campaigns"
 - "Show me the analytics for campaign XYZ"
 - "List all my sending accounts"
+- "Check which accounts I can use for campaigns"
 
 ## Development
 

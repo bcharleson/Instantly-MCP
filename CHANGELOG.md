@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2025-01-20
+
+### 🎯 MAJOR REFACTOR: Streamlined MCP Server
+- **REMOVED**: `campaign_creation_wizard` tool entirely
+- **ENHANCED**: Core tools with intelligent descriptions and workflow guidance
+- **SIMPLIFIED**: Lean architecture focused on well-designed tool descriptions
+- **IMPROVED**: LLM-friendly tool descriptions that prevent errors through guidance
+
+### 🧠 Enhanced Tool Intelligence
+- **`list_accounts`**: Now clearly marked as prerequisite for campaign creation
+- **`create_campaign`**: Comprehensive parameter documentation with examples
+- **Workflow guidance**: Tools descriptions guide LLMs through proper API usage
+- **Error prevention**: Clear validation hints and data format requirements
+
+### 🔧 Architecture Benefits
+- ✅ **Maintainability**: No custom workflow logic to maintain
+- ✅ **Flexibility**: LLMs can adapt workflow as needed
+- ✅ **Simplicity**: Standard MCP tool pattern throughout
+- ✅ **Extensibility**: Easier to add new features and endpoints
+
+### 📋 Migration Guide
+**Old workflow (v2.x)**:
+```json
+campaign_creation_wizard {"step": "start"}
+campaign_creation_wizard {"step": "info_gathered", ...}
+campaign_creation_wizard {"step": "create", ...}
+```
+
+**New workflow (v3.0)**:
+```json
+list_accounts {"limit": 100}
+create_campaign {"name": "...", "email_list": ["account@domain.com"]}
+```
+
+### 💡 Key Improvements
+- **Fewer API calls**: 2 steps instead of 3
+- **More flexible**: Can use multiple sending accounts
+- **Better error handling**: Standard MCP error responses
+- **Clearer workflow**: Standard tool pattern, no custom logic
+
+### 📚 Documentation
+- Added `STREAMLINED_WORKFLOW.md` with comprehensive examples
+- Enhanced tool descriptions with prerequisite guidance
+- Clear migration path from wizard-based approach
+
 ## [2.5.3] - 2025-01-20
 
 ### 🎯 MAJOR FIX: Removed Restrictive Account Filtering
