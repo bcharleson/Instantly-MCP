@@ -26,7 +26,7 @@ if (!INSTANTLY_API_KEY) {
 const server = new Server(
   {
     name: 'instantly-mcp',
-    version: '3.0.5-1',
+    version: '3.0.6',
   },
   {
     capabilities: {
