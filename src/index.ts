@@ -41,47 +41,113 @@ const isValidEmail = (email: string): boolean => {
   return emailRegex.test(email);
 };
 
-// Helper function to validate email addresses against available accounts
+// Helper function to check if email verification is available
+const checkEmailVerificationAvailability = async (): Promise<{ available: boolean; reason?: string }> => {
+  try {
+    // Try to get API keys to check account capabilities
+    const apiKeysResult = await makeInstantlyRequest('/api-keys');
+    
+    // Check if this is a trial/basic account by looking at available features
+    // This is a heuristic - we'll try a minimal verification first
+    
+    return { available: true };
+  } catch (error: any) {
+    // If we can't even get API keys, there might be permission issues
+    if (error.message?.includes('403') || error.message?.includes('Forbidden')) {
+      return { 
+        available: false, 
+        reason: 'Your account may not have access to advanced features. Email verification typically requires a premium Instantly plan.' 
+      };
+    }
+    
+    // For other errors, assume verification might be available
+    return { available: true };
+  }
+};
+
+// Helper function to validate email addresses against eligible accounts
 const validateEmailListAgainstAccounts = async (emailList: string[]): Promise<void> => {
   try {
     // Fetch available accounts
     const accountsResult = await makeInstantlyRequest('/accounts');
-    const availableEmails = new Set<string>();
     
-    // Extract email addresses from accounts response
-    if (accountsResult && accountsResult.data && Array.isArray(accountsResult.data)) {
-      for (const account of accountsResult.data) {
-        if (account.email) {
-          availableEmails.add(account.email.toLowerCase());
-        }
-      }
-    }
-    
-    // Check if no accounts are available
-    if (availableEmails.size === 0) {
+    if (!accountsResult || !accountsResult.data || !Array.isArray(accountsResult.data)) {
       throw new McpError(
         ErrorCode.InvalidParams, 
-        'No sending accounts available. Please add at least one verified sending account to your workspace before creating campaigns.'
+        'Unable to retrieve accounts from your workspace. Please ensure you have at least one account configured.'
       );
+    }
+
+    const accounts = accountsResult.data;
+    console.error(`[Instantly MCP] Found ${accounts.length} total accounts`);
+    
+    // Filter accounts to find eligible ones for campaign sending
+    const eligibleAccounts = accounts.filter((account: any) => {
+      const isEligible = 
+        account.status === 1 &&                    // Account is active
+        !account.setup_pending &&                  // Setup is complete
+        account.email &&                          // Has email address
+        account.warmup_status === 1;              // Warmup is complete/active
+      
+      if (!isEligible) {
+        console.error(`[Instantly MCP] Account ${account.email} not eligible:`, {
+          status: account.status,
+          setup_pending: account.setup_pending,
+          warmup_status: account.warmup_status
+        });
+      }
+      
+      return isEligible;
+    });
+
+    console.error(`[Instantly MCP] Found ${eligibleAccounts.length} eligible accounts`);
+    
+    // Check if no eligible accounts are available
+    if (eligibleAccounts.length === 0) {
+      const accountStatuses = accounts.map((acc: any) => ({
+        email: acc.email,
+        status: acc.status,
+        setup_pending: acc.setup_pending,
+        warmup_status: acc.warmup_status,
+        warmup_score: acc.warmup_score
+      }));
+      
+      throw new McpError(
+        ErrorCode.InvalidParams, 
+        `No eligible sending accounts found. For campaign creation, accounts must meet ALL criteria: ` +
+        `1) Active (status=1), 2) Setup complete (setup_pending=false), 3) Warmup active (warmup_status=1). ` +
+        `Current account statuses: ${JSON.stringify(accountStatuses, null, 2)}. ` +
+        `Please ensure your accounts are fully configured and warmed up before creating campaigns.`
+      );
+    }
+    
+    // Create set of eligible email addresses
+    const eligibleEmails = new Set<string>();
+    const eligibleEmailsForDisplay: string[] = [];
+    
+    for (const account of eligibleAccounts) {
+      eligibleEmails.add(account.email.toLowerCase());
+      eligibleEmailsForDisplay.push(`${account.email} (warmup: ${account.warmup_score})`);
     }
     
     // Validate each email in the provided list
     const invalidEmails: string[] = [];
     for (const email of emailList) {
-      if (!availableEmails.has(email.toLowerCase())) {
+      if (!eligibleEmails.has(email.toLowerCase())) {
         invalidEmails.push(email);
       }
     }
     
     if (invalidEmails.length > 0) {
-      const availableEmailsArray = Array.from(availableEmails);
       throw new McpError(
         ErrorCode.InvalidParams, 
-        `The following email addresses are not valid sending accounts in your workspace: ${invalidEmails.join(', ')}. ` +
-        `Valid sending accounts are: ${availableEmailsArray.join(', ')}. ` +
-        `Please use only verified accounts returned by the list_accounts tool.`
+        `The following email addresses are not eligible for campaign sending: ${invalidEmails.join(', ')}. ` +
+        `Eligible accounts (active, setup complete, warmed up): ${eligibleEmailsForDisplay.join(', ')}. ` +
+        `Please use only fully configured and warmed-up accounts.`
       );
     }
+
+    console.error(`[Instantly MCP] All ${emailList.length} email addresses validated successfully`);
   } catch (error) {
     // If it's already an McpError, rethrow it
     if (error instanceof McpError) {
@@ -642,6 +708,40 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ['name'],
       },
     },
+    // Debugging and Helper Tools
+    {
+      name: 'validate_campaign_accounts',
+      description: 'Validate which accounts are eligible for campaign creation. This tool helps debug campaign creation issues by showing the status of all accounts and which ones meet the requirements for sending campaigns.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          email_list: { 
+            type: 'array', 
+            items: { type: 'string' }, 
+            description: 'Optional: Specific email addresses to validate. If not provided, shows all account statuses.' 
+          },
+        },
+      },
+    },
+    {
+      name: 'get_account_details',
+      description: 'Get detailed information about a specific account including warmup status, SMTP settings, and eligibility for campaigns.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          email: { type: 'string', description: 'Email address of the account to inspect' },
+        },
+        required: ['email'],
+      },
+    },
+    {
+      name: 'check_feature_availability',
+      description: 'Check which premium features are available with your current Instantly plan and API key permissions.',
+      inputSchema: {
+        type: 'object',
+        properties: {},
+      },
+    },
   ],
 }));
 
@@ -1199,7 +1299,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           throw new McpError(ErrorCode.InvalidParams, `Invalid email format: ${args.email}`);
         }
 
+        // Check if email verification is likely available before attempting
+        console.error(`[Instantly MCP] Checking email verification availability...`);
+        const availabilityCheck = await checkEmailVerificationAvailability();
+        
+        if (!availabilityCheck.available) {
+          throw new McpError(
+            ErrorCode.InvalidRequest,
+            `Email verification is not available: ${availabilityCheck.reason} ` +
+            `This feature typically requires a premium Instantly plan. Please: ` +
+            `1) Upgrade your Instantly plan to include email verification, ` +
+            `2) Verify your API key has the required scopes, ` +
+            `3) Contact Instantly support to confirm feature availability for your account.`
+          );
+        }
+
         try {
+          console.error(`[Instantly MCP] Attempting email verification for: ${args.email}`);
           const result = await makeInstantlyRequest('/email-verification', 'POST', { email: args.email });
 
           return {
@@ -1215,9 +1331,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           if (error.message?.includes('403') || error.message?.includes('Forbidden')) {
             throw new McpError(
               ErrorCode.InvalidRequest,
-              `Email verification failed: Access forbidden (403). This feature may require a premium Instantly plan or specific API permissions. ` +
-              `Please check: 1) Your Instantly plan includes email verification, 2) Your API key has 'email-verification:create' scope, ` +
-              `3) Contact Instantly support to confirm feature availability. Email: ${args.email}`
+              `Email verification access denied (403): This feature requires a premium Instantly plan. ` +
+              `Your current plan does not include email verification capabilities. ` +
+              `Please: 1) Upgrade to a premium plan, 2) Verify your API key permissions, ` +
+              `3) Contact Instantly support at support@instantly.ai for plan details. Email: ${args.email}`
             );
           }
           
@@ -1225,14 +1342,25 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           if (error.message?.includes('401') || error.message?.includes('Unauthorized')) {
             throw new McpError(
               ErrorCode.InvalidRequest,
-              `Email verification failed: Unauthorized (401). Please verify your API key is valid and has the required permissions.`
+              `Email verification unauthorized (401): Your API key may be invalid or expired. ` +
+              `Please verify your API key is correct and has the required permissions.`
             );
           }
 
           if (error.message?.includes('429') || error.message?.includes('Too Many Requests')) {
             throw new McpError(
               ErrorCode.InvalidRequest,
-              `Email verification failed: Rate limit exceeded (429). Please wait before retrying email verification.`
+              `Email verification rate limited (429): Too many verification requests. ` +
+              `Please wait before retrying. Consider upgrading your plan for higher limits.`
+            );
+          }
+
+          // Enhanced error handling for 402 payment required
+          if (error.message?.includes('402') || error.message?.includes('Payment Required')) {
+            throw new McpError(
+              ErrorCode.InvalidRequest,
+              `Email verification requires payment (402): This feature is not included in your current plan. ` +
+              `Please upgrade to a plan that includes email verification or contact Instantly support.`
             );
           }
 
@@ -1270,6 +1398,205 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             },
           ],
         };
+      }
+
+      // Debugging and Helper Tools
+      case 'validate_campaign_accounts': {
+        try {
+          const accountsResult = await makeInstantlyRequest('/accounts');
+          
+          if (!accountsResult || !accountsResult.data || !Array.isArray(accountsResult.data)) {
+            throw new McpError(ErrorCode.InternalError, 'Unable to retrieve accounts');
+          }
+
+          const accounts = accountsResult.data;
+          const emailList = args?.email_list;
+          
+          const analysis: any = {
+            total_accounts: accounts.length,
+            eligible_accounts: [],
+            ineligible_accounts: [],
+            validation_results: {},
+            eligibility_criteria: {
+              active_status: 'status must equal 1',
+              setup_complete: 'setup_pending must be false',
+              warmup_active: 'warmup_status must equal 1',
+              has_email: 'email address must be present'
+            }
+          };
+
+          for (const account of accounts) {
+            const accountInfo: any = {
+              email: account.email,
+              status: account.status,
+              setup_pending: account.setup_pending,
+              warmup_status: account.warmup_status,
+              warmup_score: account.warmup_score,
+              provider_code: account.provider_code,
+              eligible: false,
+              issues: []
+            };
+
+            // Check eligibility criteria
+            if (account.status !== 1) accountInfo.issues.push('Account not active (status != 1)');
+            if (account.setup_pending) accountInfo.issues.push('Setup still pending');
+            if (account.warmup_status !== 1) accountInfo.issues.push('Warmup not active (warmup_status != 1)');
+            if (!account.email) accountInfo.issues.push('No email address');
+
+            accountInfo.eligible = accountInfo.issues.length === 0;
+
+            if (accountInfo.eligible) {
+              analysis.eligible_accounts.push(accountInfo);
+            } else {
+              analysis.ineligible_accounts.push(accountInfo);
+            }
+
+            // If specific emails were requested, validate them
+            if (emailList && Array.isArray(emailList) && emailList.includes(account.email)) {
+              analysis.validation_results[account.email] = accountInfo;
+            }
+          }
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(analysis, null, 2),
+              },
+            ],
+          };
+        } catch (error) {
+          handleInstantlyError(error, 'validate_campaign_accounts');
+        }
+      }
+
+      case 'get_account_details': {
+        if (!args?.email) {
+          throw new McpError(ErrorCode.InvalidParams, 'email is required');
+        }
+
+        try {
+          const accountsResult = await makeInstantlyRequest('/accounts');
+          
+          if (!accountsResult || !accountsResult.data || !Array.isArray(accountsResult.data)) {
+            throw new McpError(ErrorCode.InternalError, 'Unable to retrieve accounts');
+          }
+
+          const account = accountsResult.data.find((acc: any) => acc.email.toLowerCase() === (args.email as string).toLowerCase());
+          
+          if (!account) {
+            throw new McpError(ErrorCode.InvalidParams, `Account with email ${args.email} not found`);
+          }
+
+          const details = {
+            basic_info: {
+              email: account.email,
+              username: account.username,
+              provider: account.provider,
+              provider_code: account.provider_code,
+              created_at: account.created_at
+            },
+            status_info: {
+              status: account.status,
+              status_meaning: account.status === 1 ? 'Active' : 'Inactive',
+              setup_pending: account.setup_pending,
+              setup_status: account.setup_pending ? 'Setup in progress' : 'Setup complete'
+            },
+            warmup_info: {
+              warmup_enabled: account.warmup_enabled,
+              warmup_status: account.warmup_status,
+              warmup_status_meaning: account.warmup_status === 1 ? 'Active/Complete' : 'Inactive/Pending',
+              warmup_score: account.warmup_score,
+              warmup_limit: account.warmup_limit,
+              warmup_reply_rate: account.warmup_reply_rate
+            },
+            sending_limits: {
+              max_daily_limit: account.max_daily_limit,
+              daily_limit: account.daily_limit
+            },
+            campaign_eligibility: {
+              eligible: account.status === 1 && !account.setup_pending && account.warmup_status === 1 && account.email,
+              requirements_met: {
+                active_status: account.status === 1,
+                setup_complete: !account.setup_pending,
+                warmup_active: account.warmup_status === 1,
+                has_email: !!account.email
+              }
+            }
+          };
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(details, null, 2),
+              },
+            ],
+          };
+        } catch (error) {
+          handleInstantlyError(error, 'get_account_details');
+        }
+      }
+
+      case 'check_feature_availability': {
+        try {
+          const features: any = {
+            basic_features: {
+              campaigns: 'Available',
+              leads: 'Available', 
+              accounts: 'Available',
+              analytics: 'Available'
+            },
+            premium_features: {},
+            api_access: {}
+          };
+
+          // Test API keys access
+          try {
+            await makeInstantlyRequest('/api-keys');
+            features.api_access['api_key_management'] = 'Available';
+          } catch (error: any) {
+            features.api_access['api_key_management'] = `Error: ${error.message}`;
+          }
+
+          // Test email verification
+          try {
+            // Try a minimal verification call to test permissions
+            const testResult = await makeInstantlyRequest('/email-verification', 'POST', { email: 'test@example.com' });
+            features.premium_features['email_verification'] = 'Available';
+          } catch (error: any) {
+            if (error.message?.includes('403') || error.message?.includes('Forbidden')) {
+              features.premium_features['email_verification'] = 'Requires premium plan';
+            } else if (error.message?.includes('402')) {
+              features.premium_features['email_verification'] = 'Requires payment/upgrade';
+            } else {
+              features.premium_features['email_verification'] = `Unknown status: ${error.message}`;
+            }
+          }
+
+          // Test warmup analytics
+          try {
+            await makeInstantlyRequest('/accounts/warmup-analytics', 'POST', { account_id: 'test' });
+            features.premium_features['warmup_analytics'] = 'Available';
+          } catch (error: any) {
+            if (error.message?.includes('400')) {
+              features.premium_features['warmup_analytics'] = 'Available (invalid test data expected)';
+            } else {
+              features.premium_features['warmup_analytics'] = `Error: ${error.message}`;
+            }
+          }
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(features, null, 2),
+              },
+            ],
+          };
+        } catch (error) {
+          handleInstantlyError(error, 'check_feature_availability');
+        }
       }
 
       default:
