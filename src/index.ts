@@ -26,7 +26,7 @@ if (!INSTANTLY_API_KEY) {
 const server = new Server(
   {
     name: 'instantly-mcp',
-    version: '3.0.9',
+    version: '3.0.10',
   },
   {
     capabilities: {
@@ -923,12 +923,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           daysConfig['5'] = true; // Friday
         }
 
-        // Build simplified campaign data for Instantly API v2
+        // Start with minimal required fields only
         const campaignData: any = {
-          // REQUIRED FIELDS
           name: args!.name,
-          
-          // REQUIRED: Campaign schedule
+          email_list: args!.email_list,
           campaign_schedule: {
             schedules: [{
               name: args?.schedule_name || 'Default Schedule',
@@ -939,36 +937,55 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               days: daysConfig,
               timezone: timezone
             }]
-          },
-
-          // REQUIRED: Email accounts to send from
-          email_list: args!.email_list,
-
-          // ESSENTIAL SETTINGS ONLY
-          daily_limit: args?.daily_limit || 50,
-          email_gap: args?.email_gap_minutes || 10,
-          stop_on_reply: args?.stop_on_reply !== false, // Default true
-          stop_on_auto_reply: args?.stop_on_auto_reply !== false, // Default true
-          
-          // TRACKING SETTINGS (add if provided)
-          ...(args?.link_tracking !== undefined && { link_tracking: args.link_tracking }),
-          ...(args?.open_tracking !== undefined && { open_tracking: args.open_tracking }),
-          ...(args?.text_only !== undefined && { text_only: args.text_only }),
-          
-          // Core API v2 required fields
-          pl_value: args?.pl_value || 100,
-          is_evergreen: args?.is_evergreen || false
+          }
         };
 
+        // Add optional fields only if they're provided and valid
+        if (args?.daily_limit && typeof args.daily_limit === 'number' && args.daily_limit > 0) {
+          campaignData.daily_limit = args.daily_limit;
+        }
+        
+        if (args?.email_gap_minutes && typeof args.email_gap_minutes === 'number' && args.email_gap_minutes > 0) {
+          campaignData.email_gap = args.email_gap_minutes;
+        }
+
+        // Add tracking options if explicitly provided
+        if (args?.link_tracking !== undefined) {
+          campaignData.link_tracking = Boolean(args.link_tracking);
+        }
+        
+        if (args?.open_tracking !== undefined) {
+          campaignData.open_tracking = Boolean(args.open_tracking);
+        }
+        
+        if (args?.text_only !== undefined) {
+          campaignData.text_only = Boolean(args.text_only);
+        }
+
+        // Add behavioral settings if provided
+        if (args?.stop_on_reply !== undefined) {
+          campaignData.stop_on_reply = Boolean(args.stop_on_reply);
+        }
+        
+        if (args?.stop_on_auto_reply !== undefined) {
+          campaignData.stop_on_auto_reply = Boolean(args.stop_on_auto_reply);
+        }
+
         // Add sequences only if subject and body are provided (correct API v2 structure)
-        if (args.subject && args.body) {
+        if (args.subject && args.body && typeof args.subject === 'string' && typeof args.body === 'string') {
+          // Normalize body text to ensure proper line breaks
+          const normalizedBody = args.body
+            .replace(/\r\n/g, '\n')  // Convert Windows line endings
+            .replace(/\r/g, '\n')    // Convert old Mac line endings
+            .trim();                 // Remove leading/trailing whitespace
+          
           campaignData.sequences = [{
             steps: [{
               type: 'email',
               delay: 0, // Delay before NEXT email (0 for first email)
               variants: [{
-                subject: args.subject,
-                body: args.body,
+                subject: args.subject.trim(),
+                body: normalizedBody,
                 v_disabled: false
               }]
             }]
@@ -982,8 +999,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
           // Create additional follow-up steps with correct variants structure
           for (let i = 1; i < numSteps; i++) {
-            const followUpSubject = `Follow-up ${i}: ${args!.subject}`;
-            const followUpBody = `This is follow-up #${i}.\n\n${args!.body}`;
+            const followUpSubject = `Follow-up ${i}: ${String(args!.subject)}`.trim();
+            const followUpBody = `This is follow-up #${i}.\n\n${String(args!.body)}`
+              .replace(/\r\n/g, '\n')
+              .replace(/\r/g, '\n')
+              .trim();
             
             campaignData.sequences[0].steps.push({
               type: 'email',
@@ -998,6 +1018,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
 
         console.error(`[Instantly MCP] Campaign creation payload:`, JSON.stringify(campaignData, null, 2));
+        console.error(`[Instantly MCP] Body content inspection:`, {
+          bodyType: typeof campaignData.sequences?.[0]?.steps?.[0]?.variants?.[0]?.body,
+          bodyLength: campaignData.sequences?.[0]?.steps?.[0]?.variants?.[0]?.body?.length,
+          bodyPreview: campaignData.sequences?.[0]?.steps?.[0]?.variants?.[0]?.body?.substring(0, 100),
+          hasLineBreaks: campaignData.sequences?.[0]?.steps?.[0]?.variants?.[0]?.body?.includes('\n'),
+          hasCarriageReturns: campaignData.sequences?.[0]?.steps?.[0]?.variants?.[0]?.body?.includes('\r')
+        });
 
         const result = await makeInstantlyRequest('/campaigns', 'POST', campaignData);
 
