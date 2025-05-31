@@ -26,7 +26,7 @@ if (!INSTANTLY_API_KEY) {
 const server = new Server(
   {
     name: 'instantly-mcp',
-    version: '3.0.8',
+    version: '3.0.9',
   },
   {
     capabilities: {
@@ -190,6 +190,23 @@ const validateCampaignData = (args: any): void => {
     }
   }
 
+  // Validate body format - must be plain string, no HTML tags or escaped JSON
+  if (args.body) {
+    if (typeof args.body !== 'string') {
+      throw new McpError(ErrorCode.InvalidParams, `Body must be a plain string, not ${typeof args.body}`);
+    }
+    
+    // Check for HTML tags
+    if (args.body.includes('<') && args.body.includes('>')) {
+      throw new McpError(ErrorCode.InvalidParams, `Body should not contain HTML tags. Use plain text with \\n for line breaks. Example: "Hi {{firstName}},\\n\\nYour message here."`);
+    }
+    
+    // Check for escaped JSON characters that might indicate improper formatting
+    if (args.body.includes('\\"') || args.body.includes('\\t') || args.body.includes('\\r')) {
+      console.error(`[Instantly MCP] Warning: Body contains escaped characters. Ensure it's a plain string with actual \\n characters, not escaped JSON.`);
+    }
+  }
+
   // Validate timezone if provided - exact values from Instantly API documentation
   const validTimezones = [
     "Etc/GMT+12", "Etc/GMT+11", "Etc/GMT+10", "America/Anchorage", "America/Dawson",
@@ -335,7 +352,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           },
           body: {
             type: 'string',
-            description: 'Email body content (REQUIRED). This is the content for the first email in the sequence. Supports personalization variables like {{firstName}}, {{lastName}}, {{companyName}}. Use \\n for line breaks.'
+            description: 'Email body content (REQUIRED). **IMPORTANT FORMAT**: Must be a plain string with \\n for line breaks. Do NOT use HTML tags or escaped JSON. Example: "Hi {{firstName}},\\n\\nI hope you are well.\\n\\nBest regards,\\nBrandon". Supports personalization variables like {{firstName}}, {{lastName}}, {{companyName}}.'
           },
           email_list: {
             type: 'array',
@@ -932,6 +949,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           email_gap: args?.email_gap_minutes || 10,
           stop_on_reply: args?.stop_on_reply !== false, // Default true
           stop_on_auto_reply: args?.stop_on_auto_reply !== false, // Default true
+          
+          // TRACKING SETTINGS (add if provided)
+          ...(args?.link_tracking !== undefined && { link_tracking: args.link_tracking }),
+          ...(args?.open_tracking !== undefined && { open_tracking: args.open_tracking }),
+          ...(args?.text_only !== undefined && { text_only: args.text_only }),
           
           // Core API v2 required fields
           pl_value: args?.pl_value || 100,

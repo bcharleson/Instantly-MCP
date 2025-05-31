@@ -1,6 +1,6 @@
 {
   "name": "instantly-mcp",
-  "version": "3.0.8",
+  "version": "3.0.9",
   "description": "MCP server for Instantly v2 API integration",
   "keywords": [
     "mcp",
