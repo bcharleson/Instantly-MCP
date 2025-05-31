@@ -71,14 +71,32 @@ const validateEmailListAgainstAccounts = async (emailList: string[]): Promise<vo
     // Fetch available accounts
     const accountsResult = await makeInstantlyRequest('/accounts');
     
-    if (!accountsResult || !accountsResult.data || !Array.isArray(accountsResult.data)) {
+    // Handle different API response formats
+    let accounts: any[];
+    if (Array.isArray(accountsResult)) {
+      // Direct array response
+      accounts = accountsResult;
+    } else if (accountsResult && accountsResult.data && Array.isArray(accountsResult.data)) {
+      // Wrapped in data property
+      accounts = accountsResult.data;
+    } else if (accountsResult && accountsResult.items && Array.isArray(accountsResult.items)) {
+      // Wrapped in items property (pagination format)
+      accounts = accountsResult.items;
+    } else {
+      console.error(`[Instantly MCP] Unexpected accounts response format:`, JSON.stringify(accountsResult, null, 2));
       throw new McpError(
         ErrorCode.InvalidParams, 
-        'Unable to retrieve accounts from your workspace. Please ensure you have at least one account configured.'
+        `Unable to retrieve accounts from your workspace. Response format: ${typeof accountsResult}. Please ensure you have at least one account configured.`
       );
     }
 
-    const accounts = accountsResult.data;
+    if (!accounts || accounts.length === 0) {
+      throw new McpError(
+        ErrorCode.InvalidParams, 
+        'No accounts found in your workspace. Please add at least one account before creating campaigns.'
+      );
+    }
+
     console.error(`[Instantly MCP] Found ${accounts.length} total accounts`);
     
     // Filter accounts to find eligible ones for campaign sending
@@ -698,12 +716,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: 'create_api_key',
-      description: 'Create a new API key',
+      description: 'Create a new API key. **NOTE**: The scopes parameter is optional and format varies by Instantly plan. If you get a 400 error, try creating the API key with just the name parameter first.',
       inputSchema: {
         type: 'object',
         properties: {
-          name: { type: 'string', description: 'API key name' },
-          scopes: { type: 'array', items: { type: 'string' }, description: 'Permission scopes' },
+          name: { type: 'string', description: 'API key name (must be unique)' },
+          scopes: { 
+            type: 'array', 
+            items: { type: 'string' }, 
+            description: 'Optional: Permission scopes. Leave empty for default permissions. Format may vary by plan.'
+          },
         },
         required: ['name'],
       },
@@ -756,7 +778,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         const endpoint = `/campaigns${queryParams.toString() ? `?${queryParams}` : ''}`;
         const result = await makeInstantlyRequest(endpoint);
-        const paginatedResult = parsePaginatedResponse(result);
+        
+        // Pass the requested limit to maintain it in the response structure
+        const requestedLimit = (typeof args?.limit === 'number') ? args.limit : 20; // Default to 20 if not specified
+        const paginatedResult = parsePaginatedResponse(result, requestedLimit);
 
         return {
           content: [
@@ -802,7 +827,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         validateCampaignData(args);
 
         // Validate email_list against available accounts
-        await validateEmailListAgainstAccounts(args.email_list);
+        console.error(`[Instantly MCP] create_campaign - Validating ${args.email_list.length} email addresses...`);
+        try {
+          await validateEmailListAgainstAccounts(args.email_list);
+          console.error(`[Instantly MCP] create_campaign - Email validation successful`);
+        } catch (validationError) {
+          console.error(`[Instantly MCP] create_campaign - Email validation failed:`, validationError);
+          throw validationError;
+        }
 
         // Get timezone from args with default
         const timezone = args?.timezone || 'America/New_York';
@@ -1163,7 +1195,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         const endpoint = `/lead-lists${queryParams.toString() ? `?${queryParams}` : ''}`;
         const result = await makeInstantlyRequest(endpoint, 'GET');
-        const paginatedResult = parsePaginatedResponse(result);
+        
+        const requestedLimit = (typeof args?.limit === 'number') ? args.limit : 20;
+        const paginatedResult = parsePaginatedResponse(result, requestedLimit);
 
         return {
           content: [
@@ -1218,7 +1252,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         const endpoint = `/emails${queryParams.toString() ? `?${queryParams}` : ''}`;
         const result = await makeInstantlyRequest(endpoint);
-        const paginatedResult = parsePaginatedResponse(result);
+        
+        const requestedLimit = (typeof args?.limit === 'number') ? args.limit : 20;
+        const paginatedResult = parsePaginatedResponse(result, requestedLimit);
 
         return {
           content: [
@@ -1388,16 +1424,48 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           throw new McpError(ErrorCode.InvalidParams, 'name is required');
         }
 
-        const result = await makeInstantlyRequest('/api-keys', 'POST', args);
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
+        // Build API key creation payload with proper formatting
+        const apiKeyData: any = {
+          name: args.name
         };
+
+        // Handle scopes parameter - try different formats that might be accepted
+        if (args.scopes) {
+          if (Array.isArray(args.scopes)) {
+            // Try array format first
+            apiKeyData.scopes = args.scopes;
+          } else if (typeof args.scopes === 'string') {
+            // Try string format
+            apiKeyData.scopes = args.scopes;
+          }
+        }
+
+        console.error(`[Instantly MCP] Creating API key with payload:`, JSON.stringify(apiKeyData, null, 2));
+
+        try {
+          const result = await makeInstantlyRequest('/api-keys', 'POST', apiKeyData);
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(result, null, 2),
+              },
+            ],
+          };
+        } catch (error: any) {
+          // Enhanced error handling for API key creation
+          if (error.message?.includes('400') || error.message?.includes('Bad Request')) {
+            throw new McpError(
+              ErrorCode.InvalidParams,
+              `API key creation failed (400): ${error.message}. ` +
+              `Common issues: 1) Invalid scope values (try omitting scopes parameter), ` +
+              `2) Duplicate API key name, 3) Invalid name format. ` +
+              `Try creating with just the name parameter first.`
+            );
+          }
+          throw error;
+        }
       }
 
       // Debugging and Helper Tools
@@ -1405,11 +1473,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         try {
           const accountsResult = await makeInstantlyRequest('/accounts');
           
-          if (!accountsResult || !accountsResult.data || !Array.isArray(accountsResult.data)) {
-            throw new McpError(ErrorCode.InternalError, 'Unable to retrieve accounts');
+          // Handle different API response formats (same logic as main validation function)
+          let accounts: any[];
+          if (Array.isArray(accountsResult)) {
+            accounts = accountsResult;
+          } else if (accountsResult && accountsResult.data && Array.isArray(accountsResult.data)) {
+            accounts = accountsResult.data;
+          } else if (accountsResult && accountsResult.items && Array.isArray(accountsResult.items)) {
+            accounts = accountsResult.items;
+          } else {
+            console.error(`[Instantly MCP] validate_campaign_accounts - Unexpected response:`, JSON.stringify(accountsResult, null, 2));
+            throw new McpError(ErrorCode.InternalError, `Unable to retrieve accounts. Response format: ${typeof accountsResult}`);
           }
 
-          const accounts = accountsResult.data;
+          if (!accounts || accounts.length === 0) {
+            throw new McpError(ErrorCode.InternalError, 'No accounts found in workspace');
+          }
+
           const emailList = args?.email_list;
           
           const analysis: any = {
@@ -1478,11 +1558,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         try {
           const accountsResult = await makeInstantlyRequest('/accounts');
           
-          if (!accountsResult || !accountsResult.data || !Array.isArray(accountsResult.data)) {
-            throw new McpError(ErrorCode.InternalError, 'Unable to retrieve accounts');
+          // Handle different API response formats (same logic as main validation function)
+          let accounts: any[];
+          if (Array.isArray(accountsResult)) {
+            accounts = accountsResult;
+          } else if (accountsResult && accountsResult.data && Array.isArray(accountsResult.data)) {
+            accounts = accountsResult.data;
+          } else if (accountsResult && accountsResult.items && Array.isArray(accountsResult.items)) {
+            accounts = accountsResult.items;
+          } else {
+            console.error(`[Instantly MCP] get_account_details - Unexpected response:`, JSON.stringify(accountsResult, null, 2));
+            throw new McpError(ErrorCode.InternalError, `Unable to retrieve accounts. Response format: ${typeof accountsResult}`);
           }
 
-          const account = accountsResult.data.find((acc: any) => acc.email.toLowerCase() === (args.email as string).toLowerCase());
+          if (!accounts || accounts.length === 0) {
+            throw new McpError(ErrorCode.InternalError, 'No accounts found in workspace');
+          }
+
+          const account = accounts.find((acc: any) => acc.email.toLowerCase() === (args.email as string).toLowerCase());
           
           if (!account) {
             throw new McpError(ErrorCode.InvalidParams, `Account with email ${args.email} not found`);

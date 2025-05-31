@@ -42,13 +42,13 @@ export function buildQueryParams(args: any, additionalParams: string[] = []): UR
   return query;
 }
 
-export function parsePaginatedResponse<T>(response: any): PaginatedResponse<T> {
+export function parsePaginatedResponse<T>(response: any, requestedLimit?: number): PaginatedResponse<T> {
   // Handle Instantly API response format
   if (response.data && Array.isArray(response.data)) {
     return {
       data: response.data as T[],
       total: response.total,
-      limit: response.limit || response.data.length,
+      limit: response.limit || requestedLimit || response.data.length,
       hasMore: !!response.next_starting_after,
       next_starting_after: response.next_starting_after,
     };
@@ -58,15 +58,15 @@ export function parsePaginatedResponse<T>(response: any): PaginatedResponse<T> {
   if (Array.isArray(response)) {
     return {
       data: response as T[],
-      limit: response.length,
+      limit: requestedLimit || response.length,
       hasMore: false,
     };
   }
   
-  // Default case
+  // Default case - preserve requested limit even if no data
   return {
     data: [],
-    limit: 0,
+    limit: requestedLimit || 0,
     hasMore: false,
   };
 }
