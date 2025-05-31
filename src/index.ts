@@ -41,6 +41,60 @@ const isValidEmail = (email: string): boolean => {
   return emailRegex.test(email);
 };
 
+// Helper function to validate email addresses against available accounts
+const validateEmailListAgainstAccounts = async (emailList: string[]): Promise<void> => {
+  try {
+    // Fetch available accounts
+    const accountsResult = await makeInstantlyRequest('/accounts');
+    const availableEmails = new Set<string>();
+    
+    // Extract email addresses from accounts response
+    if (accountsResult && accountsResult.data && Array.isArray(accountsResult.data)) {
+      for (const account of accountsResult.data) {
+        if (account.email) {
+          availableEmails.add(account.email.toLowerCase());
+        }
+      }
+    }
+    
+    // Check if no accounts are available
+    if (availableEmails.size === 0) {
+      throw new McpError(
+        ErrorCode.InvalidParams, 
+        'No sending accounts available. Please add at least one verified sending account to your workspace before creating campaigns.'
+      );
+    }
+    
+    // Validate each email in the provided list
+    const invalidEmails: string[] = [];
+    for (const email of emailList) {
+      if (!availableEmails.has(email.toLowerCase())) {
+        invalidEmails.push(email);
+      }
+    }
+    
+    if (invalidEmails.length > 0) {
+      const availableEmailsArray = Array.from(availableEmails);
+      throw new McpError(
+        ErrorCode.InvalidParams, 
+        `The following email addresses are not valid sending accounts in your workspace: ${invalidEmails.join(', ')}. ` +
+        `Valid sending accounts are: ${availableEmailsArray.join(', ')}. ` +
+        `Please use only verified accounts returned by the list_accounts tool.`
+      );
+    }
+  } catch (error) {
+    // If it's already an McpError, rethrow it
+    if (error instanceof McpError) {
+      throw error;
+    }
+    // For other errors, wrap them
+    throw new McpError(
+      ErrorCode.InternalError, 
+      `Failed to validate email addresses against available accounts: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+};
+
 // Helper function to validate campaign creation data
 const validateCampaignData = (args: any): void => {
   // Validate email_list contains valid email addresses
@@ -558,11 +612,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     // Email Verification
     {
       name: 'verify_email',
-      description: 'Verify if an email address is valid',
+      description: 'Verify if an email address is valid. **IMPORTANT**: This feature may require a premium Instantly plan or specific API permissions. If you receive a 403 Forbidden error, check: 1) Your Instantly plan includes email verification, 2) Your API key has the required scopes, 3) Contact Instantly support to confirm feature availability.',
       inputSchema: {
         type: 'object',
         properties: {
-          email: { type: 'string', description: 'Email address to verify' },
+          email: { type: 'string', description: 'Email address to verify (must be valid email format)' },
         },
         required: ['email'],
       },
@@ -646,6 +700,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         // Validate campaign data
         validateCampaignData(args);
+
+        // Validate email_list against available accounts
+        await validateEmailListAgainstAccounts(args.email_list);
 
         // Get timezone from args with default
         const timezone = args?.timezone || 'America/New_York';
@@ -907,10 +964,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       // Lead endpoints
       case 'list_leads': {
-        const queryParams = buildQueryParams(args, ['campaign_id', 'list_id', 'status']);
+        // Fix: Use POST /leads/list with body parameters instead of GET /leads with query params
+        const requestData: any = {
+          limit: args?.limit || 20,
+          skip: args?.starting_after || 0
+        };
 
-        const endpoint = `/leads${queryParams.toString() ? `?${queryParams}` : ''}`;
-        const result = await makeInstantlyRequest(endpoint, 'GET');
+        // Add optional filter parameters to the request body
+        if (args?.campaign_id) requestData.campaign_id = args.campaign_id;
+        if (args?.list_id) requestData.list_id = args.list_id;
+        if (args?.status) requestData.status = args.status;
+
+        console.error(`[Instantly MCP] List leads payload:`, JSON.stringify(requestData, null, 2));
+
+        const result = await makeInstantlyRequest('/leads/list', 'POST', requestData);
 
         // Return raw results without pagination parsing
         return {
@@ -928,7 +995,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           throw new McpError(ErrorCode.InvalidParams, 'email is required');
         }
 
-        const result = await makeInstantlyRequest('/leads', 'POST', args);
+        // Map camelCase fields to snake_case for API compatibility
+        const leadData: any = {
+          email: args.email,
+        };
+
+        // Map optional fields with proper naming
+        if (args.firstName) leadData.first_name = args.firstName;
+        if (args.lastName) leadData.last_name = args.lastName;
+        if (args.companyName) leadData.company_name = args.companyName;
+        if (args.website) leadData.website = args.website;
+        if (args.personalization) leadData.personalization = args.personalization;
+        if (args.custom_fields) leadData.custom_fields = args.custom_fields;
+
+        console.error(`[Instantly MCP] Create lead payload:`, JSON.stringify(leadData, null, 2));
+
+        const result = await makeInstantlyRequest('/leads', 'POST', leadData);
 
         return {
           content: [
@@ -1112,16 +1194,51 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           throw new McpError(ErrorCode.InvalidParams, 'email is required');
         }
 
-        const result = await makeInstantlyRequest('/email-verification', 'POST', { email: args.email });
+        // Validate email format before making API call
+        if (!isValidEmail(args.email as string)) {
+          throw new McpError(ErrorCode.InvalidParams, `Invalid email format: ${args.email}`);
+        }
 
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        };
+        try {
+          const result = await makeInstantlyRequest('/email-verification', 'POST', { email: args.email });
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(result, null, 2),
+              },
+            ],
+          };
+        } catch (error: any) {
+          // Enhanced error handling for 403 permission issues
+          if (error.message?.includes('403') || error.message?.includes('Forbidden')) {
+            throw new McpError(
+              ErrorCode.InvalidRequest,
+              `Email verification failed: Access forbidden (403). This feature may require a premium Instantly plan or specific API permissions. ` +
+              `Please check: 1) Your Instantly plan includes email verification, 2) Your API key has 'email-verification:create' scope, ` +
+              `3) Contact Instantly support to confirm feature availability. Email: ${args.email}`
+            );
+          }
+          
+          // Enhanced error handling for other common errors
+          if (error.message?.includes('401') || error.message?.includes('Unauthorized')) {
+            throw new McpError(
+              ErrorCode.InvalidRequest,
+              `Email verification failed: Unauthorized (401). Please verify your API key is valid and has the required permissions.`
+            );
+          }
+
+          if (error.message?.includes('429') || error.message?.includes('Too Many Requests')) {
+            throw new McpError(
+              ErrorCode.InvalidRequest,
+              `Email verification failed: Rate limit exceeded (429). Please wait before retrying email verification.`
+            );
+          }
+
+          // Re-throw the original error if it's not a known permission issue
+          throw error;
+        }
       }
 
       // API Key endpoints
