@@ -26,7 +26,7 @@ if (!INSTANTLY_API_KEY) {
 const server = new Server(
   {
     name: 'instantly-mcp',
-    version: '3.0.4',
+    version: '3.0.5-1',
   },
   {
     capabilities: {
@@ -287,14 +287,23 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     // Campaign Management
     {
       name: 'list_campaigns',
-      description: 'List all campaigns with optional filters and pagination',
+      description: 'List campaigns with optional filters and smart pagination. **PAGINATION GUIDE**: For large datasets, responses are automatically truncated to prevent size limits. Use limit=20-50 for full details, or higher limits for summary view. Use starting_after for pagination through large result sets.',
       inputSchema: {
         type: 'object',
         properties: {
-          limit: { type: 'number', description: 'Number of campaigns to return (1-100, default: 20)' },
-          starting_after: { type: 'string', description: 'ID of the last item from previous page for pagination' },
-          search: { type: 'string', description: 'Search term to filter campaigns' },
-          status: { type: 'string', description: 'Filter by status: active, paused, completed' },
+          limit: { 
+            type: 'number', 
+            description: 'Number of campaigns to return (1-100, default: 20). **IMPORTANT**: Limits >50 may return summarized data to prevent response size limits. Use smaller limits for full campaign details.',
+            minimum: 1,
+            maximum: 100
+          },
+          starting_after: { type: 'string', description: 'ID of the last item from previous page for pagination. Use this to fetch the next batch of campaigns.' },
+          search: { type: 'string', description: 'Search term to filter campaigns by name' },
+          status: { 
+            type: 'string', 
+            description: 'Filter by campaign status',
+            enum: ['active', 'paused', 'completed']
+          },
         },
       },
     },
@@ -771,11 +780,49 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const requestedLimit = (typeof args?.limit === 'number') ? args.limit : 20; // Default to 20 if not specified
         const paginatedResult = parsePaginatedResponse(result, requestedLimit);
 
+        // Handle large responses that might exceed MCP size limits
+        const responseText = JSON.stringify(paginatedResult, null, 2);
+        const maxResponseSize = 900000; // ~900KB to stay under 1MB limit with buffer
+        
+        if (responseText.length > maxResponseSize) {
+          console.error(`[Instantly MCP] Response too large (${responseText.length} chars), truncating campaigns...`);
+          
+          // Create summary version with essential fields only
+          const summarizedCampaigns = paginatedResult.data.map((campaign: any) => ({
+            id: campaign.id,
+            name: campaign.name,
+            status: campaign.status,
+            timestamp_created: campaign.timestamp_created,
+            timestamp_updated: campaign.timestamp_updated,
+            email_list_count: campaign.email_list?.length || 0,
+            sequence_steps_count: campaign.sequences?.[0]?.steps?.length || 0,
+            daily_limit: campaign.daily_limit,
+            organization: campaign.organization
+          }));
+          
+          const truncatedResult = {
+            ...paginatedResult,
+            data: summarizedCampaigns,
+            truncated: true,
+            original_count: paginatedResult.data.length,
+            message: `Response truncated due to size. Showing summary of ${summarizedCampaigns.length} campaigns. Use smaller limit or get individual campaigns with get_campaign for full details.`
+          };
+          
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(truncatedResult, null, 2),
+              },
+            ],
+          };
+        }
+
         return {
           content: [
             {
               type: 'text',
-              text: JSON.stringify(paginatedResult, null, 2),
+              text: responseText,
             },
           ],
         };
