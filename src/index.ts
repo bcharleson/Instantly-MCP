@@ -26,7 +26,7 @@ if (!INSTANTLY_API_KEY) {
 const server = new Server(
   {
     name: 'instantly-mcp',
-    version: '3.0.6',
+    version: '3.0.7',
   },
   {
     capabilities: {
@@ -906,9 +906,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           daysConfig['5'] = true; // Friday
         }
 
-        // Build comprehensive campaign data according to API documentation
+        // Build simplified campaign data for Instantly API v2
         const campaignData: any = {
+          // REQUIRED FIELDS
           name: args!.name,
+          
+          // REQUIRED: Campaign schedule
           campaign_schedule: {
             schedules: [{
               name: args?.schedule_name || 'Default Schedule',
@@ -920,50 +923,39 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               timezone: timezone
             }]
           },
-          // Sequences with email content - add all required fields
-          sequences: [{
-            steps: [{
-              type: 'email',
-              subject: args!.subject,
-              body: args!.body,
-              delay: 0,  // First step has no delay
-              variants: [{
-                subject: args!.subject,
-                body: args!.body
-              }]
-            }]
-          }],
-          // Use provided verified sending accounts
+
+          // REQUIRED: Email accounts to send from
           email_list: args!.email_list,
 
-          // Campaign configuration with proper defaults
+          // ESSENTIAL SETTINGS ONLY
           daily_limit: args?.daily_limit || 50,
           email_gap: args?.email_gap_minutes || 10,
-          text_only: args?.text_only || false,
-          link_tracking: args?.link_tracking || false,
-          open_tracking: args?.open_tracking || false,
           stop_on_reply: args?.stop_on_reply !== false, // Default true
           stop_on_auto_reply: args?.stop_on_auto_reply !== false, // Default true
-
-          // Additional required campaign settings
+          
+          // Core API v2 required fields
           pl_value: args?.pl_value || 100,
-          is_evergreen: args?.is_evergreen || false,
-          random_wait_max: args?.random_wait_max || 10,
-          daily_max_leads: args?.daily_max_leads || args?.daily_limit || 50,
-          prioritize_new_leads: args?.prioritize_new_leads || false,
-          match_lead_esp: args?.match_lead_esp || false,
-          stop_for_company: args?.stop_for_company || false,
-          insert_unsubscribe_header: args?.insert_unsubscribe_header !== false, // Default true
-          allow_risky_contacts: args?.allow_risky_contacts || false,
-          disable_bounce_protect: args?.disable_bounce_protect || false
+          is_evergreen: args?.is_evergreen || false
         };
 
-        // Add multiple sequence steps if requested
-        if (args?.sequence_steps && Number(args.sequence_steps) > 1) {
+        // Add sequences only if subject and body are provided (simplified structure)
+        if (args.subject && args.body) {
+          campaignData.sequences = [{
+            steps: [{
+              type: 'email',
+              subject: args.subject,
+              body: args.body,
+              delay: 0
+            }]
+          }];
+        }
+
+        // Add multiple sequence steps if requested (simplified)
+        if (args?.sequence_steps && Number(args.sequence_steps) > 1 && campaignData.sequences) {
           const stepDelayDays = Number(args?.step_delay_days) || 3;
           const numSteps = Number(args.sequence_steps);
 
-          // Create additional follow-up steps
+          // Create additional follow-up steps (simplified structure)
           for (let i = 1; i < numSteps; i++) {
             const followUpSubject = `Follow-up ${i}: ${args!.subject}`;
             const followUpBody = `This is follow-up #${i}.\n\n${args!.body}`;
@@ -972,11 +964,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               type: 'email',
               subject: followUpSubject,
               body: followUpBody,
-              delay: stepDelayDays * i,
-              variants: [{
-                subject: followUpSubject,
-                body: followUpBody
-              }]
+              delay: stepDelayDays * i
             });
           }
         }
