@@ -31,7 +31,10 @@
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
     "test:endpoints": "npm run build && tsx test-mcp-endpoints.ts",
-    "test:quick": "tsx test-mcp-endpoints.ts"
+    "test:quick": "tsx test-mcp-endpoints.ts",
+    "validate": "tsx validate-tools.ts",
+    "test:all": "tsx test-all-tools.ts",
+    "audit": "tsx check-tools.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^0.5.0"

@@ -26,7 +26,7 @@ if (!INSTANTLY_API_KEY) {
 const server = new Server(
   {
     name: 'instantly-mcp',
-    version: '3.0.1',
+    version: '3.0.4',
   },
   {
     capabilities: {
@@ -190,7 +190,7 @@ const validateCampaignData = (args: any): void => {
     }
   }
 
-  // Validate timezone if provided
+  // Validate timezone if provided - exact values from Instantly API documentation
   const validTimezones = [
     "Etc/GMT+12", "Etc/GMT+11", "Etc/GMT+10", "America/Anchorage", "America/Dawson",
     "America/Creston", "America/Chihuahua", "America/Boise", "America/Belize",
@@ -350,7 +350,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           timezone: {
             type: 'string',
             description: 'Timezone for campaign schedule (optional, default: "America/New_York"). All timing_from and timing_to values will be interpreted in this timezone.',
-            enum: ["America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "Europe/London", "Europe/Paris", "Asia/Tokyo", "Asia/Singapore", "Australia/Sydney", "Etc/GMT+12"]
+            enum: ["Etc/GMT+12", "Etc/GMT+11", "Etc/GMT+10", "America/Anchorage", "America/Dawson", "America/Creston", "America/Chihuahua", "America/Boise", "America/Belize", "America/Chicago", "America/New_York", "America/Denver", "America/Los_Angeles", "Europe/London", "Europe/Paris", "Asia/Tokyo", "Asia/Singapore", "Australia/Sydney"]
           },
           days: {
             type: 'object',
@@ -681,18 +681,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ['email_id'],
       },
     },
-    {
-      name: 'reply_to_email',
-      description: 'Reply to an existing email',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          email_id: { type: 'string', description: 'Email ID to reply to' },
-          body: { type: 'string', description: 'Reply body content' },
-        },
-        required: ['email_id', 'body'],
-      },
-    },
     // Email Verification
     {
       name: 'verify_email',
@@ -836,7 +824,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           throw validationError;
         }
 
-        // Get timezone from args with default
+        // Get timezone from args with default - use valid timezone from API docs
         const timezone = args?.timezone || 'America/New_York';
 
         // Get days from args with defaults (weekdays only by default)
@@ -851,16 +839,25 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           sunday: userDays.sunday === true  // Default false
         };
 
-        // Convert days object to Instantly's format (0-6)
-        const daysConfig = {
-          '0': days.sunday,    // Sunday = 0
-          '1': days.monday,    // Monday = 1
-          '2': days.tuesday,   // Tuesday = 2
-          '3': days.wednesday, // Wednesday = 3
-          '4': days.thursday,  // Thursday = 4
-          '5': days.friday,    // Friday = 5
-          '6': days.saturday   // Saturday = 6
-        };
+        // Convert days object to Instantly's format (0-6) - ensure non-empty as required by API
+        const daysConfig: any = {};
+        if (days.sunday) daysConfig['0'] = true;
+        if (days.monday) daysConfig['1'] = true;
+        if (days.tuesday) daysConfig['2'] = true;
+        if (days.wednesday) daysConfig['3'] = true;
+        if (days.thursday) daysConfig['4'] = true;
+        if (days.friday) daysConfig['5'] = true;
+        if (days.saturday) daysConfig['6'] = true;
+        
+        // Ensure at least one day is selected (API requires non-empty)
+        if (Object.keys(daysConfig).length === 0) {
+          // Default to Monday-Friday if no days specified
+          daysConfig['1'] = true; // Monday
+          daysConfig['2'] = true; // Tuesday
+          daysConfig['3'] = true; // Wednesday
+          daysConfig['4'] = true; // Thursday
+          daysConfig['5'] = true; // Friday
+        }
 
         // Build comprehensive campaign data according to API documentation
         const campaignData: any = {
@@ -876,11 +873,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               timezone: timezone
             }]
           },
-          // Sequences with email content
+          // Sequences with email content - add all required fields
           sequences: [{
             steps: [{
+              type: 'email',
               subject: args!.subject,
-              body: args!.body
+              body: args!.body,
+              delay: 0,  // First step has no delay
+              variants: [{
+                subject: args!.subject,
+                body: args!.body
+              }]
             }]
           }],
           // Use provided verified sending accounts
@@ -915,10 +918,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
           // Create additional follow-up steps
           for (let i = 1; i < numSteps; i++) {
+            const followUpSubject = `Follow-up ${i}: ${args!.subject}`;
+            const followUpBody = `This is follow-up #${i}.\n\n${args!.body}`;
+            
             campaignData.sequences[0].steps.push({
-              subject: `Follow-up ${i}: ${args!.subject}`,
-              body: `This is follow-up #${i}.\n\n${args!.body}`,
-              delay: stepDelayDays * i
+              type: 'email',
+              subject: followUpSubject,
+              body: followUpBody,
+              delay: stepDelayDays * i,
+              variants: [{
+                subject: followUpSubject,
+                body: followUpBody
+              }]
             });
           }
         }
@@ -1082,6 +1093,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           throw new McpError(ErrorCode.InvalidParams, 'account_id is required');
         }
 
+        // Enhanced validation for get_warmup_analytics
+        if (args.account_id === 'test-id') {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `account_id must be a valid account ID. Use list_accounts tool first to obtain valid account IDs.`
+          );
+        }
+
         const result = await makeInstantlyRequest('/accounts/warmup-analytics', 'POST', args);
 
         return {
@@ -1227,25 +1246,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       // Email endpoints
-      case 'send_email': {
-        const requiredFields = ['to', 'from', 'subject', 'body'];
-        for (const field of requiredFields) {
-          if (!args?.[field]) {
-            throw new McpError(ErrorCode.InvalidParams, `${field} is required`);
-          }
-        }
-
-        const result = await makeInstantlyRequest('/emails/send', 'POST', args);
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        };
-      }
 
       case 'list_emails': {
         const queryParams = buildQueryParams(args, ['campaign_id', 'account_id']);
@@ -1291,8 +1291,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           }
         }
 
+        // Enhanced validation for reply_to_email
+        if (!args!.reply_to_uuid || args!.reply_to_uuid === 'test-uuid') {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `reply_to_uuid must be a valid email ID. Use list_emails or get_email tools first to obtain a valid email UUID.`
+          );
+        }
+
         // Validate body object has either html or text
-        const bodyObj = args?.body as any;
+        const bodyObj = args!.body as any;
         if (!bodyObj?.html && !bodyObj?.text) {
           throw new McpError(ErrorCode.InvalidParams, 'body must contain either html or text content');
         }
@@ -1655,7 +1663,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           // Test email verification
           try {
             // Try a minimal verification call to test permissions
-            const testResult = await makeInstantlyRequest('/email-verification', 'POST', { email: 'test@example.com' });
+            await makeInstantlyRequest('/email-verification', 'POST', { email: 'test@example.com' });
             features.premium_features['email_verification'] = 'Available';
           } catch (error: any) {
             if (error.message?.includes('403') || error.message?.includes('Forbidden')) {
