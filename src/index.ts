@@ -337,7 +337,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: 'create_campaign',
-      description: 'Create a new email campaign with complete configuration. **CRITICAL WORKFLOW**: Before calling this tool, you MUST first call list_accounts to obtain valid sending email addresses. The email_list parameter can ONLY contain email addresses returned by list_accounts - using any other addresses will result in 400 Bad Request errors. **SEQUENCES STRUCTURE**: This tool automatically creates the correct sequences array structure required by Instantly API v2, which includes: sequences[0].steps[i].variants[] array with subject, body, and v_disabled fields. The API requires this exact structure - even though sequences is an array, only the first element is used.',
+      description: 'Create a new email campaign. **ULTRA‑SIMPLE USAGE**: Provide a plain‑language “message” (one string) or classic `subject` + `body`. If only `message` is given, the first sentence becomes the subject and the rest becomes the body. If `email_list` is omitted the server auto‑selects the first eligible warmed account. Schedules, sequences, and variants are generated automatically; you never need to specify them.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -353,6 +353,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           body: {
             type: 'string',
             description: 'Email body content (REQUIRED). **IMPORTANT FORMAT**: Must be a plain string with \\n for line breaks. Do NOT use HTML tags or escaped JSON. Example: "Hi {{firstName}},\\n\\nI hope you are well.\\n\\nBest regards,\\nBrandon". Supports personalization variables like {{firstName}}, {{lastName}}, {{companyName}}.'
+          },
+          message: {
+            type: 'string',
+            description: 'Optional shortcut: a single string that contains both subject and body. The first sentence becomes the subject; the remainder becomes the body.'
           },
           email_list: {
             type: 'array',
@@ -863,6 +867,39 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'create_campaign': {
+        // ---------- shorthand `message` → subject/body ----------
+        if (args?.message && (!args.subject || !args.body)) {
+          const msg = String(args.message).trim();
+          let splitIdx = msg.indexOf('.');
+          const nlIdx = msg.indexOf('\n');
+          if (nlIdx !== -1 && (nlIdx < splitIdx || splitIdx === -1)) splitIdx = nlIdx;
+          if (splitIdx === -1) splitIdx = msg.length;
+          const subj = msg.slice(0, splitIdx).trim();
+          const bod  = msg.slice(splitIdx).trim();
+          if (!args.subject) args.subject = subj;
+          if (!args.body)    args.body    = bod || subj;
+          console.error('[Instantly MCP] Derived subject/body from message shortcut');
+        }
+
+        // ---------- auto‑select email_list if none provided ----------
+        if (!args?.email_list || !Array.isArray(args.email_list) || args.email_list.length === 0) {
+          try {
+            const accResp = await makeInstantlyRequest('/accounts');
+            const accounts = Array.isArray(accResp)
+              ? accResp
+              : (accResp?.data ?? accResp?.items ?? []);
+            const eligible = accounts.find((a: any) =>
+              a.status === 1 && !a.setup_pending && a.warmup_status === 1 && a.email);
+            if (!eligible) {
+              throw new Error('No eligible warmed accounts found');
+            }
+            args.email_list = [eligible.email];
+            console.error(`[Instantly MCP] Auto‑selected sender: ${eligible.email}`);
+          } catch (e) {
+            console.error('[Instantly MCP] Failed to auto‑select sender', e);
+          }
+        }
+
         const requiredFields = ['name', 'subject', 'body'];
         for (const field of requiredFields) {
           if (!args?.[field]) {
