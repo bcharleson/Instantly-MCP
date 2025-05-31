@@ -43,12 +43,23 @@ export function buildQueryParams(args: any, additionalParams: string[] = []): UR
 }
 
 export function parsePaginatedResponse<T>(response: any, requestedLimit?: number): PaginatedResponse<T> {
-  // Handle Instantly API response format
+  // Handle Instantly API response format - check for both 'data' and 'items' arrays
   if (response.data && Array.isArray(response.data)) {
     return {
       data: response.data as T[],
       total: response.total,
       limit: response.limit || requestedLimit || response.data.length,
+      hasMore: !!response.next_starting_after,
+      next_starting_after: response.next_starting_after,
+    };
+  }
+  
+  // Handle Instantly API 'items' format (used by campaigns, accounts, etc.)
+  if (response.items && Array.isArray(response.items)) {
+    return {
+      data: response.items as T[],
+      total: response.total,
+      limit: response.limit || requestedLimit || response.items.length,
       hasMore: !!response.next_starting_after,
       next_starting_after: response.next_starting_after,
     };
