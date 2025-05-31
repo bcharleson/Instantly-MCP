@@ -26,7 +26,7 @@ if (!INSTANTLY_API_KEY) {
 const server = new Server(
   {
     name: 'instantly-mcp',
-    version: '3.0.7',
+    version: '3.0.8',
   },
   {
     capabilities: {
@@ -320,7 +320,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: 'create_campaign',
-      description: 'Create a new email campaign with complete configuration. **CRITICAL WORKFLOW**: Before calling this tool, you MUST first call list_accounts to obtain valid sending email addresses. The email_list parameter can ONLY contain email addresses returned by list_accounts - using any other addresses will result in 400 Bad Request errors. This tool creates comprehensive email campaigns with sequences, scheduling, and tracking capabilities.',
+      description: 'Create a new email campaign with complete configuration. **CRITICAL WORKFLOW**: Before calling this tool, you MUST first call list_accounts to obtain valid sending email addresses. The email_list parameter can ONLY contain email addresses returned by list_accounts - using any other addresses will result in 400 Bad Request errors. **SEQUENCES STRUCTURE**: This tool automatically creates the correct sequences array structure required by Instantly API v2, which includes: sequences[0].steps[i].variants[] array with subject, body, and v_disabled fields. The API requires this exact structure - even though sequences is an array, only the first element is used.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -378,13 +378,13 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           // SEQUENCE CONFIGURATION - Controls follow-up emails
           sequence_steps: {
             type: 'number',
-            description: 'Number of follow-up steps in the sequence (optional, default: 1 for just the initial email). If set to 2 or more, the system will automatically create follow-up emails with the same subject/body but with "Follow-up N:" prefix. Maximum 10 steps.',
+            description: 'Number of steps in the email sequence (optional, default: 1 for just the initial email). Each step creates an email with the required API v2 structure: sequences[0].steps[i] containing type="email", delay (days before sending), and variants[] array with subject, body, and v_disabled fields. If set to 2 or more, additional follow-up emails are created automatically. Maximum 10 steps.',
             minimum: 1,
             maximum: 10
           },
           step_delay_days: {
             type: 'number',
-            description: 'Days to wait between sequence steps (optional, default: 3 days). This is the delay between the initial email and first follow-up, then between each subsequent follow-up. Minimum 1 day, maximum 30 days.',
+            description: 'Days to wait before sending each follow-up email (optional, default: 3 days). This sets the delay field in sequences[0].steps[i].delay as required by the API. Each follow-up step will have this delay value. Minimum 1 day, maximum 30 days.',
             minimum: 1,
             maximum: 30
           },
@@ -938,33 +938,39 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           is_evergreen: args?.is_evergreen || false
         };
 
-        // Add sequences only if subject and body are provided (simplified structure)
+        // Add sequences only if subject and body are provided (correct API v2 structure)
         if (args.subject && args.body) {
           campaignData.sequences = [{
             steps: [{
               type: 'email',
-              subject: args.subject,
-              body: args.body,
-              delay: 0
+              delay: 0, // Delay before NEXT email (0 for first email)
+              variants: [{
+                subject: args.subject,
+                body: args.body,
+                v_disabled: false
+              }]
             }]
           }];
         }
 
-        // Add multiple sequence steps if requested (simplified)
+        // Add multiple sequence steps if requested (correct API v2 structure)
         if (args?.sequence_steps && Number(args.sequence_steps) > 1 && campaignData.sequences) {
           const stepDelayDays = Number(args?.step_delay_days) || 3;
           const numSteps = Number(args.sequence_steps);
 
-          // Create additional follow-up steps (simplified structure)
+          // Create additional follow-up steps with correct variants structure
           for (let i = 1; i < numSteps; i++) {
             const followUpSubject = `Follow-up ${i}: ${args!.subject}`;
             const followUpBody = `This is follow-up #${i}.\n\n${args!.body}`;
             
             campaignData.sequences[0].steps.push({
               type: 'email',
-              subject: followUpSubject,
-              body: followUpBody,
-              delay: stepDelayDays * i
+              delay: stepDelayDays, // Days to wait before sending THIS email
+              variants: [{
+                subject: followUpSubject,
+                body: followUpBody,
+                v_disabled: false
+              }]
             });
           }
         }
