@@ -26,7 +26,7 @@ if (!INSTANTLY_API_KEY) {
 const server = new Server(
   {
     name: 'instantly-mcp',
-    version: '3.0.11',
+    version: '3.0.12',
   },
   {
     capabilities: {
@@ -973,26 +973,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         // Add sequences only if subject and body are provided (correct API v2 structure)
         if (args.subject && args.body && typeof args.subject === 'string' && typeof args.body === 'string') {
-          // Fix escaped JSON line breaks - this is the key issue!
-          let normalizedBody = args.body
-            .replace(/\\n/g, '\n')   // Convert escaped \n to actual line breaks
-            .replace(/\\r\\n/g, '\n') // Convert escaped \r\n to actual line breaks  
-            .replace(/\\r/g, '\n')   // Convert escaped \r to actual line breaks
-            .replace(/\r\n/g, '\n')  // Convert Windows line endings
-            .replace(/\r/g, '\n')    // Convert old Mac line endings
-            .replace(/\\t/g, '\t')   // Convert escaped tabs
-            .replace(/\\"/g, '"')    // Convert escaped quotes
-            .trim();                 // Remove leading/trailing whitespace
-          
+          let normalizedBody = args.body.trim();
+
           console.error(`[Instantly MCP] Body before normalization:`, JSON.stringify(args.body));
           console.error(`[Instantly MCP] Body after normalization:`, JSON.stringify(normalizedBody));
-          
-          // Also normalize subject in case it has escaped characters
-          const normalizedSubject = args.subject
-            .replace(/\\n/g, '\n')
-            .replace(/\\"/g, '"')
-            .trim();
-          
+
+          let normalizedSubject = args.subject.trim();
+
           campaignData.sequences = [{
             steps: [{
               type: 'email',
@@ -1013,20 +1000,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
           // Create additional follow-up steps with correct variants structure
           for (let i = 1; i < numSteps; i++) {
-            const followUpSubject = `Follow-up ${i}: ${String(args!.subject)}`
-              .replace(/\\n/g, '\n')
-              .replace(/\\"/g, '"')
-              .trim();
-            let followUpBody = `This is follow-up #${i}.\n\n${String(args!.body)}`
-              .replace(/\\n/g, '\n')     // Fix escaped line breaks
-              .replace(/\\r\\n/g, '\n')  // Fix escaped Windows line endings
-              .replace(/\\r/g, '\n')     // Fix escaped Mac line endings
-              .replace(/\r\n/g, '\n')    // Convert Windows line endings
-              .replace(/\r/g, '\n')      // Convert old Mac line endings
-              .replace(/\\t/g, '\t')     // Convert escaped tabs
-              .replace(/\\"/g, '"')      // Convert escaped quotes
-              .trim();
-            
+            let followUpSubject = `Follow-up ${i}: ${String(args!.subject)}`.trim();
+            let followUpBody = `This is follow-up #${i}.\n\n${String(args!.body)}`.trim();
             campaignData.sequences[0].steps.push({
               type: 'email',
               delay: stepDelayDays, // Days to wait before sending THIS email
