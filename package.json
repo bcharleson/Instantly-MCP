@@ -1,6 +1,6 @@
 {
   "name": "instantly-mcp",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "description": "Streamlined MCP server for Instantly v2 API with bulletproof campaign creation and complete pagination",
   "keywords": [
     "mcp",
