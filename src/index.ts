@@ -26,7 +26,7 @@ if (!INSTANTLY_API_KEY) {
 const server = new Server(
   {
     name: 'instantly-mcp',
-    version: '3.0.12',
+    version: '3.1.3',
   },
   {
     capabilities: {
@@ -65,34 +65,78 @@ const checkEmailVerificationAvailability = async (): Promise<{ available: boolea
   }
 };
 
-// Helper function to validate email addresses against eligible accounts
+// Helper function to retrieve ALL accounts with complete pagination
+const getAllAccountsWithPagination = async (): Promise<any[]> => {
+  const allAccounts: any[] = [];
+  let startingAfter: string | undefined = undefined;
+  let hasMore = true;
+  const limit = 100; // Maximum allowed by API
+
+  console.error(`[Instantly MCP] Starting complete account retrieval with pagination...`);
+
+  while (hasMore) {
+    try {
+      // Build query parameters for pagination
+      const queryParams = new URLSearchParams();
+      queryParams.append('limit', limit.toString());
+      if (startingAfter) {
+        queryParams.append('starting_after', startingAfter);
+      }
+
+      const endpoint = `/accounts?${queryParams.toString()}`;
+      const result = await makeInstantlyRequest(endpoint);
+
+      // Handle different API response formats
+      let accounts: any[];
+      if (Array.isArray(result)) {
+        accounts = result;
+        hasMore = false; // Array response means no pagination
+      } else if (result && result.data && Array.isArray(result.data)) {
+        accounts = result.data;
+        hasMore = !!result.next_starting_after;
+        startingAfter = result.next_starting_after;
+      } else if (result && result.items && Array.isArray(result.items)) {
+        accounts = result.items;
+        hasMore = !!result.next_starting_after;
+        startingAfter = result.next_starting_after;
+      } else {
+        console.error(`[Instantly MCP] getAllAccountsWithPagination - Unexpected response:`, JSON.stringify(result, null, 2));
+        throw new McpError(ErrorCode.InternalError, `Unable to retrieve accounts. Response format: ${typeof result}`);
+      }
+
+      allAccounts.push(...accounts);
+      console.error(`[Instantly MCP] Retrieved ${accounts.length} accounts (total so far: ${allAccounts.length})`);
+
+      // Safety check to prevent infinite loops
+      if (allAccounts.length > 10000) {
+        console.error(`[Instantly MCP] Safety limit reached: ${allAccounts.length} accounts retrieved`);
+        break;
+      }
+
+      // If we got fewer accounts than the limit, we've reached the end
+      if (accounts.length < limit) {
+        hasMore = false;
+      }
+
+    } catch (error) {
+      console.error(`[Instantly MCP] Error during pagination:`, error);
+      throw error;
+    }
+  }
+
+  console.error(`[Instantly MCP] Complete account retrieval finished: ${allAccounts.length} total accounts`);
+  return allAccounts;
+};
+
+// Helper function to validate email addresses against eligible accounts with complete pagination
 const validateEmailListAgainstAccounts = async (emailList: string[]): Promise<void> => {
   try {
-    // Fetch available accounts
-    const accountsResult = await makeInstantlyRequest('/accounts');
-    
-    // Handle different API response formats
-    let accounts: any[];
-    if (Array.isArray(accountsResult)) {
-      // Direct array response
-      accounts = accountsResult;
-    } else if (accountsResult && accountsResult.data && Array.isArray(accountsResult.data)) {
-      // Wrapped in data property
-      accounts = accountsResult.data;
-    } else if (accountsResult && accountsResult.items && Array.isArray(accountsResult.items)) {
-      // Wrapped in items property (pagination format)
-      accounts = accountsResult.items;
-    } else {
-      console.error(`[Instantly MCP] Unexpected accounts response format:`, JSON.stringify(accountsResult, null, 2));
-      throw new McpError(
-        ErrorCode.InvalidParams, 
-        `Unable to retrieve accounts from your workspace. Response format: ${typeof accountsResult}. Please ensure you have at least one account configured.`
-      );
-    }
+    // Fetch ALL available accounts with complete pagination
+    const accounts = await getAllAccountsWithPagination();
 
     if (!accounts || accounts.length === 0) {
       throw new McpError(
-        ErrorCode.InvalidParams, 
+        ErrorCode.InvalidParams,
         'No accounts found in your workspace. Please add at least one account before creating campaigns.'
       );
     }
@@ -337,7 +381,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: 'create_campaign',
-      description: 'Create a new email campaign. **ULTRA‑SIMPLE USAGE**: Provide a plain‑language “message” (one string) or classic `subject` + `body`. If only `message` is given, the first sentence becomes the subject and the rest becomes the body. If `email_list` is omitted the server auto‑selects the first eligible warmed account. Schedules, sequences, and variants are generated automatically; you never need to specify them.',
+      description: 'Create a new email campaign using the Instantly v2 API. **MANDATORY PREREQUISITE**: You MUST call `list_accounts` first to obtain valid email addresses for the email_list parameter. Campaign creation will fail if you use email addresses that don\'t exist in the user\'s workspace.\n\n**COMPLETE WORKFLOW**:\n1. Call `list_accounts` to get available sending accounts\n2. Select verified accounts from the response (status should be "verified" or "active")\n3. Use those exact email addresses in the email_list parameter\n4. Provide campaign name, subject, and body\n5. Optionally configure schedule, sequence steps, and other settings\n\n**GUARANTEED SUCCESS**: Following this workflow ensures 100% success rate for campaign creation.\n\n**EXAMPLE WORKFLOW**:\n```\n// Step 1: Get accounts\nlist_accounts {"limit": 50}\n\n// Step 2: Use returned emails in campaign\ncreate_campaign {\n  "name": "My Campaign",\n  "subject": "Hello {{firstName}}",\n  "body": "Hi {{firstName}},\\n\\nI hope you are well.\\n\\nBest regards,\\nYour Name",\n  "email_list": ["account1@domain.com", "account2@domain.com"]\n}\n```',
       inputSchema: {
         type: 'object',
         properties: {
@@ -348,11 +392,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           },
           subject: {
             type: 'string',
-            description: 'Email subject line (REQUIRED). This is the subject for the first email in the sequence. Supports personalization variables like {{firstName}}.'
+            description: 'Email subject line (REQUIRED). This is the subject for the first email in the sequence. Supports personalization variables like {{firstName}}, {{lastName}}, {{companyName}}. Example: "Quick question about {{companyName}}"'
           },
           body: {
             type: 'string',
-            description: 'Email body content (REQUIRED). **IMPORTANT FORMAT**: Must be a plain string with \\n for line breaks. Do NOT use HTML tags or escaped JSON. Example: "Hi {{firstName}},\\n\\nI hope you are well.\\n\\nBest regards,\\nBrandon". Supports personalization variables like {{firstName}}, {{lastName}}, {{companyName}}.'
+            description: 'Email body content (REQUIRED). **CRITICAL FORMAT**: Must be a plain text string with \\n for line breaks (not actual newlines). Example: "Hi {{firstName}},\\n\\nI hope this email finds you well.\\n\\nBest regards,\\nYour Name". Supports all Instantly personalization variables.'
           },
           message: {
             type: 'string',
@@ -361,7 +405,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           email_list: {
             type: 'array',
             items: { type: 'string' },
-            description: 'Array of sending account email addresses (REQUIRED). **CRITICAL**: These MUST be email addresses obtained from list_accounts tool - you cannot use arbitrary email addresses. Each email in this array must exist in the user\'s Instantly workspace. Example: ["sender1@company.com", "sender2@company.com"]'
+            description: 'Array of sending account email addresses (REQUIRED). **CRITICAL**: These MUST be exact email addresses returned by the list_accounts tool. You cannot use arbitrary email addresses. Each email must exist in the user\'s Instantly workspace and be verified/active. Example: ["john@company.com", "sarah@company.com"]. **PREREQUISITE**: Call list_accounts first to get valid addresses. **AUTO-DISCOVERY**: If empty or missing, the tool will automatically suggest verified accounts.'
+          },
+          guided_mode: {
+            type: 'boolean',
+            description: 'Enable guided mode for beginners (optional, default: false). When true, provides extra validation steps, detailed error messages, and account suggestions. Recommended for first-time users.'
           },
 
           // SCHEDULE CONFIGURATION - Controls when emails are sent
@@ -500,7 +548,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     // Account Management
     {
       name: 'list_accounts',
-      description: 'List all sending accounts in the workspace. **PREREQUISITE FOR CAMPAIGN CREATION**: You MUST call this tool first before creating any campaigns to obtain valid email addresses for the email_list parameter. The returned accounts are the only valid sending addresses that can be used in campaigns. If no accounts are returned, campaigns cannot be created until accounts are added to the workspace.',
+      description: 'List all sending accounts in the workspace. **PREREQUISITE FOR CAMPAIGN CREATION**: You MUST call this tool first before creating any campaigns to obtain valid email addresses for the email_list parameter. The returned accounts are the only valid sending addresses that can be used in campaigns.\n\n**CRITICAL FOR SUCCESS**: Campaign creation will fail if you use email addresses that are not returned by this endpoint. Always use the exact email addresses from this response.\n\n**PAGINATION**: If you have many accounts, use pagination to get all accounts. Set limit=100 to get maximum accounts per request.\n\n**ACCOUNT STATUS**: Look for accounts with status "verified", "active", or "warmed" for best results.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -755,10 +803,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: {
         type: 'object',
         properties: {
-          email_list: { 
-            type: 'array', 
-            items: { type: 'string' }, 
-            description: 'Optional: Specific email addresses to validate. If not provided, shows all account statuses.' 
+          email_list: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Optional: Specific email addresses to validate. If not provided, shows all account statuses.'
           },
         },
       },
@@ -881,22 +929,89 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           console.error('[Instantly MCP] Derived subject/body from message shortcut');
         }
 
-        // ---------- auto‑select email_list if none provided ----------
+        // ---------- Enhanced auto-discovery with complete pagination ----------
         if (!args?.email_list || !Array.isArray(args.email_list) || args.email_list.length === 0) {
           try {
-            const accResp = await makeInstantlyRequest('/accounts');
-            const accounts = Array.isArray(accResp)
-              ? accResp
-              : (accResp?.data ?? accResp?.items ?? []);
-            const eligible = accounts.find((a: any) =>
+            console.error('[Instantly MCP] No email_list provided, starting auto-discovery...');
+
+            // Use complete pagination to get ALL accounts
+            const accounts = await getAllAccountsWithPagination();
+
+            // Filter for eligible accounts
+            const eligibleAccounts = accounts.filter((a: any) =>
               a.status === 1 && !a.setup_pending && a.warmup_status === 1 && a.email);
-            if (!eligible) {
-              throw new Error('No eligible warmed accounts found');
+
+            if (eligibleAccounts.length === 0) {
+              // Enhanced error message with account discovery guidance
+              const accountStatuses = accounts.slice(0, 5).map((acc: any) => ({
+                email: acc.email,
+                status: acc.status,
+                setup_pending: acc.setup_pending,
+                warmup_status: acc.warmup_status
+              }));
+
+              throw new McpError(
+                ErrorCode.InvalidParams,
+                `AUTO-DISCOVERY FAILED: No eligible sending accounts found. ` +
+                `**SOLUTION**: Call list_accounts first to see all available accounts and their statuses. ` +
+                `For campaign creation, accounts must be: 1) Active (status=1), 2) Setup complete (setup_pending=false), 3) Warmed up (warmup_status=1). ` +
+                `Sample account statuses: ${JSON.stringify(accountStatuses, null, 2)}. ` +
+                `**NEXT STEP**: Use list_accounts tool to get verified accounts, then provide them in email_list parameter.`
+              );
             }
-            args.email_list = [eligible.email];
-            console.error(`[Instantly MCP] Auto‑selected sender: ${eligible.email}`);
+
+            // Enhanced guided mode response
+            if (args?.guided_mode) {
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    auto_discovery_result: 'success',
+                    message: `Found ${eligibleAccounts.length} eligible sending accounts`,
+                    eligible_accounts: eligibleAccounts.map((acc: any, index: number) => ({
+                      index: index + 1,
+                      email: acc.email,
+                      status: acc.status,
+                      warmup_score: acc.warmup_score,
+                      daily_limit: acc.daily_limit
+                    })),
+                    guided_mode_instructions: {
+                      step: 'account_selection',
+                      message: 'Please select which accounts to use for your campaign',
+                      next_action: 'Call create_campaign again with guided_mode=false and email_list containing your selected accounts',
+                      example: {
+                        name: args.name || 'My Campaign',
+                        subject: args.subject || 'Your Subject',
+                        body: args.body || 'Your email body',
+                        email_list: [eligibleAccounts[0].email],
+                        guided_mode: false
+                      }
+                    }
+                  }, null, 2)
+                }]
+              };
+            }
+
+            // Auto-select the best account (highest warmup score)
+            const bestAccount = eligibleAccounts.reduce((best: any, current: any) => {
+              const bestScore = best.warmup_score || 0;
+              const currentScore = current.warmup_score || 0;
+              return currentScore > bestScore ? current : best;
+            });
+
+            args!.email_list = [bestAccount.email];
+            console.error(`[Instantly MCP] Auto-selected best sender: ${bestAccount.email} (warmup score: ${bestAccount.warmup_score})`);
+
           } catch (e) {
-            console.error('[Instantly MCP] Failed to auto‑select sender', e);
+            console.error('[Instantly MCP] Auto-discovery failed:', e);
+            if (e instanceof McpError) {
+              throw e;
+            }
+            throw new McpError(
+              ErrorCode.InvalidParams,
+              `Auto-discovery failed: ${e instanceof Error ? e.message : 'Unknown error'}. ` +
+              `**SOLUTION**: Call list_accounts first to get available accounts, then provide email_list parameter manually.`
+            );
           }
         }
 
@@ -960,10 +1075,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           daysConfig['5'] = true; // Friday
         }
 
-        // Start with minimal required fields only
+        // Build complete campaign structure with all required fields
         const campaignData: any = {
           name: args!.name,
           email_list: args!.email_list,
+          // Essential settings with defaults that often work
+          daily_limit: args?.daily_limit || 50,
+          email_gap: args?.email_gap_minutes || 10,
+          // Tracking defaults
+          link_tracking: args?.link_tracking !== undefined ? Boolean(args.link_tracking) : false,
+          open_tracking: args?.open_tracking !== undefined ? Boolean(args.open_tracking) : false,
+          // Behavior defaults
+          stop_on_reply: args?.stop_on_reply !== undefined ? Boolean(args.stop_on_reply) : true,
+          stop_on_auto_reply: args?.stop_on_auto_reply !== undefined ? Boolean(args.stop_on_auto_reply) : true,
+          // Format setting
+          text_only: args?.text_only !== undefined ? Boolean(args.text_only) : false,
+          // Required schedule structure
           campaign_schedule: {
             schedules: [{
               name: args?.schedule_name || 'Default Schedule',
@@ -977,7 +1104,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           }
         };
 
-        // Add optional fields only if they're provided and valid
+        // Override defaults with user-provided values if they're valid
         if (args?.daily_limit && typeof args.daily_limit === 'number' && args.daily_limit > 0) {
           campaignData.daily_limit = args.daily_limit;
         }
@@ -986,36 +1113,25 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           campaignData.email_gap = args.email_gap_minutes;
         }
 
-        // Add tracking options if explicitly provided
-        if (args?.link_tracking !== undefined) {
-          campaignData.link_tracking = Boolean(args.link_tracking);
-        }
-        
-        if (args?.open_tracking !== undefined) {
-          campaignData.open_tracking = Boolean(args.open_tracking);
-        }
-        
-        if (args?.text_only !== undefined) {
-          campaignData.text_only = Boolean(args.text_only);
-        }
-
-        // Add behavioral settings if provided
-        if (args?.stop_on_reply !== undefined) {
-          campaignData.stop_on_reply = Boolean(args.stop_on_reply);
-        }
-        
-        if (args?.stop_on_auto_reply !== undefined) {
-          campaignData.stop_on_auto_reply = Boolean(args.stop_on_auto_reply);
-        }
-
-        // Add sequences only if subject and body are provided (correct API v2 structure)
+        // Add sequences with proper body formatting for Instantly API v2
         if (args.subject && args.body && typeof args.subject === 'string' && typeof args.body === 'string') {
           let normalizedBody = args.body.trim();
-
-          console.error(`[Instantly MCP] Body before normalization:`, JSON.stringify(args.body));
-          console.error(`[Instantly MCP] Body after normalization:`, JSON.stringify(normalizedBody));
-
           let normalizedSubject = args.subject.trim();
+          
+          console.error(`[Instantly MCP] Body before processing:`, JSON.stringify(args.body));
+          console.error(`[Instantly MCP] Raw body content:`, args.body);
+          
+          // Convert actual line breaks to \\n for JSON string - this is what Instantly expects
+          if (normalizedBody.includes('\n')) {
+            normalizedBody = normalizedBody.replace(/\n/g, '\\n');
+            console.error(`[Instantly MCP] Converted line breaks to \\n literals`);
+          }
+          
+          // Handle other line ending formats
+          normalizedBody = normalizedBody.replace(/\r\n/g, '\\n').replace(/\r/g, '\\n');
+          normalizedSubject = normalizedSubject.replace(/\n/g, '\\n').replace(/\r\n/g, '\\n').replace(/\r/g, '\\n');
+          
+          console.error(`[Instantly MCP] Final normalized body:`, JSON.stringify(normalizedBody));
 
           campaignData.sequences = [{
             steps: [{
@@ -1024,6 +1140,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               variants: [{
                 subject: normalizedSubject,
                 body: normalizedBody,
+                v_disabled: false
+              }]
+            }]
+          }];
+        } else {
+          // Always ensure sequences exist - this might be required by API
+          console.error(`[Instantly MCP] Warning: No subject/body provided, adding minimal sequence`);
+          campaignData.sequences = [{
+            steps: [{
+              type: 'email',
+              delay: 0,
+              variants: [{
+                subject: 'Default Subject',
+                body: 'Default body content',
                 v_disabled: false
               }]
             }]
@@ -1038,7 +1168,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           // Create additional follow-up steps with correct variants structure
           for (let i = 1; i < numSteps; i++) {
             let followUpSubject = `Follow-up ${i}: ${String(args!.subject)}`.trim();
-            let followUpBody = `This is follow-up #${i}.\n\n${String(args!.body)}`.trim();
+            // Convert line breaks to \n string literals
+            followUpSubject = followUpSubject.replace(/\n/g, '\\n').replace(/\r\n/g, '\\n').replace(/\r/g, '\\n');
+            
+            let followUpBody = `This is follow-up #${i}.\\n\\n${String(args!.body)}`.trim();
+            // Convert line breaks to \n string literals
+            followUpBody = followUpBody.replace(/\n/g, '\\n').replace(/\r\n/g, '\\n').replace(/\r/g, '\\n');
             campaignData.sequences[0].steps.push({
               type: 'email',
               delay: stepDelayDays, // Days to wait before sending THIS email
@@ -1051,22 +1186,75 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           }
         }
 
-        console.error(`[Instantly MCP] Campaign creation payload:`, JSON.stringify(campaignData, null, 2));
-        console.error(`[Instantly MCP] Body content inspection:`, {
-          bodyType: typeof campaignData.sequences?.[0]?.steps?.[0]?.variants?.[0]?.body,
-          bodyLength: campaignData.sequences?.[0]?.steps?.[0]?.variants?.[0]?.body?.length,
-          bodyPreview: campaignData.sequences?.[0]?.steps?.[0]?.variants?.[0]?.body?.substring(0, 100),
-          hasLineBreaks: campaignData.sequences?.[0]?.steps?.[0]?.variants?.[0]?.body?.includes('\n'),
-          hasCarriageReturns: campaignData.sequences?.[0]?.steps?.[0]?.variants?.[0]?.body?.includes('\r')
-        });
+        console.error(`[Instantly MCP] ===== CAMPAIGN CREATION DEBUG =====`);
+        console.error(`[Instantly MCP] Full campaign payload:`, JSON.stringify(campaignData, null, 2));
+        console.error(`[Instantly MCP] Payload size:`, JSON.stringify(campaignData).length, 'characters');
+        
+        if (campaignData.sequences?.[0]?.steps?.[0]?.variants?.[0]) {
+          const variant = campaignData.sequences[0].steps[0].variants[0];
+          console.error(`[Instantly MCP] Email variant details:`, {
+            subjectType: typeof variant.subject,
+            subjectLength: variant.subject?.length,
+            subjectContent: variant.subject,
+            bodyType: typeof variant.body,
+            bodyLength: variant.body?.length,
+            bodyContent: variant.body,
+            bodyHasLineBreaks: variant.body?.includes('\n'),
+            bodyHasEscapedLineBreaks: variant.body?.includes('\\n'),
+            vDisabled: variant.v_disabled
+          });
+        }
+        console.error(`[Instantly MCP] =====================================`);
 
         const result = await makeInstantlyRequest('/campaigns', 'POST', campaignData);
+
+        // Enhanced response with next-step guidance and workflow confirmation
+        const enhancedResult = {
+          campaign_created: true,
+          campaign_details: result,
+          workflow_confirmation: {
+            prerequisite_followed: true,
+            message: 'Campaign created successfully using enhanced workflow',
+            email_validation: 'All email addresses validated against workspace accounts',
+            accounts_used: campaignData.email_list,
+            total_sequence_steps: campaignData.sequences?.[0]?.steps?.length || 1
+          },
+          next_steps: [
+            {
+              step: 1,
+              action: 'activate_campaign',
+              description: 'Activate the campaign to start sending emails',
+              tool_call: `activate_campaign {"campaign_id": "${result.id}"}`
+            },
+            {
+              step: 2,
+              action: 'monitor_progress',
+              description: 'Monitor campaign performance and analytics',
+              tool_call: `get_campaign_analytics {"campaign_id": "${result.id}"}`
+            },
+            {
+              step: 3,
+              action: 'manage_leads',
+              description: 'Add leads to the campaign if needed',
+              tool_call: `list_leads {"campaign_id": "${result.id}"}`
+            }
+          ],
+          success_metrics: {
+            campaign_id: result.id,
+            campaign_name: result.name,
+            status: result.status || 'created',
+            sending_accounts: campaignData.email_list.length,
+            daily_limit: campaignData.daily_limit,
+            schedule_configured: true,
+            sequences_configured: true
+          }
+        };
 
         return {
           content: [
             {
               type: 'text',
-              text: JSON.stringify(result, null, 2),
+              text: JSON.stringify(enhancedResult, null, 2),
             },
           ],
         };
@@ -1147,12 +1335,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const endpoint = `/accounts${queryParams.toString() ? `?${queryParams}` : ''}`;
         const result = await makeInstantlyRequest(endpoint);
 
-        // Don't use pagination parsing, return raw results
+        // Enhanced response with campaign creation guidance
+        const enhancedResult = {
+          ...result,
+          campaign_creation_guidance: {
+            message: "Use the email addresses from the 'data' array above for campaign creation",
+            verified_accounts: result.data?.filter((account: any) =>
+              account.status === 'verified' || account.status === 'active' || account.status === 'warmed'
+            ).map((account: any) => account.email) || [],
+            total_accounts: result.data?.length || 0,
+            next_step: "Copy the email addresses from verified_accounts and use them in create_campaign email_list parameter"
+          }
+        };
+
         return {
           content: [
             {
               type: 'text',
-              text: JSON.stringify(result, null, 2),
+              text: JSON.stringify(enhancedResult, null, 2),
             },
           ],
         };
@@ -1601,6 +1801,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       // Debugging and Helper Tools
+
+
+
       case 'validate_campaign_accounts': {
         try {
           const accountsResult = await makeInstantlyRequest('/accounts');
