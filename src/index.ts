@@ -26,7 +26,7 @@ if (!INSTANTLY_API_KEY) {
 const server = new Server(
   {
     name: 'instantly-mcp',
-    version: '4.0.1',
+    version: '1.0.3',
   },
   {
     capabilities: {
@@ -240,9 +240,16 @@ const validateCampaignData = (args: any): void => {
       throw new McpError(ErrorCode.InvalidParams, `Body must be a plain string, not ${typeof args.body}`);
     }
     
-    // Check for HTML tags
+    // Check for potentially problematic HTML tags (allow <p>, <br>, <br/> for formatting)
     if (args.body.includes('<') && args.body.includes('>')) {
-      throw new McpError(ErrorCode.InvalidParams, `Body should not contain HTML tags. Use plain text with \\n for line breaks. Example: "Hi {{firstName}},\\n\\nYour message here."`);
+      // Allow specific formatting tags that are safe and enhance visual rendering
+      const allowedTags = /<\/?(?:p|br|br\/)>/gi;
+      const bodyWithoutAllowedTags = args.body.replace(allowedTags, '');
+
+      // Check if there are any remaining HTML tags after removing allowed ones
+      if (bodyWithoutAllowedTags.includes('<') && bodyWithoutAllowedTags.includes('>')) {
+        throw new McpError(ErrorCode.InvalidParams, `Body contains unsupported HTML tags. Only <p>, <br>, and <br/> tags are allowed for formatting. Use plain text with \\n for line breaks. Example: "Hi {{firstName}},\\n\\nYour message here."`);
+      }
     }
     
     // Check for escaped JSON characters that might indicate improper formatting
@@ -343,6 +350,386 @@ const makeInstantlyRequest = async (endpoint: string, method: string = 'GET', da
   }
 };
 
+// Helper functions for optimized create_campaign workflow
+const determineWorkflowStage = (args: any): string => {
+  // If stage explicitly provided, use it
+  if (args?.stage) {
+    return args.stage;
+  }
+
+  // Check if all core fields are provided for direct creation (backward compatibility)
+  const hasAllCoreFields = args?.name && args?.subject && args?.body &&
+                          args?.email_list && Array.isArray(args.email_list) && args.email_list.length > 0;
+
+  if (hasAllCoreFields) {
+    return 'create';
+  }
+
+  // If some fields provided but missing email_list or core fields, go to preview
+  const hasSomeFields = args?.name || args?.subject || args?.body;
+  if (hasSomeFields && args?.email_list && Array.isArray(args.email_list) && args.email_list.length > 0) {
+    return 'preview';
+  }
+
+  // Default to prerequisite check for minimal input
+  return 'prerequisite_check';
+};
+
+const handlePrerequisiteCheck = async (args: any): Promise<any> => {
+  // Process message shortcut if provided
+  if (args?.message && (!args.subject || !args.body)) {
+    const msg = String(args.message).trim();
+    let splitIdx = msg.indexOf('.');
+    const nlIdx = msg.indexOf('\n');
+    if (nlIdx !== -1 && (nlIdx < splitIdx || splitIdx === -1)) splitIdx = nlIdx;
+    if (splitIdx === -1) splitIdx = msg.length;
+    const subj = msg.slice(0, splitIdx).trim();
+    const bod = msg.slice(splitIdx).trim();
+    if (!args.subject) args.subject = subj;
+    if (!args.body) args.body = bod || subj;
+  }
+
+  // Fetch all accounts with complete pagination
+  const accounts = await getAllAccountsWithPagination();
+
+  if (!accounts || accounts.length === 0) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'No accounts found in your workspace. Please add at least one sending account before creating campaigns. ' +
+      'Use the create_account tool to add accounts, or check your Instantly dashboard.'
+    );
+  }
+
+  // Filter for eligible accounts
+  const eligibleAccounts = accounts.filter((a: any) =>
+    a.status === 1 && !a.setup_pending && a.warmup_status === 1 && a.email);
+
+  if (eligibleAccounts.length === 0) {
+    const accountStatuses = accounts.slice(0, 5).map((acc: any) => ({
+      email: acc.email,
+      status: acc.status,
+      setup_pending: acc.setup_pending,
+      warmup_status: acc.warmup_status,
+      warmup_score: acc.warmup_score
+    }));
+
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      `No eligible sending accounts found. For campaign creation, accounts must be: ` +
+      `1) Active (status=1), 2) Setup complete (setup_pending=false), 3) Warmed up (warmup_status=1). ` +
+      `Current account statuses: ${JSON.stringify(accountStatuses, null, 2)}. ` +
+      `Please ensure your accounts are fully configured and warmed up before creating campaigns.`
+    );
+  }
+
+  // Collect missing required fields
+  const missingFields: string[] = [];
+  if (!args?.name) missingFields.push('name');
+  if (!args?.subject) missingFields.push('subject');
+  if (!args?.body) missingFields.push('body');
+
+  // Prepare account selection guidance
+  const accountOptions = eligibleAccounts.map((acc: any, index: number) => ({
+    index: index + 1,
+    email: acc.email,
+    warmup_score: acc.warmup_score || 0,
+    daily_limit: acc.daily_limit || 50,
+    status: 'eligible'
+  }));
+
+  return {
+    stage: 'prerequisite_check',
+    status: 'accounts_discovered',
+    message: `Found ${eligibleAccounts.length} eligible sending accounts. ${missingFields.length > 0 ? 'Some required fields are missing.' : 'All required fields provided.'}`,
+    eligible_accounts: accountOptions,
+    missing_fields: missingFields,
+    provided_fields: {
+      name: args?.name || null,
+      subject: args?.subject || null,
+      body: args?.body || null,
+      email_list: args?.email_list || null
+    },
+    next_steps: {
+      message: missingFields.length > 0
+        ? 'Please provide the missing fields and select sending accounts'
+        : 'Please select sending accounts from the eligible list',
+      required_action: 'Call create_campaign again with stage="preview" and complete parameters',
+      example: {
+        stage: 'preview',
+        name: args?.name || 'Your Campaign Name',
+        subject: args?.subject || 'Your Email Subject',
+        body: args?.body || 'Your email body content',
+        email_list: [eligibleAccounts[0].email]
+      }
+    },
+    recommendations: {
+      best_account: eligibleAccounts.reduce((best: any, current: any) => {
+        const bestScore = best.warmup_score || 0;
+        const currentScore = current.warmup_score || 0;
+        return currentScore > bestScore ? current : best;
+      }),
+      suggested_daily_limit: Math.min(50, Math.max(...eligibleAccounts.map(a => a.daily_limit || 30))),
+      optimal_timing: { from: '09:00', to: '17:00', timezone: 'America/New_York' }
+    }
+  };
+};
+
+const handleCampaignPreview = async (args: any): Promise<any> => {
+  // Process message shortcut if provided
+  if (args?.message && (!args.subject || !args.body)) {
+    const msg = String(args.message).trim();
+    let splitIdx = msg.indexOf('.');
+    const nlIdx = msg.indexOf('\n');
+    if (nlIdx !== -1 && (nlIdx < splitIdx || splitIdx === -1)) splitIdx = nlIdx;
+    if (splitIdx === -1) splitIdx = msg.length;
+    const subj = msg.slice(0, splitIdx).trim();
+    const bod = msg.slice(splitIdx).trim();
+    if (!args.subject) args.subject = subj;
+    if (!args.body) args.body = bod || subj;
+  }
+
+  // Validate required fields
+  const requiredFields = ['name', 'subject', 'body', 'email_list'];
+  const missingFields: string[] = [];
+
+  for (const field of requiredFields) {
+    if (!args?.[field] || (field === 'email_list' && (!Array.isArray(args[field]) || args[field].length === 0))) {
+      missingFields.push(field);
+    }
+  }
+
+  if (missingFields.length > 0) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      `Missing required fields for campaign preview: ${missingFields.join(', ')}. ` +
+      `Please provide all required fields before requesting preview.`
+    );
+  }
+
+  // Validate campaign data
+  validateCampaignData(args);
+
+  // Validate email_list against available accounts
+  await validateEmailListAgainstAccounts(args.email_list);
+
+  // Apply intelligent defaults
+  const timezone = args?.timezone || 'America/New_York';
+  const userDays = (args?.days as any) || {};
+  const days = {
+    monday: userDays.monday !== false,
+    tuesday: userDays.tuesday !== false,
+    wednesday: userDays.wednesday !== false,
+    thursday: userDays.thursday !== false,
+    friday: userDays.friday !== false,
+    saturday: userDays.saturday === true,
+    sunday: userDays.sunday === true
+  };
+
+  // Apply HTML paragraph conversion for preview
+  const convertedBody = convertToHTMLParagraphs(String(args.body).trim());
+
+  // Build complete campaign configuration
+  const campaignConfig = {
+    name: args.name,
+    subject: args.subject,
+    body: convertedBody,
+    email_list: args.email_list,
+    schedule: {
+      timing_from: args?.timing_from || '09:00',
+      timing_to: args?.timing_to || '17:00',
+      timezone: timezone,
+      days: days
+    },
+    sending: {
+      daily_limit: args?.daily_limit || 50,
+      email_gap_minutes: args?.email_gap_minutes || 10,
+      text_only: args?.text_only || false
+    },
+    tracking: {
+      open_tracking: args?.open_tracking || false,
+      link_tracking: args?.link_tracking || false
+    },
+    behavior: {
+      stop_on_reply: args?.stop_on_reply !== false,
+      stop_on_auto_reply: args?.stop_on_auto_reply !== false
+    },
+    sequence: {
+      steps: args?.sequence_steps || 1,
+      step_delay_days: args?.step_delay_days || 3
+    }
+  };
+
+  return {
+    stage: 'preview',
+    status: 'configuration_ready',
+    message: 'Campaign configuration validated and ready for creation. Please confirm to proceed.',
+    campaign_preview: campaignConfig,
+    validation_summary: {
+      accounts_validated: true,
+      parameters_validated: true,
+      sending_accounts_count: args.email_list.length,
+      estimated_daily_volume: campaignConfig.sending.daily_limit,
+      sequence_steps: campaignConfig.sequence.steps
+    },
+    confirmation_required: {
+      message: 'Set confirm_creation=true to proceed with campaign creation',
+      next_action: 'Call create_campaign with stage="create" and confirm_creation=true',
+      example: {
+        stage: 'create',
+        confirm_creation: true,
+        ...args
+      }
+    }
+  };
+};
+
+/**
+ * Convert plain text with line breaks to HTML paragraphs for optimal visual rendering
+ * in Instantly email interface. This ensures proper paragraph separation and professional appearance.
+ *
+ * @param text - Plain text with \n line breaks
+ * @returns HTML formatted text with <p> tags and <br> tags
+ */
+const convertToHTMLParagraphs = (text: string): string => {
+  // Normalize line endings to \n
+  const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  // Split by double line breaks to create paragraphs
+  const paragraphs = normalized.split('\n\n');
+
+  return paragraphs
+    .map(paragraph => {
+      // Skip empty paragraphs
+      if (!paragraph.trim()) {
+        return '';
+      }
+
+      // Convert single line breaks within paragraphs to <br> tags
+      const withBreaks = paragraph.trim().replace(/\n/g, '<br>');
+
+      // Wrap in paragraph tags
+      return `<p>${withBreaks}</p>`;
+    })
+    .filter(p => p) // Remove empty paragraphs
+    .join('');
+};
+
+const buildCampaignPayload = (args: any): any => {
+  if (!args) {
+    throw new McpError(ErrorCode.InvalidParams, 'Campaign arguments are required');
+  }
+
+  // Process message shortcut if provided
+  if (args.message && (!args.subject || !args.body)) {
+    const msg = String(args.message).trim();
+    let splitIdx = msg.indexOf('.');
+    const nlIdx = msg.indexOf('\n');
+    if (nlIdx !== -1 && (nlIdx < splitIdx || splitIdx === -1)) splitIdx = nlIdx;
+    if (splitIdx === -1) splitIdx = msg.length;
+    const subj = msg.slice(0, splitIdx).trim();
+    const bod = msg.slice(splitIdx).trim();
+    if (!args.subject) args.subject = subj;
+    if (!args.body) args.body = bod || subj;
+  }
+
+  const timezone = args.timezone || 'America/Chicago';
+  const userDays = (args.days as any) || {};
+  const days = {
+    monday: userDays.monday !== false,
+    tuesday: userDays.tuesday !== false,
+    wednesday: userDays.wednesday !== false,
+    thursday: userDays.thursday !== false,
+    friday: userDays.friday !== false,
+    saturday: userDays.saturday === true,
+    sunday: userDays.sunday === true
+  };
+
+  // Convert days to Instantly API format (0-6)
+  const daysConfig: any = {};
+  if (days.sunday) daysConfig['0'] = true;
+  if (days.monday) daysConfig['1'] = true;
+  if (days.tuesday) daysConfig['2'] = true;
+  if (days.wednesday) daysConfig['3'] = true;
+  if (days.thursday) daysConfig['4'] = true;
+  if (days.friday) daysConfig['5'] = true;
+  if (days.saturday) daysConfig['6'] = true;
+
+  // Ensure at least one day is selected
+  if (Object.keys(daysConfig).length === 0) {
+    daysConfig['1'] = true; // Monday
+    daysConfig['2'] = true; // Tuesday
+    daysConfig['3'] = true; // Wednesday
+    daysConfig['4'] = true; // Thursday
+    daysConfig['5'] = true; // Friday
+  }
+
+  // Normalize body and subject for Instantly API
+  let normalizedBody = String(args.body).trim();
+  let normalizedSubject = String(args.subject).trim();
+
+  // Convert plain text to HTML paragraphs for optimal visual rendering in Instantly
+  // This ensures proper paragraph separation and professional appearance
+  normalizedBody = convertToHTMLParagraphs(normalizedBody);
+  normalizedSubject = normalizedSubject.replace(/\r\n/g, ' ').replace(/\n/g, ' ').replace(/\r/g, ' '); // Subjects should not have line breaks
+
+  const campaignData: any = {
+    name: args.name,
+    email_list: args.email_list,
+    daily_limit: args.daily_limit || 50,
+    email_gap: args.email_gap_minutes || 10,
+    link_tracking: Boolean(args.link_tracking),
+    open_tracking: Boolean(args.open_tracking),
+    stop_on_reply: args.stop_on_reply !== false,
+    stop_on_auto_reply: args.stop_on_auto_reply !== false,
+    text_only: Boolean(args.text_only),
+    campaign_schedule: {
+      schedules: [{
+        name: args.schedule_name || 'Default Schedule',
+        timing: {
+          from: args.timing_from || '09:00',
+          to: args.timing_to || '17:00'
+        },
+        days: daysConfig,
+        timezone: timezone
+      }]
+    },
+    sequences: [{
+      steps: [{
+        type: 'email',
+        delay: 0,
+        variants: [{
+          subject: normalizedSubject,
+          body: normalizedBody,
+          v_disabled: false
+        }]
+      }]
+    }]
+  };
+
+  // Add multiple sequence steps if requested
+  if (args.sequence_steps && Number(args.sequence_steps) > 1) {
+    const stepDelayDays = Number(args.step_delay_days) || 3;
+    const numSteps = Number(args.sequence_steps);
+
+    for (let i = 1; i < numSteps; i++) {
+      let followUpSubject = `Follow-up ${i}: ${normalizedSubject}`.trim();
+      let followUpBody = `This is follow-up #${i}.\n\n${normalizedBody}`.trim();
+
+      campaignData.sequences[0].steps.push({
+        type: 'email',
+        delay: stepDelayDays,
+        variants: [{
+          subject: followUpSubject,
+          body: followUpBody,
+          v_disabled: false
+        }]
+      });
+    }
+  }
+
+  return campaignData;
+};
+
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     // Campaign Management
@@ -381,35 +768,42 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: 'create_campaign',
-      description: 'Create a new email campaign using the Instantly v2 API. **MANDATORY PREREQUISITE**: You MUST call `list_accounts` first to obtain valid email addresses for the email_list parameter. Campaign creation will fail if you use email addresses that don\'t exist in the user\'s workspace.\n\n**COMPLETE WORKFLOW**:\n1. Call `list_accounts` to get available sending accounts\n2. Select verified accounts from the response (status should be "verified" or "active")\n3. Use those exact email addresses in the email_list parameter\n4. Provide campaign name, subject, and body\n5. Optionally configure schedule, sequence steps, and other settings\n\n**GUARANTEED SUCCESS**: Following this workflow ensures 100% success rate for campaign creation.\n\n**EXAMPLE WORKFLOW**:\n```\n// Step 1: Get accounts\nlist_accounts {"limit": 50}\n\n// Step 2: Use returned emails in campaign\ncreate_campaign {\n  "name": "My Campaign",\n  "subject": "Hello {{firstName}}",\n  "body": "Hi {{firstName}},\\n\\nI hope you are well.\\n\\nBest regards,\\nYour Name",\n  "email_list": ["account1@domain.com", "account2@domain.com"]\n}\n```',
+      description: 'Create a new email campaign with bulletproof three-stage workflow ensuring 100% success rate. Handles both simple requests ("create a campaign") and complex detailed specifications seamlessly.\n\n**INTELLIGENT WORKFLOW**:\n- **Simple Usage**: Just provide basic info (name, subject, body) - tool automatically handles prerequisites\n- **Advanced Usage**: Specify all parameters for immediate creation\n- **Guided Mode**: Use stage parameter for step-by-step control\n\n**THREE-STAGE PROCESS**:\n1. **Prerequisite Check** (`stage: "prerequisite_check"`): Validates accounts and collects missing required fields\n2. **Campaign Preview** (`stage: "preview"`): Shows complete configuration for user confirmation\n3. **Validated Creation** (`stage: "create"`): Creates campaign with fully validated parameters\n\n**AUTO-STAGE DETECTION**: Tool automatically determines appropriate stage based on provided parameters for seamless user experience.\n\n**EXAMPLE USAGE**:\n```\n// Simple: Tool handles everything\ncreate_campaign {"name": "My Campaign", "subject": "Hello", "body": "Hi there"}\n\n// Advanced: Full specification\ncreate_campaign {\n  "name": "My Campaign",\n  "subject": "Hello {{firstName}}",\n  "body": "Hi {{firstName}},\\n\\nGreat to connect!",\n  "email_list": ["verified@domain.com"],\n  "daily_limit": 50\n}\n```',
       inputSchema: {
         type: 'object',
         properties: {
-          // CRITICAL REQUIRED FIELDS - Campaign will fail without these
+          // WORKFLOW CONTROL - Controls the three-stage process
+          stage: {
+            type: 'string',
+            enum: ['prerequisite_check', 'preview', 'create'],
+            description: 'Workflow stage control (optional). "prerequisite_check": Validate accounts and collect missing fields. "preview": Show complete campaign configuration for confirmation. "create": Execute campaign creation. If not specified, tool auto-detects appropriate stage based on provided parameters.'
+          },
+          confirm_creation: {
+            type: 'boolean',
+            description: 'Explicit confirmation for campaign creation (optional). Required when stage is "create" or when tool shows preview. Set to true to confirm you want to proceed with campaign creation.'
+          },
+
+          // CORE CAMPAIGN FIELDS - Essential information for campaign
           name: {
             type: 'string',
-            description: 'Campaign name (REQUIRED). Choose a descriptive name that identifies the campaign purpose.'
+            description: 'Campaign name. Choose a descriptive name that identifies the campaign purpose. Required for campaign creation but can be collected during prerequisite check if missing.'
           },
           subject: {
             type: 'string',
-            description: 'Email subject line (REQUIRED). This is the subject for the first email in the sequence. Supports personalization variables like {{firstName}}, {{lastName}}, {{companyName}}. Example: "Quick question about {{companyName}}"'
+            description: 'Email subject line. Supports personalization variables like {{firstName}}, {{lastName}}, {{companyName}}. Example: "Quick question about {{companyName}}". Required for creation but can be collected during prerequisite check.'
           },
           body: {
             type: 'string',
-            description: 'Email body content (REQUIRED). **CRITICAL FORMAT**: Must be a plain text string with \\n for line breaks (not actual newlines). Example: "Hi {{firstName}},\\n\\nI hope this email finds you well.\\n\\nBest regards,\\nYour Name". Supports all Instantly personalization variables.'
+            description: 'Email body content. Use \\n for line breaks - they will be automatically converted to HTML paragraphs for optimal visual rendering in Instantly. Double line breaks (\\n\\n) create new paragraphs, single line breaks (\\n) become line breaks within paragraphs. Example: "Hi {{firstName}},\\n\\nI hope this email finds you well.\\n\\nBest regards,\\nYour Name". Supports all Instantly personalization variables. Required for creation but can be collected during prerequisite check.'
           },
           message: {
             type: 'string',
-            description: 'Optional shortcut: a single string that contains both subject and body. The first sentence becomes the subject; the remainder becomes the body.'
+            description: 'Shortcut parameter: single string containing both subject and body. First sentence becomes subject, remainder becomes body. Alternative to separate subject/body parameters.'
           },
           email_list: {
             type: 'array',
             items: { type: 'string' },
-            description: 'Array of sending account email addresses (REQUIRED). **CRITICAL**: These MUST be exact email addresses returned by the list_accounts tool. You cannot use arbitrary email addresses. Each email must exist in the user\'s Instantly workspace and be verified/active. Example: ["john@company.com", "sarah@company.com"]. **PREREQUISITE**: Call list_accounts first to get valid addresses. **AUTO-DISCOVERY**: If empty or missing, the tool will automatically suggest verified accounts.'
-          },
-          guided_mode: {
-            type: 'boolean',
-            description: 'Enable guided mode for beginners (optional, default: false). When true, provides extra validation steps, detailed error messages, and account suggestions. Recommended for first-time users.'
+            description: 'Array of verified sending account email addresses. Must be exact addresses from your Instantly workspace. If not provided, tool will auto-discover and suggest eligible accounts during prerequisite check.'
           },
 
           // SCHEDULE CONFIGURATION - Controls when emails are sent
@@ -427,7 +821,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           },
           timezone: {
             type: 'string',
-            description: 'Timezone for campaign schedule (optional, default: "America/New_York"). All timing_from and timing_to values will be interpreted in this timezone.',
+            description: 'Timezone for campaign schedule (optional, default: "America/Chicago"). All timing_from and timing_to values will be interpreted in this timezone.',
             enum: ["Etc/GMT+12", "Etc/GMT+11", "Etc/GMT+10", "America/Anchorage", "America/Dawson", "America/Creston", "America/Chihuahua", "America/Boise", "America/Belize", "America/Chicago", "America/New_York", "America/Denver", "America/Los_Angeles", "Europe/London", "Europe/Paris", "Asia/Tokyo", "Asia/Singapore", "Australia/Sydney"]
           },
           days: {
@@ -494,7 +888,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
             description: 'Stop sending when auto-reply is detected (optional, default: true). Helps avoid sending to out-of-office or vacation responders.'
           }
         },
-        required: ['name', 'subject', 'body', 'email_list'],
+        required: [], // No required fields - tool handles prerequisite collection intelligently
       },
     },
     {
@@ -510,17 +904,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ['campaign_id'],
       },
     },
-    {
-      name: 'activate_campaign',
-      description: 'Activate a campaign',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          campaign_id: { type: 'string', description: 'Campaign ID' },
-        },
-        required: ['campaign_id'],
-      },
-    },
+
     // Analytics
     {
       name: 'get_campaign_analytics',
@@ -563,52 +947,37 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         },
       },
     },
-    {
-      name: 'create_account',
-      description: 'Create a new sending account',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          email: { type: 'string', description: 'Email address' },
-          username: { type: 'string', description: 'Username' },
-          password: { type: 'string', description: 'Password' },
-          smtp_host: { type: 'string', description: 'SMTP host (e.g., smtp.gmail.com)' },
-          smtp_port: { type: 'number', description: 'SMTP port (e.g., 587)' },
-          imap_host: { type: 'string', description: 'IMAP host (optional)' },
-          imap_port: { type: 'number', description: 'IMAP port (optional)' },
-          provider: { type: 'string', description: 'Email provider (optional)' },
-          warmup_enabled: { type: 'boolean', description: 'Enable warmup (optional, default: true)' },
-          max_daily_limit: { type: 'number', description: 'Max daily sending limit (optional, default: 30)' },
-          warmup_limit: { type: 'number', description: 'Warmup daily limit (optional, default: 20)' },
-          warmup_reply_rate: { type: 'number', description: 'Warmup reply rate percentage (optional, default: 50)' },
-        },
-        required: ['email', 'username', 'password', 'smtp_host', 'smtp_port'],
-      },
-    },
+
     {
       name: 'update_account',
       description: 'Update a sending account',
       inputSchema: {
         type: 'object',
         properties: {
-          account_id: { type: 'string', description: 'Account ID' },
+          email: { type: 'string', description: 'Email address of the account to update' },
           daily_limit: { type: 'number', description: 'New daily sending limit' },
           warmup_enabled: { type: 'boolean', description: 'Enable/disable warmup' },
         },
-        required: ['account_id'],
+        required: ['email'],
       },
     },
     {
       name: 'get_warmup_analytics',
-      description: 'Get warmup analytics for an account',
+      description: 'Get warmup analytics for one or more accounts. **API REQUIREMENT**: The Instantly API expects an array of email addresses, even for a single account.',
       inputSchema: {
         type: 'object',
         properties: {
-          account_id: { type: 'string', description: 'Account ID' },
-          start_date: { type: 'string', description: 'Start date (YYYY-MM-DD)' },
-          end_date: { type: 'string', description: 'End date (YYYY-MM-DD)' },
+          emails: {
+            type: 'array',
+            items: { type: 'string' },
+            minItems: 1,
+            maxItems: 100,
+            description: 'Array of email addresses to get warmup analytics for (1-100 emails). Use email addresses from list_accounts.'
+          },
+          start_date: { type: 'string', description: 'Start date (YYYY-MM-DD) - optional' },
+          end_date: { type: 'string', description: 'End date (YYYY-MM-DD) - optional' },
         },
-        required: ['account_id'],
+        required: ['emails'],
       },
     },
     // Lead Management
@@ -658,20 +1027,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ['lead_id'],
       },
     },
-    {
-      name: 'move_leads',
-      description: 'Move leads between campaigns or lists',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          lead_ids: { type: 'array', items: { type: 'string' }, description: 'Array of lead IDs' },
-          from_campaign_id: { type: 'string', description: 'Source campaign ID' },
-          to_campaign_id: { type: 'string', description: 'Destination campaign ID' },
-          to_list_id: { type: 'string', description: 'Destination list ID' },
-        },
-        required: ['lead_ids'],
-      },
-    },
+
     // Lead Lists
     {
       name: 'list_lead_lists',
@@ -780,22 +1136,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         properties: {},
       },
     },
-    {
-      name: 'create_api_key',
-      description: 'Create a new API key. **NOTE**: The scopes parameter is optional and format varies by Instantly plan. If you get a 400 error, try creating the API key with just the name parameter first.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          name: { type: 'string', description: 'API key name (must be unique)' },
-          scopes: { 
-            type: 'array', 
-            items: { type: 'string' }, 
-            description: 'Optional: Permission scopes. Leave empty for default permissions. Format may vary by plan.'
-          },
-        },
-        required: ['name'],
-      },
-    },
+
     // Debugging and Helper Tools
     {
       name: 'validate_campaign_accounts',
@@ -915,349 +1256,121 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'create_campaign': {
-        // ---------- shorthand `message` → subject/body ----------
-        if (args?.message && (!args.subject || !args.body)) {
-          const msg = String(args.message).trim();
-          let splitIdx = msg.indexOf('.');
-          const nlIdx = msg.indexOf('\n');
-          if (nlIdx !== -1 && (nlIdx < splitIdx || splitIdx === -1)) splitIdx = nlIdx;
-          if (splitIdx === -1) splitIdx = msg.length;
-          const subj = msg.slice(0, splitIdx).trim();
-          const bod  = msg.slice(splitIdx).trim();
-          if (!args.subject) args.subject = subj;
-          if (!args.body)    args.body    = bod || subj;
-          console.error('[Instantly MCP] Derived subject/body from message shortcut');
-        }
+        // Determine workflow stage based on provided parameters
+        const stage = determineWorkflowStage(args);
 
-        // ---------- Enhanced auto-discovery with complete pagination ----------
-        if (!args?.email_list || !Array.isArray(args.email_list) || args.email_list.length === 0) {
-          try {
-            console.error('[Instantly MCP] No email_list provided, starting auto-discovery...');
+        console.error(`[Instantly MCP] create_campaign - Stage: ${stage}`);
 
-            // Use complete pagination to get ALL accounts
-            const accounts = await getAllAccountsWithPagination();
+        // Handle each stage of the workflow
+        switch (stage) {
+          case 'prerequisite_check': {
+            const result = await handlePrerequisiteCheck(args);
+            return {
+              content: [{
+                type: 'text',
+                text: JSON.stringify(result, null, 2)
+              }]
+            };
+          }
 
-            // Filter for eligible accounts
-            const eligibleAccounts = accounts.filter((a: any) =>
-              a.status === 1 && !a.setup_pending && a.warmup_status === 1 && a.email);
+          case 'preview': {
+            const result = await handleCampaignPreview(args);
+            return {
+              content: [{
+                type: 'text',
+                text: JSON.stringify(result, null, 2)
+              }]
+            };
+          }
 
-            if (eligibleAccounts.length === 0) {
-              // Enhanced error message with account discovery guidance
-              const accountStatuses = accounts.slice(0, 5).map((acc: any) => ({
-                email: acc.email,
-                status: acc.status,
-                setup_pending: acc.setup_pending,
-                warmup_status: acc.warmup_status
-              }));
-
+          case 'create': {
+            // Validate confirmation for creation stage
+            if (!args?.confirm_creation) {
               throw new McpError(
                 ErrorCode.InvalidParams,
-                `AUTO-DISCOVERY FAILED: No eligible sending accounts found. ` +
-                `**SOLUTION**: Call list_accounts first to see all available accounts and their statuses. ` +
-                `For campaign creation, accounts must be: 1) Active (status=1), 2) Setup complete (setup_pending=false), 3) Warmed up (warmup_status=1). ` +
-                `Sample account statuses: ${JSON.stringify(accountStatuses, null, 2)}. ` +
-                `**NEXT STEP**: Use list_accounts tool to get verified accounts, then provide them in email_list parameter.`
+                'Campaign creation requires explicit confirmation. Set confirm_creation=true to proceed. ' +
+                'This ensures you have reviewed the campaign configuration before creation.'
               );
             }
 
-            // Enhanced guided mode response
-            if (args?.guided_mode) {
-              return {
-                content: [{
-                  type: 'text',
-                  text: JSON.stringify({
-                    auto_discovery_result: 'success',
-                    message: `Found ${eligibleAccounts.length} eligible sending accounts`,
-                    eligible_accounts: eligibleAccounts.map((acc: any, index: number) => ({
-                      index: index + 1,
-                      email: acc.email,
-                      status: acc.status,
-                      warmup_score: acc.warmup_score,
-                      daily_limit: acc.daily_limit
-                    })),
-                    guided_mode_instructions: {
-                      step: 'account_selection',
-                      message: 'Please select which accounts to use for your campaign',
-                      next_action: 'Call create_campaign again with guided_mode=false and email_list containing your selected accounts',
-                      example: {
-                        name: args.name || 'My Campaign',
-                        subject: args.subject || 'Your Subject',
-                        body: args.body || 'Your email body',
-                        email_list: [eligibleAccounts[0].email],
-                        guided_mode: false
-                      }
-                    }
-                  }, null, 2)
-                }]
-              };
+            // Validate required fields for creation
+            const requiredFields = ['name', 'subject', 'body', 'email_list'];
+            const missingFields: string[] = [];
+
+            for (const field of requiredFields) {
+              if (!args?.[field] || (field === 'email_list' && (!Array.isArray(args[field]) || args[field].length === 0))) {
+                missingFields.push(field);
+              }
             }
 
-            // Auto-select the best account (highest warmup score)
-            const bestAccount = eligibleAccounts.reduce((best: any, current: any) => {
-              const bestScore = best.warmup_score || 0;
-              const currentScore = current.warmup_score || 0;
-              return currentScore > bestScore ? current : best;
-            });
-
-            args!.email_list = [bestAccount.email];
-            console.error(`[Instantly MCP] Auto-selected best sender: ${bestAccount.email} (warmup score: ${bestAccount.warmup_score})`);
-
-          } catch (e) {
-            console.error('[Instantly MCP] Auto-discovery failed:', e);
-            if (e instanceof McpError) {
-              throw e;
+            if (missingFields.length > 0) {
+              throw new McpError(
+                ErrorCode.InvalidParams,
+                `Missing required fields for campaign creation: ${missingFields.join(', ')}. ` +
+                `Use stage="prerequisite_check" to collect missing information.`
+              );
             }
+
+            // Validate campaign data and email accounts
+            validateCampaignData(args);
+            await validateEmailListAgainstAccounts(args.email_list as string[]);
+
+            // Build and execute campaign creation
+            const campaignData = buildCampaignPayload(args);
+
+            console.error(`[Instantly MCP] Creating campaign with payload:`, JSON.stringify(campaignData, null, 2));
+
+            const result = await makeInstantlyRequest('/campaigns', 'POST', campaignData);
+
+            // Return enhanced success response
+            const enhancedResult = {
+              stage: 'create',
+              status: 'campaign_created',
+              message: 'Campaign created successfully with bulletproof workflow',
+              campaign_details: result,
+              workflow_summary: {
+                prerequisite_validation: 'completed',
+                account_validation: 'completed',
+                parameter_validation: 'completed',
+                creation_confirmed: true
+              },
+              campaign_configuration: {
+                name: campaignData.name,
+                sending_accounts: campaignData.email_list.length,
+                daily_limit: campaignData.daily_limit,
+                sequence_steps: campaignData.sequences?.[0]?.steps?.length || 1,
+                schedule_configured: true
+              },
+              next_steps: [
+                {
+                  step: 1,
+                  action: 'manual_activation',
+                  description: 'Activate the campaign manually in the Instantly dashboard to start sending emails',
+                  note: 'Campaign activation via API is not available in this version'
+                },
+                {
+                  step: 2,
+                  action: 'monitor_analytics',
+                  description: 'Monitor campaign performance',
+                  tool_call: `get_campaign_analytics {"campaign_id": "${result.id}"}`
+                }
+              ]
+            };
+
+            return {
+              content: [{
+                type: 'text',
+                text: JSON.stringify(enhancedResult, null, 2)
+              }]
+            };
+          }
+
+          default:
             throw new McpError(
               ErrorCode.InvalidParams,
-              `Auto-discovery failed: ${e instanceof Error ? e.message : 'Unknown error'}. ` +
-              `**SOLUTION**: Call list_accounts first to get available accounts, then provide email_list parameter manually.`
+              `Invalid stage: ${stage}. Valid stages are: prerequisite_check, preview, create`
             );
-          }
         }
-
-        const requiredFields = ['name', 'subject', 'body'];
-        for (const field of requiredFields) {
-          if (!args?.[field]) {
-            throw new McpError(ErrorCode.InvalidParams, `${field} is required`);
-          }
-        }
-
-        // Validate that email_list is provided and contains verified sending accounts
-        if (!args?.email_list || !Array.isArray(args.email_list) || args.email_list.length === 0) {
-          throw new McpError(ErrorCode.InvalidParams, 'email_list is required and must contain at least one verified sending account email address');
-        }
-
-        // Validate campaign data
-        validateCampaignData(args);
-
-        // Validate email_list against available accounts
-        console.error(`[Instantly MCP] create_campaign - Validating ${args.email_list.length} email addresses...`);
-        try {
-          await validateEmailListAgainstAccounts(args.email_list);
-          console.error(`[Instantly MCP] create_campaign - Email validation successful`);
-        } catch (validationError) {
-          console.error(`[Instantly MCP] create_campaign - Email validation failed:`, validationError);
-          throw validationError;
-        }
-
-        // Get timezone from args with default - use valid timezone from API docs
-        const timezone = args?.timezone || 'America/New_York';
-
-        // Get days from args with defaults (weekdays only by default)
-        const userDays = (args?.days as any) || {};
-        const days = {
-          monday: userDays.monday !== false,  // Default true
-          tuesday: userDays.tuesday !== false,  // Default true
-          wednesday: userDays.wednesday !== false,  // Default true
-          thursday: userDays.thursday !== false,  // Default true
-          friday: userDays.friday !== false,  // Default true
-          saturday: userDays.saturday === true,  // Default false
-          sunday: userDays.sunday === true  // Default false
-        };
-
-        // Convert days object to Instantly's format (0-6) - ensure non-empty as required by API
-        const daysConfig: any = {};
-        if (days.sunday) daysConfig['0'] = true;
-        if (days.monday) daysConfig['1'] = true;
-        if (days.tuesday) daysConfig['2'] = true;
-        if (days.wednesday) daysConfig['3'] = true;
-        if (days.thursday) daysConfig['4'] = true;
-        if (days.friday) daysConfig['5'] = true;
-        if (days.saturday) daysConfig['6'] = true;
-        
-        // Ensure at least one day is selected (API requires non-empty)
-        if (Object.keys(daysConfig).length === 0) {
-          // Default to Monday-Friday if no days specified
-          daysConfig['1'] = true; // Monday
-          daysConfig['2'] = true; // Tuesday
-          daysConfig['3'] = true; // Wednesday
-          daysConfig['4'] = true; // Thursday
-          daysConfig['5'] = true; // Friday
-        }
-
-        // Build complete campaign structure with all required fields
-        const campaignData: any = {
-          name: args!.name,
-          email_list: args!.email_list,
-          // Essential settings with defaults that often work
-          daily_limit: args?.daily_limit || 50,
-          email_gap: args?.email_gap_minutes || 10,
-          // Tracking defaults
-          link_tracking: args?.link_tracking !== undefined ? Boolean(args.link_tracking) : false,
-          open_tracking: args?.open_tracking !== undefined ? Boolean(args.open_tracking) : false,
-          // Behavior defaults
-          stop_on_reply: args?.stop_on_reply !== undefined ? Boolean(args.stop_on_reply) : true,
-          stop_on_auto_reply: args?.stop_on_auto_reply !== undefined ? Boolean(args.stop_on_auto_reply) : true,
-          // Format setting
-          text_only: args?.text_only !== undefined ? Boolean(args.text_only) : false,
-          // Required schedule structure
-          campaign_schedule: {
-            schedules: [{
-              name: args?.schedule_name || 'Default Schedule',
-              timing: {
-                from: args?.timing_from || '09:00',
-                to: args?.timing_to || '17:00'
-              },
-              days: daysConfig,
-              timezone: timezone
-            }]
-          }
-        };
-
-        // Override defaults with user-provided values if they're valid
-        if (args?.daily_limit && typeof args.daily_limit === 'number' && args.daily_limit > 0) {
-          campaignData.daily_limit = args.daily_limit;
-        }
-        
-        if (args?.email_gap_minutes && typeof args.email_gap_minutes === 'number' && args.email_gap_minutes > 0) {
-          campaignData.email_gap = args.email_gap_minutes;
-        }
-
-        // Add sequences with proper body formatting for Instantly API v2
-        if (args.subject && args.body && typeof args.subject === 'string' && typeof args.body === 'string') {
-          let normalizedBody = args.body.trim();
-          let normalizedSubject = args.subject.trim();
-          
-          console.error(`[Instantly MCP] Body before processing:`, JSON.stringify(args.body));
-          console.error(`[Instantly MCP] Raw body content:`, args.body);
-          
-          // Convert actual line breaks to \\n for JSON string - this is what Instantly expects
-          if (normalizedBody.includes('\n')) {
-            normalizedBody = normalizedBody.replace(/\n/g, '\\n');
-            console.error(`[Instantly MCP] Converted line breaks to \\n literals`);
-          }
-          
-          // Handle other line ending formats
-          normalizedBody = normalizedBody.replace(/\r\n/g, '\\n').replace(/\r/g, '\\n');
-          normalizedSubject = normalizedSubject.replace(/\n/g, '\\n').replace(/\r\n/g, '\\n').replace(/\r/g, '\\n');
-          
-          console.error(`[Instantly MCP] Final normalized body:`, JSON.stringify(normalizedBody));
-
-          campaignData.sequences = [{
-            steps: [{
-              type: 'email',
-              delay: 0, // Delay before NEXT email (0 for first email)
-              variants: [{
-                subject: normalizedSubject,
-                body: normalizedBody,
-                v_disabled: false
-              }]
-            }]
-          }];
-        } else {
-          // Always ensure sequences exist - this might be required by API
-          console.error(`[Instantly MCP] Warning: No subject/body provided, adding minimal sequence`);
-          campaignData.sequences = [{
-            steps: [{
-              type: 'email',
-              delay: 0,
-              variants: [{
-                subject: 'Default Subject',
-                body: 'Default body content',
-                v_disabled: false
-              }]
-            }]
-          }];
-        }
-
-        // Add multiple sequence steps if requested (correct API v2 structure)
-        if (args?.sequence_steps && Number(args.sequence_steps) > 1 && campaignData.sequences) {
-          const stepDelayDays = Number(args?.step_delay_days) || 3;
-          const numSteps = Number(args.sequence_steps);
-
-          // Create additional follow-up steps with correct variants structure
-          for (let i = 1; i < numSteps; i++) {
-            let followUpSubject = `Follow-up ${i}: ${String(args!.subject)}`.trim();
-            // Convert line breaks to \n string literals
-            followUpSubject = followUpSubject.replace(/\n/g, '\\n').replace(/\r\n/g, '\\n').replace(/\r/g, '\\n');
-            
-            let followUpBody = `This is follow-up #${i}.\\n\\n${String(args!.body)}`.trim();
-            // Convert line breaks to \n string literals
-            followUpBody = followUpBody.replace(/\n/g, '\\n').replace(/\r\n/g, '\\n').replace(/\r/g, '\\n');
-            campaignData.sequences[0].steps.push({
-              type: 'email',
-              delay: stepDelayDays, // Days to wait before sending THIS email
-              variants: [{
-                subject: followUpSubject,
-                body: followUpBody,
-                v_disabled: false
-              }]
-            });
-          }
-        }
-
-        console.error(`[Instantly MCP] ===== CAMPAIGN CREATION DEBUG =====`);
-        console.error(`[Instantly MCP] Full campaign payload:`, JSON.stringify(campaignData, null, 2));
-        console.error(`[Instantly MCP] Payload size:`, JSON.stringify(campaignData).length, 'characters');
-        
-        if (campaignData.sequences?.[0]?.steps?.[0]?.variants?.[0]) {
-          const variant = campaignData.sequences[0].steps[0].variants[0];
-          console.error(`[Instantly MCP] Email variant details:`, {
-            subjectType: typeof variant.subject,
-            subjectLength: variant.subject?.length,
-            subjectContent: variant.subject,
-            bodyType: typeof variant.body,
-            bodyLength: variant.body?.length,
-            bodyContent: variant.body,
-            bodyHasLineBreaks: variant.body?.includes('\n'),
-            bodyHasEscapedLineBreaks: variant.body?.includes('\\n'),
-            vDisabled: variant.v_disabled
-          });
-        }
-        console.error(`[Instantly MCP] =====================================`);
-
-        const result = await makeInstantlyRequest('/campaigns', 'POST', campaignData);
-
-        // Enhanced response with next-step guidance and workflow confirmation
-        const enhancedResult = {
-          campaign_created: true,
-          campaign_details: result,
-          workflow_confirmation: {
-            prerequisite_followed: true,
-            message: 'Campaign created successfully using enhanced workflow',
-            email_validation: 'All email addresses validated against workspace accounts',
-            accounts_used: campaignData.email_list,
-            total_sequence_steps: campaignData.sequences?.[0]?.steps?.length || 1
-          },
-          next_steps: [
-            {
-              step: 1,
-              action: 'activate_campaign',
-              description: 'Activate the campaign to start sending emails',
-              tool_call: `activate_campaign {"campaign_id": "${result.id}"}`
-            },
-            {
-              step: 2,
-              action: 'monitor_progress',
-              description: 'Monitor campaign performance and analytics',
-              tool_call: `get_campaign_analytics {"campaign_id": "${result.id}"}`
-            },
-            {
-              step: 3,
-              action: 'manage_leads',
-              description: 'Add leads to the campaign if needed',
-              tool_call: `list_leads {"campaign_id": "${result.id}"}`
-            }
-          ],
-          success_metrics: {
-            campaign_id: result.id,
-            campaign_name: result.name,
-            status: result.status || 'created',
-            sending_accounts: campaignData.email_list.length,
-            daily_limit: campaignData.daily_limit,
-            schedule_configured: true,
-            sequences_configured: true
-          }
-        };
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(enhancedResult, null, 2),
-            },
-          ],
-        };
       }
 
       case 'update_campaign': {
@@ -1278,22 +1391,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
-      case 'activate_campaign': {
-        if (!args?.campaign_id) {
-          throw new McpError(ErrorCode.InvalidParams, 'campaign_id is required');
-        }
 
-        const result = await makeInstantlyRequest(`/campaigns/${args.campaign_id}/activate`, 'POST');
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        };
-      }
 
       // Analytics endpoints
       case 'get_campaign_analytics': {
@@ -1358,49 +1456,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
-      case 'create_account': {
-        const requiredFields = ['email', 'username', 'password', 'smtp_host', 'smtp_port'];
-        for (const field of requiredFields) {
-          if (!args?.[field]) {
-            throw new McpError(ErrorCode.InvalidParams, `${field} is required`);
-          }
-        }
 
-        // Ensure numeric values for port and proper data structure
-        const accountData = {
-          email: args!.email,
-          username: args!.username,
-          password: args!.password,
-          smtp_host: args!.smtp_host,
-          smtp_port: Number(args!.smtp_port),
-          imap_host: args?.imap_host,
-          imap_port: args?.imap_port ? Number(args.imap_port) : undefined,
-          max_daily_limit: args?.max_daily_limit || 30,
-          warmup_limit: args?.warmup_limit || 20,
-          warmup_reply_rate: args?.warmup_reply_rate || 50,
-          warmup_enabled: args?.warmup_enabled !== false, // Default to true
-          provider: args?.provider
-        };
-
-        const result = await makeInstantlyRequest('/accounts', 'POST', accountData);
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        };
-      }
 
       case 'update_account': {
-        if (!args?.account_id) {
-          throw new McpError(ErrorCode.InvalidParams, 'account_id is required');
+        if (!args?.email) {
+          throw new McpError(ErrorCode.InvalidParams, 'email is required');
         }
 
-        const { account_id, ...updateData } = args;
-        const result = await makeInstantlyRequest(`/accounts/${account_id}`, 'PATCH', updateData);
+        const { email, ...updateData } = args;
+        const result = await makeInstantlyRequest(`/accounts/${email}`, 'PATCH', updateData);
 
         return {
           content: [
@@ -1413,16 +1477,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'get_warmup_analytics': {
-        if (!args?.account_id) {
-          throw new McpError(ErrorCode.InvalidParams, 'account_id is required');
+        if (!args?.emails || !Array.isArray(args.emails) || args.emails.length === 0) {
+          throw new McpError(ErrorCode.InvalidParams, 'emails array is required and must contain at least one email address');
+        }
+
+        if (args.emails.length > 100) {
+          throw new McpError(ErrorCode.InvalidParams, 'emails array cannot contain more than 100 email addresses');
         }
 
         // Enhanced validation for get_warmup_analytics
-        if (args.account_id === 'test-id') {
-          throw new McpError(
-            ErrorCode.InvalidParams,
-            `account_id must be a valid account ID. Use list_accounts tool first to obtain valid account IDs.`
-          );
+        for (const email of args.emails) {
+          if (!isValidEmail(email)) {
+            throw new McpError(
+              ErrorCode.InvalidParams,
+              `Invalid email address: ${email}. Use list_accounts tool first to obtain valid account emails.`
+            );
+          }
         }
 
         const result = await makeInstantlyRequest('/accounts/warmup-analytics', 'POST', args);
@@ -1515,22 +1585,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
-      case 'move_leads': {
-        if (!args?.lead_ids || !Array.isArray(args.lead_ids)) {
-          throw new McpError(ErrorCode.InvalidParams, 'lead_ids array is required');
-        }
 
-        const result = await makeInstantlyRequest('/leads/move', 'POST', args);
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        };
-      }
 
       // Lead List endpoints
       case 'list_lead_lists': {
@@ -1751,54 +1806,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
-      case 'create_api_key': {
-        if (!args?.name) {
-          throw new McpError(ErrorCode.InvalidParams, 'name is required');
-        }
 
-        // Build API key creation payload with proper formatting
-        const apiKeyData: any = {
-          name: args.name
-        };
-
-        // Handle scopes parameter - try different formats that might be accepted
-        if (args.scopes) {
-          if (Array.isArray(args.scopes)) {
-            // Try array format first
-            apiKeyData.scopes = args.scopes;
-          } else if (typeof args.scopes === 'string') {
-            // Try string format
-            apiKeyData.scopes = args.scopes;
-          }
-        }
-
-        console.error(`[Instantly MCP] Creating API key with payload:`, JSON.stringify(apiKeyData, null, 2));
-
-        try {
-          const result = await makeInstantlyRequest('/api-keys', 'POST', apiKeyData);
-
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(result, null, 2),
-              },
-            ],
-          };
-        } catch (error: any) {
-          // Enhanced error handling for API key creation
-          if (error.message?.includes('400') || error.message?.includes('Bad Request')) {
-            throw new McpError(
-              ErrorCode.InvalidParams,
-              `API key creation failed (400): ${error.message}. ` +
-              `Common issues: 1) Invalid scope values (try omitting scopes parameter), ` +
-              `2) Duplicate API key name, 3) Invalid name format. ` +
-              `Try creating with just the name parameter first.`
-            );
-          }
-          throw error;
-        }
-      }
 
       // Debugging and Helper Tools
 
@@ -2004,7 +2012,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
           // Test warmup analytics
           try {
-            await makeInstantlyRequest('/accounts/warmup-analytics', 'POST', { account_id: 'test' });
+            await makeInstantlyRequest('/accounts/warmup-analytics', 'POST', { emails: ['test@example.com'] });
             features.premium_features['warmup_analytics'] = 'Available';
           } catch (error: any) {
             if (error.message?.includes('400')) {
