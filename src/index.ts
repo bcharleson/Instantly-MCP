@@ -9,7 +9,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { handleInstantlyError, parseInstantlyResponse } from './error-handler.js';
 import { rateLimiter } from './rate-limiter.js';
-import { buildInstantlyPaginationQuery, buildQueryParams, parsePaginatedResponse } from './pagination.js';
+import { buildInstantlyPaginationQuery, buildQueryParams, parsePaginatedResponse, getInstantlyDataWithPagination, validatePaginationResults } from './pagination.js';
 
 const INSTANTLY_API_URL = 'https://api.instantly.ai/api/v2';
 
@@ -26,7 +26,7 @@ if (!INSTANTLY_API_KEY) {
 const server = new Server(
   {
     name: 'instantly-mcp',
-    version: '1.0.3',
+    version: '1.0.4',
   },
   {
     capabilities: {
@@ -67,65 +67,33 @@ const checkEmailVerificationAvailability = async (): Promise<{ available: boolea
 
 // Helper function to retrieve ALL accounts with complete pagination
 const getAllAccountsWithPagination = async (): Promise<any[]> => {
-  const allAccounts: any[] = [];
-  let startingAfter: string | undefined = undefined;
-  let hasMore = true;
-  const limit = 100; // Maximum allowed by API
+  console.error(`[Instantly MCP] Starting complete account retrieval with enhanced pagination...`);
 
-  console.error(`[Instantly MCP] Starting complete account retrieval with pagination...`);
-
-  while (hasMore) {
-    try {
-      // Build query parameters for pagination
-      const queryParams = new URLSearchParams();
-      queryParams.append('limit', limit.toString());
-      if (startingAfter) {
-        queryParams.append('starting_after', startingAfter);
+  try {
+    const result = await getInstantlyDataWithPagination(
+      makeInstantlyRequest,
+      '/accounts',
+      {}, // No initial parameters needed
+      {
+        maxPages: 20,
+        defaultLimit: 100,
+        progressCallback: (current) => {
+          console.error(`[Instantly MCP] Retrieved ${current} accounts so far...`);
+        }
       }
+    );
 
-      const endpoint = `/accounts?${queryParams.toString()}`;
-      const result = await makeInstantlyRequest(endpoint);
+    console.error(`[Instantly MCP] Complete account retrieval finished: ${result.totalRetrieved} total accounts in ${result.pagesUsed} pages`);
 
-      // Handle different API response formats
-      let accounts: any[];
-      if (Array.isArray(result)) {
-        accounts = result;
-        hasMore = false; // Array response means no pagination
-      } else if (result && result.data && Array.isArray(result.data)) {
-        accounts = result.data;
-        hasMore = !!result.next_starting_after;
-        startingAfter = result.next_starting_after;
-      } else if (result && result.items && Array.isArray(result.items)) {
-        accounts = result.items;
-        hasMore = !!result.next_starting_after;
-        startingAfter = result.next_starting_after;
-      } else {
-        console.error(`[Instantly MCP] getAllAccountsWithPagination - Unexpected response:`, JSON.stringify(result, null, 2));
-        throw new McpError(ErrorCode.InternalError, `Unable to retrieve accounts. Response format: ${typeof result}`);
-      }
+    // Validate results
+    const validationMessage = validatePaginationResults(result.items, undefined, 'accounts');
+    console.error(`[Instantly MCP] ${validationMessage}`);
 
-      allAccounts.push(...accounts);
-      console.error(`[Instantly MCP] Retrieved ${accounts.length} accounts (total so far: ${allAccounts.length})`);
-
-      // Safety check to prevent infinite loops
-      if (allAccounts.length > 10000) {
-        console.error(`[Instantly MCP] Safety limit reached: ${allAccounts.length} accounts retrieved`);
-        break;
-      }
-
-      // If we got fewer accounts than the limit, we've reached the end
-      if (accounts.length < limit) {
-        hasMore = false;
-      }
-
-    } catch (error) {
-      console.error(`[Instantly MCP] Error during pagination:`, error);
-      throw error;
-    }
+    return result.items;
+  } catch (error) {
+    console.error(`[Instantly MCP] Error during account pagination:`, error);
+    throw error;
   }
-
-  console.error(`[Instantly MCP] Complete account retrieval finished: ${allAccounts.length} total accounts`);
-  return allAccounts;
 };
 
 // Helper function to validate email addresses against eligible accounts with complete pagination
@@ -735,23 +703,27 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     // Campaign Management
     {
       name: 'list_campaigns',
-      description: 'List campaigns with optional filters and smart pagination. **PAGINATION GUIDE**: For large datasets, responses are automatically truncated to prevent size limits. Use limit=20-50 for full details, or higher limits for summary view. Use starting_after for pagination through large result sets.',
+      description: 'List campaigns with optional filters and complete pagination support. **COMPLETE PAGINATION**: To get ALL campaigns, use one of these approaches:\n1. Set limit=100 or higher (automatically triggers complete pagination)\n2. Set get_all=true (forces complete pagination)\n3. Use limit="all" (string triggers complete pagination)\n\n**PAGINATION ALGORITHM**: When requesting all campaigns, the tool will automatically:\n- Start with limit=100 per page\n- Continue fetching until next_starting_after is null or empty results\n- Report progress: "Retrieved 100... 200... 304 total campaigns"\n- Return summarized data to prevent size limits\n- Use get_campaign for full details of specific campaigns\n\n**FILTERS**: search and status filters work with both single-page and complete pagination modes.',
       inputSchema: {
         type: 'object',
         properties: {
-          limit: { 
-            type: 'number', 
-            description: 'Number of campaigns to return (1-100, default: 20). **IMPORTANT**: Limits >50 may return summarized data to prevent response size limits. Use smaller limits for full campaign details.',
+          limit: {
+            type: ['number', 'string'],
+            description: 'Number of campaigns to return (1-100, default: 20). Use limit=100+ or limit="all" to trigger complete pagination that retrieves ALL campaigns automatically.',
             minimum: 1,
             maximum: 100
           },
-          starting_after: { type: 'string', description: 'ID of the last item from previous page for pagination. Use this to fetch the next batch of campaigns.' },
-          search: { type: 'string', description: 'Search term to filter campaigns by name' },
-          status: { 
-            type: 'string', 
-            description: 'Filter by campaign status',
+          starting_after: { type: 'string', description: 'ID of the last item from previous page for manual pagination. Not needed when using complete pagination (limit=100+).' },
+          search: { type: 'string', description: 'Search term to filter campaigns by name (works with complete pagination)' },
+          status: {
+            type: 'string',
+            description: 'Filter by campaign status (works with complete pagination)',
             enum: ['active', 'paused', 'completed']
           },
+          get_all: {
+            type: 'boolean',
+            description: 'Set to true to force complete pagination and retrieve ALL campaigns regardless of limit setting.'
+          }
         },
       },
     },
@@ -932,18 +904,22 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     // Account Management
     {
       name: 'list_accounts',
-      description: 'List all sending accounts in the workspace. **PREREQUISITE FOR CAMPAIGN CREATION**: You MUST call this tool first before creating any campaigns to obtain valid email addresses for the email_list parameter. The returned accounts are the only valid sending addresses that can be used in campaigns.\n\n**CRITICAL FOR SUCCESS**: Campaign creation will fail if you use email addresses that are not returned by this endpoint. Always use the exact email addresses from this response.\n\n**PAGINATION**: If you have many accounts, use pagination to get all accounts. Set limit=100 to get maximum accounts per request.\n\n**ACCOUNT STATUS**: Look for accounts with status "verified", "active", or "warmed" for best results.',
+      description: 'List all sending accounts in the workspace. **PREREQUISITE FOR CAMPAIGN CREATION**: You MUST call this tool first before creating any campaigns to obtain valid email addresses for the email_list parameter. The returned accounts are the only valid sending addresses that can be used in campaigns.\n\n**CRITICAL FOR SUCCESS**: Campaign creation will fail if you use email addresses that are not returned by this endpoint. Always use the exact email addresses from this response.\n\n**COMPLETE PAGINATION**: To get ALL accounts, use one of these approaches:\n1. Set limit=100 or higher (automatically triggers complete pagination)\n2. Set get_all=true (forces complete pagination)\n3. Use limit="all" (string triggers complete pagination)\n\n**PAGINATION ALGORITHM**: When requesting all accounts, the tool will automatically:\n- Start with limit=100 per page\n- Continue fetching until next_starting_after is null or empty results\n- Report progress: "Retrieved 100... 200... 304 total accounts"\n- Return complete dataset with validation\n\n**ACCOUNT STATUS**: Look for accounts with status=1, setup_pending=false, warmup_status=1 for campaign eligibility.',
       inputSchema: {
         type: 'object',
         properties: {
           limit: {
-            type: 'number',
-            description: 'Number of accounts to return (1-100, default: 20). If you need all accounts for campaign creation, use a high limit or handle pagination.'
+            type: ['number', 'string'],
+            description: 'Number of accounts to return (1-100, default: 20). Use limit=100+ or limit="all" to trigger complete pagination that retrieves ALL accounts automatically.'
           },
           starting_after: {
             type: 'string',
-            description: 'ID of the last item from previous page for pagination. Use this to get all accounts if there are more than the limit.'
+            description: 'ID of the last item from previous page for manual pagination. Not needed when using complete pagination (limit=100+).'
           },
+          get_all: {
+            type: 'boolean',
+            description: 'Set to true to force complete pagination and retrieve ALL accounts regardless of limit setting.'
+          }
         },
       },
     },
@@ -1181,61 +1157,90 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     switch (name) {
       // Campaign endpoints
       case 'list_campaigns': {
-        const queryParams = buildQueryParams(args, ['search', 'status']);
+        // Check if user wants ALL campaigns (complete pagination)
+        const wantsAllCampaigns = args?.limit === undefined ||
+                                 (typeof args?.limit === 'number' && args.limit > 50) ||
+                                 args?.get_all === true ||
+                                 (typeof args?.limit === 'string' && args.limit.toLowerCase().includes('all'));
 
-        const endpoint = `/campaigns${queryParams.toString() ? `?${queryParams}` : ''}`;
-        const result = await makeInstantlyRequest(endpoint);
-        
-        // Pass the requested limit to maintain it in the response structure
-        const requestedLimit = (typeof args?.limit === 'number') ? args.limit : 20; // Default to 20 if not specified
-        const paginatedResult = parsePaginatedResponse(result, requestedLimit);
+        if (wantsAllCampaigns) {
+          console.error(`[Instantly MCP] User requested all campaigns - using complete pagination...`);
 
-        // Handle large responses that might exceed MCP size limits
-        const responseText = JSON.stringify(paginatedResult, null, 2);
-        const maxResponseSize = 900000; // ~900KB to stay under 1MB limit with buffer
-        
-        if (responseText.length > maxResponseSize) {
-          console.error(`[Instantly MCP] Response too large (${responseText.length} chars), truncating campaigns...`);
-          
-          // Create summary version with essential fields only
-          const summarizedCampaigns = paginatedResult.data.map((campaign: any) => ({
-            id: campaign.id,
-            name: campaign.name,
-            status: campaign.status,
-            timestamp_created: campaign.timestamp_created,
-            timestamp_updated: campaign.timestamp_updated,
-            email_list_count: campaign.email_list?.length || 0,
-            sequence_steps_count: campaign.sequences?.[0]?.steps?.length || 0,
-            daily_limit: campaign.daily_limit,
-            organization: campaign.organization
-          }));
-          
-          const truncatedResult = {
+          try {
+            const result = await getInstantlyDataWithPagination(
+              makeInstantlyRequest,
+              '/campaigns',
+              { search: args?.search, status: args?.status }, // Include filters
+              {
+                maxPages: 20,
+                defaultLimit: 100,
+                progressCallback: (current) => {
+                  console.error(`[Instantly MCP] Retrieved ${current} campaigns so far...`);
+                }
+              }
+            );
+
+            // Create summary version to avoid size limits
+            const summarizedCampaigns = result.items.map((campaign: any) => ({
+              id: campaign.id,
+              name: campaign.name,
+              status: campaign.status,
+              timestamp_created: campaign.timestamp_created,
+              timestamp_updated: campaign.timestamp_updated,
+              email_list_count: campaign.email_list?.length || 0,
+              sequence_steps_count: campaign.sequences?.[0]?.steps?.length || 0,
+              daily_limit: campaign.daily_limit,
+              organization: campaign.organization
+            }));
+
+            const enhancedResult = {
+              data: summarizedCampaigns,
+              total_retrieved: result.totalRetrieved,
+              pages_used: result.pagesUsed,
+              pagination_info: `Retrieved ALL ${result.totalRetrieved} campaigns through complete pagination in ${result.pagesUsed} pages`,
+              summary_mode: true,
+              message: `Showing summary of all campaigns. Use get_campaign with specific campaign_id for full details.`
+            };
+
+            const validationMessage = validatePaginationResults(result.items, undefined, 'campaigns');
+            console.error(`[Instantly MCP] ${validationMessage}`);
+
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify(enhancedResult, null, 2),
+                },
+              ],
+            };
+          } catch (error) {
+            console.error(`[Instantly MCP] Error during complete campaign pagination:`, error);
+            throw error;
+          }
+        } else {
+          // Standard single-page request
+          const queryParams = buildQueryParams(args, ['search', 'status']);
+          const endpoint = `/campaigns${queryParams.toString() ? `?${queryParams}` : ''}`;
+          const result = await makeInstantlyRequest(endpoint);
+
+          const requestedLimit = (typeof args?.limit === 'number') ? args.limit : 20;
+          const paginatedResult = parsePaginatedResponse(result, requestedLimit);
+
+          // Add pagination guidance
+          const enhancedResult = {
             ...paginatedResult,
-            data: summarizedCampaigns,
-            truncated: true,
-            original_count: paginatedResult.data.length,
-            message: `Response truncated due to size. Showing summary of ${summarizedCampaigns.length} campaigns. Use smaller limit or get individual campaigns with get_campaign for full details.`
+            pagination_info: `Showing page with limit ${args?.limit || 20}. Use limit=100 or get_all=true for complete pagination.`
           };
-          
+
           return {
             content: [
               {
                 type: 'text',
-                text: JSON.stringify(truncatedResult, null, 2),
+                text: JSON.stringify(enhancedResult, null, 2),
               },
             ],
           };
         }
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: responseText,
-            },
-          ],
-        };
       }
 
       case 'get_campaign': {
@@ -1428,32 +1433,77 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       // Account endpoints
       case 'list_accounts': {
-        const queryParams = buildQueryParams(args);
+        // Check if user wants ALL accounts (complete pagination)
+        const wantsAllAccounts = args?.limit === undefined ||
+                                (typeof args?.limit === 'number' && args.limit > 50) ||
+                                args?.get_all === true ||
+                                (typeof args?.limit === 'string' && args.limit.toLowerCase().includes('all'));
 
-        const endpoint = `/accounts${queryParams.toString() ? `?${queryParams}` : ''}`;
-        const result = await makeInstantlyRequest(endpoint);
+        if (wantsAllAccounts) {
+          console.error(`[Instantly MCP] User requested all accounts - using complete pagination...`);
 
-        // Enhanced response with campaign creation guidance
-        const enhancedResult = {
-          ...result,
-          campaign_creation_guidance: {
-            message: "Use the email addresses from the 'data' array above for campaign creation",
-            verified_accounts: result.data?.filter((account: any) =>
-              account.status === 'verified' || account.status === 'active' || account.status === 'warmed'
-            ).map((account: any) => account.email) || [],
-            total_accounts: result.data?.length || 0,
-            next_step: "Copy the email addresses from verified_accounts and use them in create_campaign email_list parameter"
+          try {
+            const allAccounts = await getAllAccountsWithPagination();
+
+            // Enhanced response with campaign creation guidance
+            const enhancedResult = {
+              data: allAccounts,
+              total_retrieved: allAccounts.length,
+              pagination_info: `Retrieved ALL ${allAccounts.length} accounts through complete pagination`,
+              campaign_creation_guidance: {
+                message: "Use the email addresses from the 'data' array above for campaign creation",
+                verified_accounts: allAccounts.filter((account: any) =>
+                  account.status === 1 && !account.setup_pending && account.warmup_status === 1
+                ).map((account: any) => account.email),
+                total_accounts: allAccounts.length,
+                next_step: "Copy the email addresses from verified_accounts and use them in create_campaign email_list parameter"
+              }
+            };
+
+            const validationMessage = validatePaginationResults(allAccounts, undefined, 'accounts');
+            console.error(`[Instantly MCP] ${validationMessage}`);
+
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify(enhancedResult, null, 2),
+                },
+              ],
+            };
+          } catch (error) {
+            console.error(`[Instantly MCP] Error during complete account pagination:`, error);
+            throw error;
           }
-        };
+        } else {
+          // Standard single-page request
+          const queryParams = buildQueryParams(args);
+          const endpoint = `/accounts${queryParams.toString() ? `?${queryParams}` : ''}`;
+          const result = await makeInstantlyRequest(endpoint);
 
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(enhancedResult, null, 2),
-            },
-          ],
-        };
+          // Enhanced response with campaign creation guidance
+          const enhancedResult = {
+            ...result,
+            pagination_info: `Showing page with limit ${args?.limit || 20}. Use limit=100 or get_all=true for complete pagination.`,
+            campaign_creation_guidance: {
+              message: "Use the email addresses from the 'data' array above for campaign creation",
+              verified_accounts: result.data?.filter((account: any) =>
+                account.status === 1 && !account.setup_pending && account.warmup_status === 1
+              ).map((account: any) => account.email) || [],
+              total_accounts: result.data?.length || 0,
+              next_step: "Copy the email addresses from verified_accounts and use them in create_campaign email_list parameter"
+            }
+          };
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(enhancedResult, null, 2),
+              },
+            ],
+          };
+        }
       }
 
 
