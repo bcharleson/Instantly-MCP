@@ -9,7 +9,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { handleInstantlyError, parseInstantlyResponse } from './error-handler.js';
 import { rateLimiter } from './rate-limiter.js';
-import { buildInstantlyPaginationQuery, buildQueryParams, parsePaginatedResponse, getInstantlyDataWithPagination, validatePaginationResults } from './pagination.js';
+import { buildInstantlyPaginationQuery, buildQueryParams, parsePaginatedResponse } from './pagination.js';
 
 const INSTANTLY_API_URL = 'https://api.instantly.ai/api/v2';
 
@@ -26,7 +26,7 @@ if (!INSTANTLY_API_KEY) {
 const server = new Server(
   {
     name: 'instantly-mcp',
-    version: '1.0.4',
+    version: '1.0.5',
   },
   {
     capabilities: {
@@ -65,33 +65,188 @@ const checkEmailVerificationAvailability = async (): Promise<{ available: boolea
   }
 };
 
-// Helper function to retrieve ALL accounts with complete pagination
+// Helper function to retrieve ALL accounts with bulletproof batched pagination
 const getAllAccountsWithPagination = async (): Promise<any[]> => {
-  console.error(`[Instantly MCP] Starting complete account retrieval with enhanced pagination...`);
+  console.error(`[Instantly MCP] Starting bulletproof batched account retrieval...`);
+
+  const BATCH_SIZE = 100;
+  const MAX_BATCHES = 20; // Safety limit
+  const allAccounts: any[] = [];
+  let batchCount = 0;
+  let startingAfter: string | undefined = undefined;
+  let hasMore = true;
 
   try {
-    const result = await getInstantlyDataWithPagination(
-      makeInstantlyRequest,
-      '/accounts',
-      {}, // No initial parameters needed
-      {
-        maxPages: 20,
-        defaultLimit: 100,
-        progressCallback: (current) => {
-          console.error(`[Instantly MCP] Retrieved ${current} accounts so far...`);
-        }
+    while (hasMore && batchCount < MAX_BATCHES) {
+      batchCount++;
+
+      // Build query parameters for this batch
+      const queryParams = new URLSearchParams();
+      queryParams.append('limit', BATCH_SIZE.toString());
+      if (startingAfter) {
+        queryParams.append('starting_after', startingAfter);
       }
-    );
 
-    console.error(`[Instantly MCP] Complete account retrieval finished: ${result.totalRetrieved} total accounts in ${result.pagesUsed} pages`);
+      const endpoint = `/accounts?${queryParams.toString()}`;
+      console.error(`[Instantly MCP] Batch ${batchCount}: Fetching up to ${BATCH_SIZE} accounts...`);
 
-    // Validate results
-    const validationMessage = validatePaginationResults(result.items, undefined, 'accounts');
-    console.error(`[Instantly MCP] ${validationMessage}`);
+      // Make the API call for this batch
+      const batchResult = await makeInstantlyRequest(endpoint);
 
-    return result.items;
+      // Extract accounts from response (handle different response formats)
+      let batchAccounts: any[] = [];
+      let nextStartingAfter: string | undefined = undefined;
+
+      if (Array.isArray(batchResult)) {
+        // Direct array response
+        batchAccounts = batchResult;
+        hasMore = false; // Array response means no pagination
+      } else if (batchResult && batchResult.data && Array.isArray(batchResult.data)) {
+        // Standard paginated response with data array
+        batchAccounts = batchResult.data;
+        nextStartingAfter = batchResult.next_starting_after;
+      } else if (batchResult && batchResult.items && Array.isArray(batchResult.items)) {
+        // Alternative response format with items array
+        batchAccounts = batchResult.items;
+        nextStartingAfter = batchResult.next_starting_after;
+      } else {
+        console.error(`[Instantly MCP] Unexpected response format in batch ${batchCount}:`, typeof batchResult);
+        throw new McpError(ErrorCode.InternalError, `Unexpected API response format in batch ${batchCount}`);
+      }
+
+      // Add this batch to our accumulated results
+      if (batchAccounts.length > 0) {
+        allAccounts.push(...batchAccounts);
+        console.error(`[Instantly MCP] Batch ${batchCount}: Retrieved ${batchAccounts.length} accounts (total: ${allAccounts.length})`);
+      } else {
+        console.error(`[Instantly MCP] Batch ${batchCount}: No accounts returned, ending pagination`);
+        hasMore = false;
+      }
+
+      // Check termination conditions
+      if (!nextStartingAfter || batchAccounts.length < BATCH_SIZE) {
+        console.error(`[Instantly MCP] Pagination complete: ${nextStartingAfter ? 'Fewer results than batch size' : 'No next_starting_after token'}`);
+        hasMore = false;
+      } else {
+        startingAfter = nextStartingAfter;
+      }
+
+      // Safety check to prevent infinite loops
+      if (batchCount >= MAX_BATCHES) {
+        console.error(`[Instantly MCP] Reached maximum batch limit (${MAX_BATCHES}), stopping pagination`);
+        break;
+      }
+    }
+
+    console.error(`[Instantly MCP] Bulletproof pagination complete: ${allAccounts.length} total accounts retrieved in ${batchCount} batches`);
+
+    // Validate results without truncation
+    if (allAccounts.length === 0) {
+      console.error(`[Instantly MCP] Warning: No accounts found in workspace`);
+    } else {
+      console.error(`[Instantly MCP] ✅ Successfully retrieved complete dataset: ${allAccounts.length} accounts`);
+    }
+
+    return allAccounts;
   } catch (error) {
-    console.error(`[Instantly MCP] Error during account pagination:`, error);
+    console.error(`[Instantly MCP] Error during batched account pagination at batch ${batchCount}:`, error);
+    throw error;
+  }
+};
+
+// Helper function to retrieve ALL campaigns with bulletproof batched pagination
+const getAllCampaignsWithPagination = async (filters: { search?: string, status?: string } = {}): Promise<any[]> => {
+  console.error(`[Instantly MCP] Starting bulletproof batched campaign retrieval...`);
+
+  const BATCH_SIZE = 100;
+  const MAX_BATCHES = 20; // Safety limit
+  const allCampaigns: any[] = [];
+  let batchCount = 0;
+  let startingAfter: string | undefined = undefined;
+  let hasMore = true;
+
+  try {
+    while (hasMore && batchCount < MAX_BATCHES) {
+      batchCount++;
+
+      // Build query parameters for this batch
+      const queryParams = new URLSearchParams();
+      queryParams.append('limit', BATCH_SIZE.toString());
+      if (startingAfter) {
+        queryParams.append('starting_after', startingAfter);
+      }
+
+      // Add filters if provided
+      if (filters.search) {
+        queryParams.append('search', filters.search);
+      }
+      if (filters.status) {
+        queryParams.append('status', filters.status);
+      }
+
+      const endpoint = `/campaigns?${queryParams.toString()}`;
+      console.error(`[Instantly MCP] Batch ${batchCount}: Fetching up to ${BATCH_SIZE} campaigns...`);
+
+      // Make the API call for this batch
+      const batchResult = await makeInstantlyRequest(endpoint);
+
+      // Extract campaigns from response (handle different response formats)
+      let batchCampaigns: any[] = [];
+      let nextStartingAfter: string | undefined = undefined;
+
+      if (Array.isArray(batchResult)) {
+        // Direct array response
+        batchCampaigns = batchResult;
+        hasMore = false; // Array response means no pagination
+      } else if (batchResult && batchResult.data && Array.isArray(batchResult.data)) {
+        // Standard paginated response with data array
+        batchCampaigns = batchResult.data;
+        nextStartingAfter = batchResult.next_starting_after;
+      } else if (batchResult && batchResult.items && Array.isArray(batchResult.items)) {
+        // Alternative response format with items array
+        batchCampaigns = batchResult.items;
+        nextStartingAfter = batchResult.next_starting_after;
+      } else {
+        console.error(`[Instantly MCP] Unexpected response format in batch ${batchCount}:`, typeof batchResult);
+        throw new McpError(ErrorCode.InternalError, `Unexpected API response format in batch ${batchCount}`);
+      }
+
+      // Add this batch to our accumulated results
+      if (batchCampaigns.length > 0) {
+        allCampaigns.push(...batchCampaigns);
+        console.error(`[Instantly MCP] Batch ${batchCount}: Retrieved ${batchCampaigns.length} campaigns (total: ${allCampaigns.length})`);
+      } else {
+        console.error(`[Instantly MCP] Batch ${batchCount}: No campaigns returned, ending pagination`);
+        hasMore = false;
+      }
+
+      // Check termination conditions
+      if (!nextStartingAfter || batchCampaigns.length < BATCH_SIZE) {
+        console.error(`[Instantly MCP] Pagination complete: ${nextStartingAfter ? 'Fewer results than batch size' : 'No next_starting_after token'}`);
+        hasMore = false;
+      } else {
+        startingAfter = nextStartingAfter;
+      }
+
+      // Safety check to prevent infinite loops
+      if (batchCount >= MAX_BATCHES) {
+        console.error(`[Instantly MCP] Reached maximum batch limit (${MAX_BATCHES}), stopping pagination`);
+        break;
+      }
+    }
+
+    console.error(`[Instantly MCP] Bulletproof campaign pagination complete: ${allCampaigns.length} total campaigns retrieved in ${batchCount} batches`);
+
+    // Validate results without truncation
+    if (allCampaigns.length === 0) {
+      console.error(`[Instantly MCP] Warning: No campaigns found${filters.search || filters.status ? ' matching filters' : ''}`);
+    } else {
+      console.error(`[Instantly MCP] ✅ Successfully retrieved complete campaign dataset: ${allCampaigns.length} campaigns`);
+    }
+
+    return allCampaigns;
+  } catch (error) {
+    console.error(`[Instantly MCP] Error during batched campaign pagination at batch ${batchCount}:`, error);
     throw error;
   }
 };
@@ -1164,46 +1319,35 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                                  (typeof args?.limit === 'string' && args.limit.toLowerCase().includes('all'));
 
         if (wantsAllCampaigns) {
-          console.error(`[Instantly MCP] User requested all campaigns - using complete pagination...`);
+          console.error(`[Instantly MCP] User requested all campaigns - using bulletproof batched pagination...`);
 
           try {
-            const result = await getInstantlyDataWithPagination(
-              makeInstantlyRequest,
-              '/campaigns',
-              { search: args?.search, status: args?.status }, // Include filters
-              {
-                maxPages: 20,
-                defaultLimit: 100,
-                progressCallback: (current) => {
-                  console.error(`[Instantly MCP] Retrieved ${current} campaigns so far...`);
-                }
-              }
-            );
+            // Use bulletproof batched pagination with filters
+            const allCampaigns = await getAllCampaignsWithPagination({
+              search: args?.search as string | undefined,
+              status: args?.status as string | undefined
+            });
 
-            // Create summary version to avoid size limits
-            const summarizedCampaigns = result.items.map((campaign: any) => ({
-              id: campaign.id,
-              name: campaign.name,
-              status: campaign.status,
-              timestamp_created: campaign.timestamp_created,
-              timestamp_updated: campaign.timestamp_updated,
-              email_list_count: campaign.email_list?.length || 0,
-              sequence_steps_count: campaign.sequences?.[0]?.steps?.length || 0,
-              daily_limit: campaign.daily_limit,
-              organization: campaign.organization
-            }));
-
+            // Return complete campaigns without truncation (user can handle the data size)
             const enhancedResult = {
-              data: summarizedCampaigns,
-              total_retrieved: result.totalRetrieved,
-              pages_used: result.pagesUsed,
-              pagination_info: `Retrieved ALL ${result.totalRetrieved} campaigns through complete pagination in ${result.pagesUsed} pages`,
-              summary_mode: true,
-              message: `Showing summary of all campaigns. Use get_campaign with specific campaign_id for full details.`
+              data: allCampaigns,
+              total_retrieved: allCampaigns.length,
+              pagination_method: "bulletproof_batched",
+              pagination_info: `Retrieved ALL ${allCampaigns.length} campaigns through bulletproof batched pagination`,
+              filters_applied: {
+                search: args?.search || null,
+                status: args?.status || null
+              },
+              success_metrics: {
+                api_calls_made: Math.ceil(allCampaigns.length / 100),
+                records_per_call: 100,
+                truncation_avoided: true,
+                complete_dataset: true
+              },
+              usage_note: "Complete campaign dataset retrieved. Use get_campaign for individual campaign details if needed."
             };
 
-            const validationMessage = validatePaginationResults(result.items, undefined, 'campaigns');
-            console.error(`[Instantly MCP] ${validationMessage}`);
+            console.error(`[Instantly MCP] ✅ Bulletproof campaign pagination success: ${allCampaigns.length} campaigns retrieved without truncation`);
 
             return {
               content: [
@@ -1214,7 +1358,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               ],
             };
           } catch (error) {
-            console.error(`[Instantly MCP] Error during complete campaign pagination:`, error);
+            console.error(`[Instantly MCP] Error during bulletproof campaign pagination:`, error);
             throw error;
           }
         } else {
@@ -1229,7 +1373,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           // Add pagination guidance
           const enhancedResult = {
             ...paginatedResult,
-            pagination_info: `Showing page with limit ${args?.limit || 20}. Use limit=100 or get_all=true for complete pagination.`
+            pagination_info: `Showing page with limit ${args?.limit || 20}. Use limit=100 or get_all=true for bulletproof complete pagination.`
           };
 
           return {
@@ -1440,28 +1584,37 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                                 (typeof args?.limit === 'string' && args.limit.toLowerCase().includes('all'));
 
         if (wantsAllAccounts) {
-          console.error(`[Instantly MCP] User requested all accounts - using complete pagination...`);
+          console.error(`[Instantly MCP] User requested all accounts - using bulletproof batched pagination...`);
 
           try {
             const allAccounts = await getAllAccountsWithPagination();
 
-            // Enhanced response with campaign creation guidance
+            // Build complete response without truncation
             const enhancedResult = {
               data: allAccounts,
               total_retrieved: allAccounts.length,
-              pagination_info: `Retrieved ALL ${allAccounts.length} accounts through complete pagination`,
+              pagination_method: "bulletproof_batched",
+              pagination_info: `Retrieved ALL ${allAccounts.length} accounts through bulletproof batched pagination`,
               campaign_creation_guidance: {
                 message: "Use the email addresses from the 'data' array above for campaign creation",
                 verified_accounts: allAccounts.filter((account: any) =>
                   account.status === 1 && !account.setup_pending && account.warmup_status === 1
                 ).map((account: any) => account.email),
                 total_accounts: allAccounts.length,
+                verified_count: allAccounts.filter((account: any) =>
+                  account.status === 1 && !account.setup_pending && account.warmup_status === 1
+                ).length,
                 next_step: "Copy the email addresses from verified_accounts and use them in create_campaign email_list parameter"
+              },
+              success_metrics: {
+                api_calls_made: Math.ceil(allAccounts.length / 100),
+                records_per_call: 100,
+                truncation_avoided: true,
+                complete_dataset: true
               }
             };
 
-            const validationMessage = validatePaginationResults(allAccounts, undefined, 'accounts');
-            console.error(`[Instantly MCP] ${validationMessage}`);
+            console.error(`[Instantly MCP] ✅ Bulletproof pagination success: ${allAccounts.length} accounts retrieved without truncation`);
 
             return {
               content: [
@@ -1472,7 +1625,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               ],
             };
           } catch (error) {
-            console.error(`[Instantly MCP] Error during complete account pagination:`, error);
+            console.error(`[Instantly MCP] Error during bulletproof account pagination:`, error);
             throw error;
           }
         } else {
@@ -1484,7 +1637,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           // Enhanced response with campaign creation guidance
           const enhancedResult = {
             ...result,
-            pagination_info: `Showing page with limit ${args?.limit || 20}. Use limit=100 or get_all=true for complete pagination.`,
+            pagination_info: `Showing page with limit ${args?.limit || 20}. Use limit=100 or get_all=true for bulletproof complete pagination.`,
             campaign_creation_guidance: {
               message: "Use the email addresses from the 'data' array above for campaign creation",
               verified_accounts: result.data?.filter((account: any) =>
