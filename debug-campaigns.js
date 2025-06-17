@@ -1,7 +1,15 @@
 #!/usr/bin/env node
 
-const API_KEY = 'ODkxZWUzNjEtOWE5MC00ZGM5LWExOWQtNWZhYWUxZDk4ZDNlOkZoTmdZWnJSSHRyeg==';
+// SECURITY: API key must be provided via environment variable
+const API_KEY = process.env.INSTANTLY_API_KEY;
 const INSTANTLY_API_URL = 'https://api.instantly.ai/api/v2';
+
+if (!API_KEY) {
+  console.error('❌ SECURITY ERROR: API key must be provided via INSTANTLY_API_KEY environment variable');
+  console.error('   Example: export INSTANTLY_API_KEY="your-api-key-here"');
+  console.error('   Then run: node debug-campaigns.js');
+  process.exit(1);
+}
 
 async function testCampaignsAPI() {
   console.log('🔍 Debug: Testing Instantly campaigns API directly...\n');

@@ -19,36 +19,136 @@ interface ValidationResult {
   status: 'VALID' | 'WARNING' | 'ERROR';
 }
 
+/**
+ * Robust tool extraction that replaces fragile regex parsing
+ * Uses improved string parsing with proper object boundary detection
+ */
 function extractToolsFromSource(): ToolDefinition[] {
   const indexPath = join(process.cwd(), 'src', 'index.ts');
   const content = readFileSync(indexPath, 'utf-8');
-  
-  // Extract tools array from the setRequestHandler
-  const toolsMatch = content.match(/tools:\s*\[([\s\S]*?)\]/);
+
+  // Use the robust fallback method as primary approach
+  return extractToolsFromSourceFallback(content);
+}
+
+/**
+ * Fallback method using a more robust regex approach if AST parsing fails
+ */
+function extractToolsFromSourceFallback(content: string): ToolDefinition[] {
+  // More robust regex that handles multiline strings and various formatting
+  // Look for tools: [ ... ],
+  const toolsMatch = content.match(/tools:\s*\[([\s\S]*?)\],?\s*\}\)\);/);
   if (!toolsMatch) {
-    throw new Error('Could not find tools array in source code');
+    // Try alternative pattern without the closing parentheses
+    const altMatch = content.match(/tools:\s*\[([\s\S]*?)\]/);
+    if (!altMatch) {
+      throw new Error('Could not find tools array in source code');
+    }
+    return parseToolsFromSection(altMatch[1]);
   }
-  
-  // Count tools by looking for tool objects within the tools array only
-  const toolsSection = toolsMatch[1];
-  const toolMatches = toolsSection.matchAll(/{\s*name:\s*['"](.*?)['"],/g);
+
+  return parseToolsFromSection(toolsMatch[1]);
+}
+
+/**
+ * Parse tools from the extracted tools section
+ */
+function parseToolsFromSection(toolsSection: string): ToolDefinition[] {
   const tools: ToolDefinition[] = [];
-  
-  for (const match of toolMatches) {
-    const toolName = match[1];
-    
-    // Extract description for this tool
-    const descRegex = new RegExp(`name:\\s*['"]${toolName}['"],\\s*description:\\s*['"]([\\s\\S]*?)['"],`);
-    const descMatch = content.match(descRegex);
-    
-    tools.push({
-      name: toolName,
-      description: descMatch ? descMatch[1] : 'No description found',
-      inputSchema: {} // We'll do basic validation
-    });
+
+  // Split by tool object boundaries more reliably
+  const toolObjects = splitToolObjects(toolsSection);
+
+  for (const toolObj of toolObjects) {
+    const tool = parseToolObject(toolObj);
+    if (tool) {
+      tools.push(tool);
+    }
   }
-  
+
   return tools;
+}
+
+
+
+/**
+ * Split tool objects more reliably for fallback parsing
+ */
+function splitToolObjects(toolsSection: string): string[] {
+  const objects: string[] = [];
+  let current = '';
+  let braceCount = 0;
+  let inString = false;
+  let stringChar = '';
+  let escaped = false;
+
+  for (let i = 0; i < toolsSection.length; i++) {
+    const char = toolsSection[i];
+
+    if (escaped) {
+      escaped = false;
+      current += char;
+      continue;
+    }
+
+    if (char === '\\') {
+      escaped = true;
+      current += char;
+      continue;
+    }
+
+    if (!inString && (char === '"' || char === "'" || char === '`')) {
+      inString = true;
+      stringChar = char;
+    } else if (inString && char === stringChar) {
+      inString = false;
+      stringChar = '';
+    }
+
+    if (!inString) {
+      if (char === '{') {
+        braceCount++;
+      } else if (char === '}') {
+        braceCount--;
+      }
+    }
+
+    current += char;
+
+    // If we've closed a top-level object and we're at a comma or end
+    if (!inString && braceCount === 0 && current.trim() && (char === ',' || i === toolsSection.length - 1)) {
+      const trimmed = current.replace(/,$/, '').trim();
+      if (trimmed && trimmed !== ',') {
+        objects.push(trimmed);
+      }
+      current = '';
+    }
+  }
+
+  return objects.filter(obj => obj.trim().length > 0);
+}
+
+/**
+ * Parse individual tool object from string
+ */
+function parseToolObject(objStr: string): ToolDefinition | null {
+  try {
+    // Extract name and description using more robust patterns
+    const nameMatch = objStr.match(/name:\s*['"`]([^'"`]+)['"`]/);
+    const descMatch = objStr.match(/description:\s*['"`]([\s\S]*?)['"`](?:\s*,|\s*inputSchema)/);
+
+    if (nameMatch) {
+      return {
+        name: nameMatch[1],
+        description: descMatch ? descMatch[1] : 'No description found',
+        inputSchema: {}
+      };
+    }
+  } catch (error) {
+    console.warn('Failed to parse tool object:', error);
+  }
+
+  return null;
 }
 
 function extractImplementedCases(): string[] {

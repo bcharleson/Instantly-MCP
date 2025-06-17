@@ -7,6 +7,16 @@
 
 const { spawn } = require('child_process');
 
+// SECURITY: API key must be provided via environment variable
+const API_KEY = process.env.INSTANTLY_API_KEY;
+
+if (!API_KEY) {
+  console.error('❌ SECURITY ERROR: API key must be provided via INSTANTLY_API_KEY environment variable');
+  console.error('   Example: export INSTANTLY_API_KEY="your-api-key-here"');
+  console.error('   Then run: node test-html-formatting-live.cjs');
+  process.exit(1);
+}
+
 async function testHTMLFormattingLive() {
   console.log('🧪 Testing HTML Paragraph Formatting with Live Instantly API\n');
 
@@ -36,7 +46,7 @@ async function testHTMLFormattingLive() {
   console.log('\n' + '─'.repeat(70));
 
   return new Promise((resolve, reject) => {
-    const mcp = spawn('node', ['dist/index.js', '--api-key', 'ODkxZWUzNjEtOWE5MC00ZGM5LWExOWQtNWZhYWUxZDk4ZDNlOkxZR0xBeUhDdGVNZg=='], {
+    const mcp = spawn('node', ['dist/index.js', '--api-key', API_KEY], {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: process.cwd()
     });

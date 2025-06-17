@@ -8,13 +8,13 @@
 
 ## 📋 Table of Contents
 
-1. [Technical Insights](#-technical-insights)
-2. [Development Methodology](#-development-methodology)
-3. [Quality Assurance Patterns](#-quality-assurance-patterns)
-4. [Architecture Decisions](#-architecture-decisions)
-5. [Shipping Best Practices](#-shipping-best-practices)
-6. [Reusable Code Patterns](#-reusable-code-patterns)
-7. [Quick Reference Checklists](#-quick-reference-checklists)
+1. [Technical Insights](#technical-insights)
+2. [Development Methodology](#development-methodology)
+3. [Quality Assurance Patterns](#quality-assurance-patterns)
+4. [Architecture Decisions](#architecture-decisions)
+5. [Shipping Best Practices](#shipping-best-practices)
+6. [Reusable Code Patterns](#reusable-code-patterns)
+7. [Quick Reference Checklists](#quick-reference-checklists)
 
 ---
 

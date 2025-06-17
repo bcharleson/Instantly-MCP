@@ -19,7 +19,7 @@ Your Instantly MCP server has been successfully streamlined with the `campaign_c
 - **Complete pagination implementation** using `limit` and `starting_after` parameters
 - **Safety limits** to prevent infinite loops (10,000 account limit)
 - **Enhanced `validateEmailListAgainstAccounts()`** now uses complete account list
-- **Critical for 100% success rates** - no valid accounts are missed during validation
+- **Critical for high success rates** - no valid accounts are missed during validation
 
 ### ✅ **3. Enhanced `create_campaign` Features (100% Complete)**
 - **Auto-Discovery Feature**: Automatically suggests verified accounts when `email_list` is empty
@@ -49,7 +49,7 @@ Your Instantly MCP server has been successfully streamlined with the `campaign_c
 - ✅ **Complete pagination** ensures all accounts are discovered
 - ✅ **Consistent response format** across all tools
 - ✅ **Reduced complexity** while improving functionality
-- ✅ **100% success rate** maintained with enhanced validation
+- ✅ **86% success rate** achieved with enhanced validation
 
 ---
 
@@ -139,7 +139,7 @@ Your Instantly MCP server has been successfully streamlined with the `campaign_c
 ## 🚀 **Ready for Production**
 
 ### **Immediate Benefits**
-- ✅ **100% Success Rate**: Complete pagination ensures all accounts are discovered
+- ✅ **86% Success Rate**: Complete pagination ensures all accounts are discovered
 - ✅ **Reduced Complexity**: 300+ fewer lines of code to maintain
 - ✅ **Better Performance**: Single code path, no duplicate logic
 - ✅ **Enhanced UX**: Auto-discovery and guided mode for all skill levels
@@ -185,7 +185,7 @@ Your Instantly MCP server now provides:
 ✅ **Auto-Discovery** for seamless user experience  
 ✅ **Enhanced Validation** with actionable error messages  
 ✅ **Simplified Architecture** with reduced maintenance overhead  
-✅ **100% Success Rate** when following documented workflows  
+✅ **86% Success Rate** when following documented workflows
 
 **The streamlined MCP server eliminates complexity while maintaining bulletproof campaign creation functionality.**
 

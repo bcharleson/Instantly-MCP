@@ -2,7 +2,15 @@
 
 const { spawn } = require('child_process');
 
-const API_KEY = 'ODkxZWUzNjEtOWE5MC00ZGM5LWExOWQtNWZhYWUxZDk4ZDNlOkZoTmdZWnJSSHRyeg==';
+// SECURITY: API key must be provided via environment variable
+const API_KEY = process.env.INSTANTLY_API_KEY;
+
+if (!API_KEY) {
+  console.error('❌ SECURITY ERROR: API key must be provided via INSTANTLY_API_KEY environment variable');
+  console.error('   Example: export INSTANTLY_API_KEY="your-api-key-here"');
+  console.error('   Then run: node quick-campaign-test.cjs');
+  process.exit(1);
+}
 
 const request = {
   jsonrpc: '2.0',

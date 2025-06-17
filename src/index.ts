@@ -13,13 +13,21 @@ import { buildInstantlyPaginationQuery, buildQueryParams, parsePaginatedResponse
 
 const INSTANTLY_API_URL = 'https://api.instantly.ai/api/v2';
 
-// API key will be provided via MCP config args
-const args = process.argv.slice(2);
-const apiKeyIndex = args.findIndex(arg => arg === '--api-key');
-const INSTANTLY_API_KEY = apiKeyIndex !== -1 && args[apiKeyIndex + 1] ? args[apiKeyIndex + 1] : null;
+// API key can be provided via environment variable or MCP config args
+// Environment variable takes precedence for security
+let INSTANTLY_API_KEY = process.env.INSTANTLY_API_KEY;
 
 if (!INSTANTLY_API_KEY) {
-  console.error('Error: API key must be provided via --api-key argument');
+  // Fallback to command-line argument for backward compatibility
+  const args = process.argv.slice(2);
+  const apiKeyIndex = args.findIndex(arg => arg === '--api-key');
+  INSTANTLY_API_KEY = apiKeyIndex !== -1 && args[apiKeyIndex + 1] ? args[apiKeyIndex + 1] : undefined;
+}
+
+if (!INSTANTLY_API_KEY) {
+  console.error('Error: API key must be provided via INSTANTLY_API_KEY environment variable or --api-key argument');
+  console.error('For security, using the environment variable is recommended:');
+  console.error('  export INSTANTLY_API_KEY="your-api-key-here"');
   process.exit(1);
 }
 

@@ -1,6 +1,18 @@
-#!/usr/bin/env node
+#!/usr/bin/env -S npx tsx
 /**
  * Simple Tool Checker - Manual verification of all tools
+ *
+ * Usage (all methods work):
+ *   ./check-tools.ts          # Direct execution (uses npx tsx via shebang)
+ *   npm run check-tools       # Via npm script (recommended)
+ *   npx tsx check-tools.ts    # Via npx directly
+ *
+ * Requirements:
+ *   - tsx dependency (✅ already installed in this project)
+ *   - File must be executable for direct execution (chmod +x check-tools.ts)
+ *
+ * Note: This file is not compiled to dist/ as it's a development utility.
+ *       The shebang was fixed to use tsx instead of node to handle TypeScript syntax.
  */
 
 // Manually listing all tools from the codebase for verification
