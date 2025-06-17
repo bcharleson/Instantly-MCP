@@ -401,6 +401,51 @@ const validateCampaignData = (args: any): void => {
   if (args.timing_to && !timeRegex.test(args.timing_to)) {
     throw new McpError(ErrorCode.InvalidParams, `Invalid timing_to format: ${args.timing_to}. Must be HH:MM format (e.g., 17:00)`);
   }
+
+  // Validate sequence parameters (new multi-step improvements)
+  if (args.sequence_steps) {
+    const numSteps = Number(args.sequence_steps);
+    if (isNaN(numSteps) || numSteps < 1 || numSteps > 10) {
+      throw new McpError(ErrorCode.InvalidParams, `Invalid sequence_steps: ${args.sequence_steps}. Must be a number between 1 and 10.`);
+    }
+
+    // Validate sequence_bodies if provided
+    if (args.sequence_bodies) {
+      if (!Array.isArray(args.sequence_bodies)) {
+        throw new McpError(ErrorCode.InvalidParams, `sequence_bodies must be an array of strings, not ${typeof args.sequence_bodies}`);
+      }
+      if (args.sequence_bodies.length < numSteps) {
+        throw new McpError(ErrorCode.InvalidParams, `sequence_bodies array must contain at least ${numSteps} items to match sequence_steps, but only has ${args.sequence_bodies.length} items.`);
+      }
+      // Validate each body is a string
+      for (let i = 0; i < numSteps; i++) {
+        if (typeof args.sequence_bodies[i] !== 'string') {
+          throw new McpError(ErrorCode.InvalidParams, `sequence_bodies[${i}] must be a string, not ${typeof args.sequence_bodies[i]}`);
+        }
+      }
+    }
+
+    // Validate sequence_subjects if provided
+    if (args.sequence_subjects) {
+      if (!Array.isArray(args.sequence_subjects)) {
+        throw new McpError(ErrorCode.InvalidParams, `sequence_subjects must be an array of strings, not ${typeof args.sequence_subjects}`);
+      }
+      if (args.sequence_subjects.length < numSteps) {
+        throw new McpError(ErrorCode.InvalidParams, `sequence_subjects array must contain at least ${numSteps} items to match sequence_steps, but only has ${args.sequence_subjects.length} items.`);
+      }
+      // Validate each subject is a string (empty strings are allowed for thread continuation)
+      for (let i = 0; i < numSteps; i++) {
+        if (typeof args.sequence_subjects[i] !== 'string') {
+          throw new McpError(ErrorCode.InvalidParams, `sequence_subjects[${i}] must be a string, not ${typeof args.sequence_subjects[i]}`);
+        }
+      }
+    }
+  }
+
+  // Validate continue_thread parameter
+  if (args.continue_thread !== undefined && typeof args.continue_thread !== 'boolean') {
+    throw new McpError(ErrorCode.InvalidParams, `continue_thread must be a boolean, not ${typeof args.continue_thread}`);
+  }
 };
 
 const makeInstantlyRequest = async (endpoint: string, method: string = 'GET', data?: any) => {
@@ -737,6 +782,17 @@ const convertToHTMLParagraphs = (text: string): string => {
     .join('');
 };
 
+/**
+ * Convert line breaks to HTML for sequence bodies - alias for convertToHTMLParagraphs
+ * to maintain consistency with the new sequence functionality
+ *
+ * @param text - Plain text with \n line breaks
+ * @returns HTML formatted text with <p> tags and <br> tags
+ */
+const convertLineBreaksToHtml = (text: string): string => {
+  return convertToHTMLParagraphs(text);
+};
+
 const buildCampaignPayload = (args: any): any => {
   if (!args) {
     throw new McpError(ErrorCode.InvalidParams, 'Campaign arguments are required');
@@ -834,9 +890,46 @@ const buildCampaignPayload = (args: any): any => {
     const stepDelayDays = Number(args.step_delay_days) || 3;
     const numSteps = Number(args.sequence_steps);
 
+    // Check if custom sequence content is provided
+    const hasCustomBodies = args.sequence_bodies && Array.isArray(args.sequence_bodies) && args.sequence_bodies.length >= numSteps;
+    const hasCustomSubjects = args.sequence_subjects && Array.isArray(args.sequence_subjects) && args.sequence_subjects.length >= numSteps;
+    const shouldContinueThread = args.continue_thread === true && !hasCustomSubjects;
+
+    // Update the first step if custom content is provided
+    if (hasCustomBodies || hasCustomSubjects) {
+      const firstStepBody = hasCustomBodies ? convertLineBreaksToHtml(String(args.sequence_bodies[0])) : normalizedBody;
+      const firstStepSubject = hasCustomSubjects ? String(args.sequence_subjects[0]) : normalizedSubject;
+
+      campaignData.sequences[0].steps[0].variants[0].body = firstStepBody;
+      campaignData.sequences[0].steps[0].variants[0].subject = firstStepSubject;
+    }
+
+    // Add follow-up steps
     for (let i = 1; i < numSteps; i++) {
-      let followUpSubject = `Follow-up ${i}: ${normalizedSubject}`.trim();
-      let followUpBody = `This is follow-up #${i}.\n\n${normalizedBody}`.trim();
+      let followUpSubject: string;
+      let followUpBody: string;
+
+      // Determine subject for this step
+      if (hasCustomSubjects) {
+        // Use provided custom subject
+        followUpSubject = String(args.sequence_subjects[i]);
+      } else if (shouldContinueThread) {
+        // Blank subject for thread continuation
+        followUpSubject = '';
+      } else {
+        // Default behavior: add follow-up prefix
+        followUpSubject = `Follow-up ${i}: ${normalizedSubject}`.trim();
+      }
+
+      // Determine body for this step
+      if (hasCustomBodies) {
+        // Use provided custom body with HTML conversion
+        followUpBody = convertLineBreaksToHtml(String(args.sequence_bodies[i]));
+      } else {
+        // Default behavior: add follow-up prefix to original body
+        followUpBody = `This is follow-up #${i}.\n\n${normalizedBody}`.trim();
+        followUpBody = convertLineBreaksToHtml(followUpBody);
+      }
 
       campaignData.sequences[0].steps.push({
         type: 'email',
@@ -977,6 +1070,24 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
             description: 'Days to wait before sending each follow-up email (optional, default: 3 days). This sets the delay field in sequences[0].steps[i].delay as required by the API. Each follow-up step will have this delay value. Minimum 1 day, maximum 30 days.',
             minimum: 1,
             maximum: 30
+          },
+          sequence_bodies: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Optional array of body content for each sequence step. If provided, must contain at least as many items as sequence_steps. Each string will be used as the body for the corresponding step (index 0 = first email, index 1 = first follow-up, etc.). If not provided, the main "body" parameter will be duplicated across all steps with automatic follow-up prefixes. Use \\n for line breaks - they will be automatically converted to HTML paragraphs.',
+            minItems: 1,
+            maxItems: 10
+          },
+          sequence_subjects: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Optional array of subject lines for each sequence step. If provided, must contain at least as many items as sequence_steps. Each string will be used as the subject for the corresponding step. Use empty strings ("") for follow-up emails to maintain thread continuity. If not provided, the main "subject" parameter will be used for the first email, and follow-ups will get "Follow-up X:" prefixes.',
+            minItems: 1,
+            maxItems: 10
+          },
+          continue_thread: {
+            type: 'boolean',
+            description: 'Automatically blank follow-up email subjects for thread continuation (optional, default: false). When true, all follow-up emails (steps 2+) will have empty subjects to maintain email thread continuity. Only applies when sequence_subjects is not provided. If sequence_subjects is provided, this parameter is ignored.',
           },
 
           // EMAIL SENDING CONFIGURATION - Controls delivery behavior
