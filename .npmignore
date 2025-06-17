@@ -1,13 +1,11 @@
 # Source files
 src/
 examples/
-tests/
 
 # Config files
 .github/
 .gitignore
 tsconfig.json
-test-endpoints.ts
 
 # Development files
 *.log
