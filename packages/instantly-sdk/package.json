@@ -1,0 +1,11 @@
+{
+  "name": "instantly-sdk",
+  "version": "0.0.1",
+  "description": "Internal SDK containing shared Instantly v2 helpers (pagination, rate limiting, error handling) for reuse across MCP server and other projects like n8n community node.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "license": "MIT"
+} 

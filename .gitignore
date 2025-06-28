@@ -5,5 +5,10 @@ dist/
 *.log
 npm-debug.log*
 
+# IDE and editor specific files
+.vscode/
+.claude/
+cursor/
+
 # Bug report folder (preserved locally but excluded from repository)
 bug report/
