@@ -3,19 +3,8 @@
 [![npm version](https://badge.fury.io/js/instantly-mcp.svg)](https://badge.fury.io/js/instantly-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Streamlined MCP server for Instantly.ai v2 API with HTML paragraph formatting** - Professional email campaigns with automatic HTML conversion, bulletproof creation workflow, and complete pagination. Perfect for AI-powered email automation and cold outreach.
+**Streamlined MCP server for Instantly.ai v2 API 
 
-## 🎯 Key Features
-
-### ✨ **HTML Paragraph Formatting** (NEW in v1.0.0!)
-**Transform plain text into professional email formatting automatically:**
-
-- **📝 Automatic Conversion**: Plain text with `\n\n` (double line breaks) → HTML `<p>` paragraph tags
-- **🔗 Line Break Handling**: Single `\n` line breaks → `<br>` tags within paragraphs
-- **🎨 Superior Visual Rendering**: Professional paragraph separation in Instantly email interface
-- **🔒 Personalization Preserved**: All variables like `{{firstName}}`, `{{companyName}}` maintained
-- **✅ Backward Compatible**: Existing plain text workflows continue to work seamlessly
-- **🛡️ Security First**: Safe HTML tags allowed, unsafe tags blocked
 
 **Before (Plain Text):**
 ```
