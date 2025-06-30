@@ -27,7 +27,6 @@ Perfect for sales teams, marketers, and developers who want professional-looking
 
 ## ✨ What's New in v1.0.0
 
-- **🎨 HTML Paragraph Formatting**: Automatic conversion of plain text to professional HTML paragraphs
 - **📈 Superior Visual Rendering**: Dramatically improved email appearance in Instantly interface
 - **🔄 Backward Compatibility**: Existing workflows enhanced without breaking changes
 - **✅ Comprehensive Testing**: 100% API success rates with live integration testing
