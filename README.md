@@ -3,35 +3,29 @@
 [![npm version](https://badge.fury.io/js/instantly-mcp.svg)](https://badge.fury.io/js/instantly-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Streamlined MCP server for Instantly.ai v2 API 
+A streamlined MCP server for Instantly.ai v2 API integration. Enables AI assistants to manage email campaigns, accounts, leads, and analytics through Instantly's platform.
 
+## Key Features
 
-### 🚀 **Bulletproof Campaign Creation**
-- **📋 Three-Stage Workflow**: Prerequisite check → Preview → Validated creation
-- **✅ 100% Success Rate**: Comprehensive testing ensures reliable campaign creation
-- **🔍 Complete Account Validation**: Full pagination to discover all eligible sending accounts
-- **🎯 Intelligent Error Prevention**: Built-in validation prevents common API failures
+- **Campaign Management**: Create, update, and manage email campaigns
+- **Account Management**: Handle sending accounts and warmup settings
+- **Lead Management**: Organize and manage your lead database
+- **Analytics**: Track campaign performance and metrics
+- **Email Operations**: Send emails and verify addresses
+- **API Integration**: Full access to Instantly.ai v2 API endpoints
 
 ## Overview
 
-The Instantly MCP Server v1.0.0 brings Instantly.ai's email automation capabilities directly into Claude and other AI assistants with professional HTML formatting. This enables reliable AI-powered management of:
+The Instantly MCP Server brings Instantly.ai's email automation capabilities directly into Claude and other AI assistants. This enables AI-powered management of:
 
-- 📧 **Email campaigns with HTML paragraph formatting**
-- 👥 Account management and warmup
-- 📊 Analytics and performance tracking
-- 🎯 Lead management and segmentation
-- ✉️ Email sending and verification
-- 🔑 API key management
+- Email campaigns and automation
+- Account management and warmup
+- Analytics and performance tracking
+- Lead management and segmentation
+- Email sending and verification
+- API key management
 
-Perfect for sales teams, marketers, and developers who want professional-looking email campaigns with automatic formatting.
-
-## ✨ What's New in v1.0.0
-
-- **📈 Superior Visual Rendering**: Dramatically improved email appearance in Instantly interface
-- **🔄 Backward Compatibility**: Existing workflows enhanced without breaking changes
-- **✅ Comprehensive Testing**: 100% API success rates with live integration testing
-- **🛡️ Enhanced Security**: Safe HTML tag filtering while enabling professional formatting
-- **📚 Updated Documentation**: Complete guide for HTML formatting features
+Perfect for sales teams, marketers, and developers who want to integrate email automation into their AI workflows.
 
 ## Quick Start
 
@@ -81,7 +75,7 @@ npm run build
 ### Campaign Management
 - `list_campaigns` - List all campaigns with optional filters and pagination
 - `get_campaign` - Get details of a specific campaign
-- `create_campaign` - **🎨 HTML FORMATTING!** Create campaigns with automatic HTML paragraph conversion
+- `create_campaign` - Create new email campaigns
 - `update_campaign` - Update an existing campaign
 - `activate_campaign` - Activate a campaign
 
@@ -90,7 +84,7 @@ npm run build
 - `get_campaign_analytics_overview` - Get analytics overview for all campaigns
 
 ### Account Management
-- `list_accounts` - **🔑 PREREQUISITE!** List sending accounts (required before creating campaigns)
+- `list_accounts` - List sending accounts
 - `create_account` - Create a new sending account
 - `update_account` - Update a sending account
 - `get_warmup_analytics` - Get warmup analytics for an account
@@ -116,77 +110,16 @@ npm run build
 - `list_api_keys` - List all API keys
 - `create_api_key` - Create a new API key
 
-## 🎯 Professional Campaign Creation with HTML Formatting
-
-**NEW in v1.0.0!** Create campaigns with automatic HTML paragraph formatting for superior visual rendering:
-
-### Quick Start with HTML Formatting
-```bash
-# Step 1: Get available sending accounts (REQUIRED)
-list_accounts { "limit": 100 }
-
-# Step 2: Create campaign with automatic HTML conversion
-create_campaign {
-  "name": "Q2 2025 Outreach Campaign",
-  "subject": "Quick question about {{companyName}}",
-  "body": "Hi {{firstName}},\n\nI noticed {{companyName}} is expanding rapidly.\n\nWould you be interested in:\n- Streamlining your processes\n- Reducing operational costs\n- Improving team efficiency\n\nBest regards,\nThe Team",
-  "email_list": ["sender@company.com", "sender2@company.com"]
-}
-```
-
-**✨ Automatic HTML Conversion Result:**
-```html
-<p>Hi {{firstName}},</p>
-<p>I noticed {{companyName}} is expanding rapidly.</p>
-<p>Would you be interested in:<br>- Streamlining your processes<br>- Reducing operational costs<br>- Improving team efficiency</p>
-<p>Best regards,<br>The Team</p>
-```
-
-### Benefits
-✅ **Professional Email Formatting** - Automatic HTML paragraph conversion
-✅ **Superior Visual Rendering** - Clear paragraph separation in Instantly interface
-✅ **100% API Success Rate** - Comprehensive validation prevents errors
-✅ **Personalization Preserved** - All `{{variables}}` maintained perfectly
-✅ **Backward Compatible** - Existing plain text workflows enhanced automatically
-✅ **Security First** - Safe HTML tags only, unsafe content blocked
-
 ## Example Usage
 
-Once configured, you can use natural language to interact with Instantly. **All campaigns automatically get professional HTML paragraph formatting:**
+Once configured, you can use natural language to interact with Instantly:
 
-- "Create a new email campaign for Q2 outreach with multiple paragraphs"
+- "Create a new email campaign for Q2 outreach"
 - "List all my active campaigns"
 - "Show me the analytics for campaign XYZ"
 - "List all my sending accounts"
 - "Check which accounts I can use for campaigns"
-- "Create a campaign with bullet points and line breaks"
-
-### HTML Formatting Examples
-
-**Input:** "Create a campaign with this message: Hi {{firstName}}, Welcome to our newsletter! We have exciting updates. Best regards, The Team"
-
-**Result:** Automatically converted to professional HTML paragraphs with proper `<p>` tags and `<br>` line breaks for optimal visual rendering in Instantly.
-
-## 🎨 HTML Paragraph Formatting Deep Dive
-
-### Visual Rendering Benefits
-- **📈 Professional Appearance**: Clear paragraph separation instead of cramped plain text
-- **👁️ Enhanced Readability**: Proper visual hierarchy with distinct paragraphs
-- **📧 Email Client Compatibility**: Optimized HTML rendering across email platforms
-- **🎯 Better Engagement**: Professional formatting improves recipient experience
-
-### Technical Implementation
-- **🔄 Automatic Conversion**: `\n\n` → `<p>` tags, `\n` → `<br>` tags
-- **🛡️ Security First**: Only safe HTML tags (`<p>`, `<br>`, `<br/>`) allowed
-- **🔒 Variable Preservation**: All `{{firstName}}`, `{{companyName}}` variables maintained
-- **✅ Validation**: Comprehensive testing ensures 100% API success rates
-- **🔄 Backward Compatible**: Plain text inputs automatically enhanced
-
-### Supported HTML Tags
-- ✅ `<p>` - Paragraph tags for proper text separation
-- ✅ `<br>` - Line break tags within paragraphs
-- ✅ `<br/>` - Self-closing line break tags
-- ❌ All other HTML tags blocked for security
+- "Create a new lead list for prospects"
 
 ## Development
 
@@ -257,26 +190,24 @@ MIT
 
 ## Features
 
-- 🎨 **HTML Paragraph Formatting** - Automatic conversion for professional email appearance
-- 🚀 Full Instantly v2 API coverage
-- ✅ Bulletproof campaign creation with 100% success rate
-- 📄 Complete pagination support for all list endpoints
-- 🔒 Enhanced security with safe HTML tag filtering
-- ⚡ Rate limiting with informative messages
-- 🔧 Comprehensive error handling
-- 📝 TypeScript support
-- 🔐 Secure API key handling
-- 📚 Example scripts included
+- Full Instantly v2 API coverage
+- Campaign creation and management
+- Complete pagination support for all list endpoints
+- Rate limiting with informative messages
+- Comprehensive error handling
+- TypeScript support
+- Secure API key handling
+- Example scripts included
 
 ## Recent Updates
 
-### v1.0.0 (Latest) - HTML Paragraph Formatting Release
-- **🎨 HTML Paragraph Formatting**: Automatic conversion of plain text to professional HTML paragraphs
-- **📈 Superior Visual Rendering**: Dramatically improved email appearance in Instantly interface
-- **✅ 100% API Success Rate**: Comprehensive testing with live integration validation
-- **🔒 Enhanced Security**: Safe HTML tag filtering while enabling professional formatting
-- **🔄 Backward Compatibility**: Existing workflows enhanced without breaking changes
-- **📚 Complete Documentation**: Updated guides and examples for HTML formatting features
+### v1.0.0 (Latest) - Initial Release
+- Full Instantly v2 API integration
+- Campaign management capabilities
+- Account and lead management
+- Analytics and reporting
+- Email operations and verification
+- Comprehensive error handling and validation
 
 See [CHANGELOG.md](CHANGELOG.md) for complete version history.
 
@@ -310,11 +241,6 @@ This package is automatically published to npm when a new version tag is pushed:
 npm version patch|minor|major
 git push --tags
 ```
-
-## Support
-
-- For issues or questions, please open an issue on [GitHub](https://github.com/bcharleson/Instantly-MCP/issues)
-- For Instantly API documentation, visit: https://developer.instantly.ai/
 
 ## Changelog
 
