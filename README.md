@@ -6,23 +6,6 @@
 **Streamlined MCP server for Instantly.ai v2 API 
 
 
-**Before (Plain Text):**
-```
-Hi {{firstName}},
-
-Welcome to our newsletter!
-
-Best regards,
-The Team
-```
-
-**After (HTML Paragraphs):**
-```html
-<p>Hi {{firstName}},</p>
-<p>Welcome to our newsletter!</p>
-<p>Best regards,<br>The Team</p>
-```
-
 ### 🚀 **Bulletproof Campaign Creation**
 - **📋 Three-Stage Workflow**: Prerequisite check → Preview → Validated creation
 - **✅ 100% Success Rate**: Comprehensive testing ensures reliable campaign creation
