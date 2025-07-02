@@ -1951,8 +1951,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
 
         try {
-          console.error(`[Instantly MCP] Attempting email verification for: ${args.email}`);
-          const result = await makeInstantlyRequest('/email-verification', 'POST', { email: args.email });
+          console.error(`[Instantly MCP] Attempting email verification for: ${validatedArgs.email}`);
+          const result = await makeInstantlyRequest('/email-verification', 'POST', { email: validatedArgs.email });
 
           return {
             content: [
@@ -1970,7 +1970,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               `Email verification access denied (403): This feature requires a premium Instantly plan. ` +
               `Your current plan does not include email verification capabilities. ` +
               `Please: 1) Upgrade to a premium plan, 2) Verify your API key permissions, ` +
-              `3) Contact Instantly support at support@instantly.ai for plan details. Email: ${args.email}`
+              `3) Contact Instantly support at support@instantly.ai for plan details. Email: ${validatedArgs.email}`
             );
           }
           
