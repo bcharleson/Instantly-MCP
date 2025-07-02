@@ -17,8 +17,7 @@ import {
   validateEmailVerificationData,
   validateListAccountsData,
   validateListCampaignsData,
-  isValidEmail,
-  validateCampaignDataLegacy
+  isValidEmail
 } from './validation.js';
 
 const INSTANTLY_API_URL = 'https://api.instantly.ai/api/v2';
