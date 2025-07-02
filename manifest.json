@@ -2,7 +2,7 @@
   "dxt_version": "0.1",
   "name": "instantly-mcp",
   "display_name": "Instantly MCP Server",
-  "version": "1.0.7-beta.1",
+  "version": "1.0.7-beta.2",
   "description": "Streamlined MCP server for Instantly.ai v2 API with comprehensive email campaign management and Zod validation",
   "long_description": "A comprehensive MCP server that brings Instantly.ai's email automation capabilities directly into Claude and other AI assistants. Features include campaign creation and management, account management with warmup analytics, lead management, email verification, and complete analytics tracking. Now enhanced with Zod validation for improved type safety and compatibility across different environments including Claude Desktop, Cursor IDE, and n8n integrations.",
   "author": {

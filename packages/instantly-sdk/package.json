@@ -8,4 +8,4 @@
     "build": "tsc -p tsconfig.json"
   },
   "license": "MIT"
-} 
+}

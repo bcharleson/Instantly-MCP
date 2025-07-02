@@ -1,6 +1,6 @@
 {
   "name": "instantly-mcp",
-  "version": "1.0.6-beta.1",
+  "version": "1.0.7-beta.1",
   "description": "Streamlined MCP server for Instantly v2 API with bulletproof campaign creation, HTML paragraph formatting, and complete pagination",
   "keywords": [
     "mcp",
@@ -20,9 +20,7 @@
   },
   "homepage": "https://github.com/bcharleson/Instantly-MCP#readme",
   "type": "module",
-  "bin": {
-    "instantly-mcp": "dist/index.js"
-  },
+  "bin": "dist/index.js",
   "files": [
     "dist"
   ],
@@ -36,7 +34,8 @@
     "publish:sdk": "npm run build --workspace packages/instantly-sdk && npm publish --access public --workspace packages/instantly-sdk"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^0.5.0"
+    "@modelcontextprotocol/sdk": "^1.13.3",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@babel/parser": "^7.27.5",
@@ -47,5 +46,7 @@
     "tsx": "^4.7.0",
     "typescript": "^5.3.0"
   },
-  "workspaces": ["packages/*"]
+  "workspaces": [
+    "packages/*"
+  ]
 }

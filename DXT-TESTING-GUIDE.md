@@ -5,15 +5,16 @@
 Your Instantly MCP Server with Zod validation is now packaged as a **Desktop Extension (DXT)** for one-click installation in Claude Desktop.
 
 ### 📦 **Package Details:**
-- **File**: `instantly-mcp-1.0.6-beta.1.dxt`
-- **Size**: 340K
+- **File**: `instantly-mcp-1.0.7-beta.1.dxt`
+- **Size**: 1.2M
 - **Type**: Node.js MCP Server with Zod validation
 - **Compatibility**: Claude Desktop (macOS, Windows, Linux)
+- **MCP SDK**: Latest version 1.13.3 (updated from 0.5.0)
 
 ## 🚀 **Installation Instructions**
 
 ### **Step 1: Install in Claude Desktop**
-1. **📁 Double-click** `instantly-mcp-1.0.6-beta.1.dxt`
+1. **📁 Double-click** `instantly-mcp-1.0.7-beta.1.dxt`
 2. **🔑 Enter your Instantly API key** when prompted
    - Your API key should start with `inst_`
    - Find it in Instantly Dashboard → Settings → API Keys
