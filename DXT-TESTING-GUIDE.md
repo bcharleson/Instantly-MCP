@@ -1,20 +1,21 @@
-# 🎉 DXT One-Click Installation & Testing Guide
+# 🎉 DXT One-Click Installation & Testing Guide - Zod v4
 
-## ✅ **DXT Package Ready!**
+## ✅ **DXT Package Ready with Zod v4!**
 
-Your Instantly MCP Server with Zod validation is now packaged as a **Desktop Extension (DXT)** for one-click installation in Claude Desktop.
+Your Instantly MCP Server with **Zod v4 validation** is now packaged as a **Desktop Extension (DXT)** for one-click installation in Claude Desktop.
 
 ### 📦 **Package Details:**
-- **File**: `instantly-mcp-1.0.7-beta.1.dxt`
-- **Size**: 1.2M
-- **Type**: Node.js MCP Server with Zod validation
+- **File**: `instantly-mcp-1.0.8-beta.1.dxt`
+- **Size**: 2.2M
+- **Type**: Node.js MCP Server with Zod v4 validation
 - **Compatibility**: Claude Desktop (macOS, Windows, Linux)
-- **MCP SDK**: Latest version 1.13.3 (updated from 0.5.0)
+- **MCP SDK**: Latest version 1.13.3
+- **Zod**: Latest v4 with dramatic performance improvements
 
 ## 🚀 **Installation Instructions**
 
 ### **Step 1: Install in Claude Desktop**
-1. **📁 Double-click** `instantly-mcp-1.0.7-beta.1.dxt`
+1. **📁 Double-click** `instantly-mcp-1.0.8-beta.1.dxt`
 2. **🔑 Enter your Instantly API key** when prompted
    - Your API key should start with `inst_`
    - Find it in Instantly Dashboard → Settings → API Keys
@@ -25,9 +26,17 @@ Your Instantly MCP Server with Zod validation is now packaged as a **Desktop Ext
 - Look for "Instantly MCP Server" in Claude Desktop's MCP settings
 - The server should show as "Connected" or "Active"
 
-## 🧪 **Testing the Zod Integration**
+## 🧪 **Testing the Zod v4 Integration**
 
-The main goal is to verify that the **Zod validation integration** resolves compatibility issues and provides better error messages.
+The main goal is to verify that the **Zod v4 validation integration** resolves compatibility issues and provides dramatically improved error messages and performance.
+
+### 🚀 **Zod v4 Improvements to Test:**
+
+1. **⚡ Performance**: Dramatic performance improvements for faster validation
+2. **🎯 Error Quality**: Unified `error` parameter for cleaner, more specific messages
+3. **📦 Bundle Size**: Better tree-shaking with top-level functions like `z.email()`
+4. **🔧 API Cleanliness**: Simplified error customization and consistent behavior
+5. **🌍 Compatibility**: Enhanced compatibility across different JavaScript environments
 
 ### **✅ Valid Operations (Should Work Normally)**
 

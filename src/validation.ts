@@ -1,13 +1,18 @@
 #!/usr/bin/env node
 /**
- * Zod Validation Schemas for Instantly MCP Server
- * 
- * This module provides type-safe validation for all tool inputs using Zod schemas.
+ * Zod v4 Validation Schemas for Instantly MCP Server
+ *
+ * This module provides type-safe validation for all tool inputs using Zod v4 schemas.
  * It replaces manual validation functions with comprehensive, reusable schemas
- * that provide better error messages and TypeScript inference.
+ * that provide better error messages, improved performance, and TypeScript inference.
+ *
+ * Zod v4 Features Used:
+ * - Unified 'error' parameter for cleaner error customization
+ * - Top-level z.email() for better tree-shaking and performance
+ * - Improved error message formatting and consistency
  */
 
-import { z } from 'zod';
+import * as z from 'zod/v4';
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 
 // ============================================================================
@@ -16,11 +21,11 @@ import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 
 /**
  * Email validation schema with comprehensive error messages
+ * Using Zod v4's top-level z.email() for better performance and tree-shaking
  */
 export const EmailSchema = z
-  .string()
-  .email('Invalid email format. Must be a valid email address (e.g., user@domain.com)')
-  .min(1, 'Email address cannot be empty');
+  .email({ error: 'Invalid email format. Must be a valid email address (e.g., user@domain.com)' })
+  .min(1, { error: 'Email address cannot be empty' });
 
 /**
  * Timezone validation schema - exact values from Instantly API documentation
@@ -31,9 +36,7 @@ export const TimezoneSchema = z.enum([
   "America/Chicago", "America/New_York", "America/Denver", "America/Los_Angeles",
   "Europe/London", "Europe/Paris", "Asia/Tokyo", "Asia/Singapore", "Australia/Sydney"
 ], {
-  errorMap: (issue, ctx) => ({
-    message: `Invalid timezone: ${ctx.data}. Must be one of the supported Instantly API timezones.`
-  })
+  error: (issue) => `Invalid timezone: ${issue.input}. Must be one of the supported Instantly API timezones.`
 });
 
 /**
@@ -54,9 +57,7 @@ export const DateFormatSchema = z
  * Campaign stage validation
  */
 export const CampaignStageSchema = z.enum(['prerequisite_check', 'preview', 'create'], {
-  errorMap: () => ({
-    message: 'Invalid stage. Must be one of: prerequisite_check, preview, create'
-  })
+  error: 'Invalid stage. Must be one of: prerequisite_check, preview, create'
 });
 
 /**
@@ -66,9 +67,7 @@ export const PaginationLimitSchema = z.union([
   z.number().int().min(1).max(100),
   z.literal("all")
 ], {
-  errorMap: () => ({
-    message: 'Limit must be a number between 1-100 or the string "all" for complete pagination'
-  })
+  error: 'Limit must be a number between 1-100 or the string "all" for complete pagination'
 });
 
 /**
@@ -99,15 +98,15 @@ export const CreateCampaignSchema = z.object({
   
   // Required campaign fields
   name: z.string()
-    .min(1, 'Campaign name cannot be empty')
-    .max(255, 'Campaign name cannot exceed 255 characters'),
+    .min(1, { error: 'Campaign name cannot be empty' })
+    .max(255, { error: 'Campaign name cannot exceed 255 characters' }),
   
   subject: z.string()
-    .min(1, 'Subject line cannot be empty')
-    .max(255, 'Subject line cannot exceed 255 characters'),
+    .min(1, { error: 'Subject line cannot be empty' })
+    .max(255, { error: 'Subject line cannot exceed 255 characters' }),
   
   body: z.string()
-    .min(1, 'Email body cannot be empty')
+    .min(1, { error: 'Email body cannot be empty' })
     .refine(
       (val) => typeof val === 'string',
       'Body must be a plain string, not an object or array'
@@ -135,8 +134,8 @@ export const CreateCampaignSchema = z.object({
     ),
   
   email_list: z.array(EmailSchema)
-    .min(1, 'At least one email address is required')
-    .max(100, 'Cannot specify more than 100 email addresses'),
+    .min(1, { error: 'At least one email address is required' })
+    .max(100, { error: 'Cannot specify more than 100 email addresses' }),
   
   // Optional scheduling parameters
   timezone: TimezoneSchema.optional(),
@@ -167,7 +166,7 @@ export const CreateCampaignSchema = z.object({
     return true;
   },
   {
-    message: 'sequence_bodies array must contain at least as many items as sequence_steps',
+    error: 'sequence_bodies array must contain at least as many items as sequence_steps',
     path: ['sequence_bodies']
   }
 ).refine(
@@ -179,7 +178,7 @@ export const CreateCampaignSchema = z.object({
     return true;
   },
   {
-    message: 'sequence_subjects array must contain at least as many items as sequence_steps',
+    error: 'sequence_subjects array must contain at least as many items as sequence_steps',
     path: ['sequence_subjects']
   }
 );
@@ -209,8 +208,8 @@ export const ListCampaignsSchema = z.object({
  */
 export const GetWarmupAnalyticsSchema = z.object({
   emails: z.array(EmailSchema)
-    .min(1, 'At least one email address is required')
-    .max(100, 'Cannot specify more than 100 email addresses'),
+    .min(1, { error: 'At least one email address is required' })
+    .max(100, { error: 'Cannot specify more than 100 email addresses' }),
   start_date: DateFormatSchema.optional(),
   end_date: DateFormatSchema.optional()
 });
@@ -226,14 +225,14 @@ export const VerifyEmailSchema = z.object({
  * Get campaign validation schema
  */
 export const GetCampaignSchema = z.object({
-  campaign_id: z.string().min(1, 'Campaign ID cannot be empty')
+  campaign_id: z.string().min(1, { error: 'Campaign ID cannot be empty' })
 });
 
 /**
  * Update campaign validation schema
  */
 export const UpdateCampaignSchema = z.object({
-  campaign_id: z.string().min(1, 'Campaign ID cannot be empty'),
+  campaign_id: z.string().min(1, { error: 'Campaign ID cannot be empty' }),
   name: z.string().min(1).max(255).optional(),
   status: z.string().optional()
 });
@@ -252,11 +251,11 @@ export const GetCampaignAnalyticsSchema = z.object({
  */
 export const CreateAccountSchema = z.object({
   email: EmailSchema,
-  password: z.string().min(1, 'Password cannot be empty'),
-  smtp_host: z.string().min(1, 'SMTP host cannot be empty'),
+  password: z.string().min(1, { error: 'Password cannot be empty' }),
+  smtp_host: z.string().min(1, { error: 'SMTP host cannot be empty' }),
   smtp_port: z.number().int().min(1).max(65535),
-  smtp_username: z.string().min(1, 'SMTP username cannot be empty'),
-  smtp_password: z.string().min(1, 'SMTP password cannot be empty')
+  smtp_username: z.string().min(1, { error: 'SMTP username cannot be empty' }),
+  smtp_password: z.string().min(1, { error: 'SMTP password cannot be empty' })
 });
 
 /**
@@ -276,18 +275,18 @@ export const CreateLeadSchema = z.object({
   firstName: z.string().optional(),
   lastName: z.string().optional(),
   companyName: z.string().optional(),
-  personalization: z.record(z.string()).optional()
+  personalization: z.record(z.string(), z.string()).optional()
 });
 
 /**
  * Update lead validation schema
  */
 export const UpdateLeadSchema = z.object({
-  lead_id: z.string().min(1, 'Lead ID cannot be empty'),
+  lead_id: z.string().min(1, { error: 'Lead ID cannot be empty' }),
   first_name: z.string().optional(),
   last_name: z.string().optional(),
   company_name: z.string().optional(),
-  personalization: z.record(z.string()).optional()
+  personalization: z.record(z.string(), z.string()).optional()
 });
 
 /**
@@ -305,7 +304,7 @@ export const ListLeadsSchema = z.object({
  * Create lead list validation schema
  */
 export const CreateLeadListSchema = z.object({
-  name: z.string().min(1, 'Lead list name cannot be empty'),
+  name: z.string().min(1, { error: 'Lead list name cannot be empty' }),
   description: z.string().optional()
 });
 
@@ -322,7 +321,7 @@ export const ListLeadListsSchema = z.object({
  */
 export const ReplyToEmailSchema = z.object({
   reply_to_uuid: z.string()
-    .min(1, 'Reply to UUID cannot be empty')
+    .min(1, { error: 'Reply to UUID cannot be empty' })
     .refine(
       (val) => val !== 'test-uuid',
       'reply_to_uuid must be a valid email ID. Use list_emails or get_email tools first to obtain a valid email UUID.'
@@ -350,7 +349,7 @@ export const ListEmailsSchema = z.object({
  * Get email validation schema
  */
 export const GetEmailSchema = z.object({
-  email_id: z.string().min(1, 'Email ID cannot be empty')
+  email_id: z.string().min(1, { error: 'Email ID cannot be empty' })
 });
 
 /**
@@ -383,7 +382,7 @@ export function validateWithSchema<T>(
     return schema.parse(data);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const errorMessages = error.errors.map(err => {
+      const errorMessages = error.issues.map((err: any) => {
         const path = err.path.length > 0 ? `${err.path.join('.')}: ` : '';
         return `${path}${err.message}`;
       });
