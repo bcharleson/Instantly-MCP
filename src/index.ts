@@ -143,12 +143,14 @@ const getAllAccountsWithPagination = async (args: any = {}): Promise<any[]> => {
         hasMore = false;
       }
 
-      // Check termination conditions
-      if (!nextStartingAfter || batchAccounts.length < BATCH_SIZE) {
-        console.error(`[Instantly MCP] Pagination complete: ${nextStartingAfter ? 'Fewer results than batch size' : 'No next_starting_after token'}`);
+      // Check termination conditions - ONLY terminate when no next_starting_after token
+      // DO NOT terminate based on batch size as API may return fewer items per page
+      if (!nextStartingAfter) {
+        console.error(`[Instantly MCP] Pagination complete: No next_starting_after token`);
         hasMore = false;
       } else {
         startingAfter = nextStartingAfter;
+        console.error(`[Instantly MCP] Continuing pagination with token: ${nextStartingAfter.substring(0, 20)}...`);
       }
 
       // Safety check to prevent infinite loops
@@ -245,12 +247,14 @@ const getAllCampaignsWithPagination = async (filters: { search?: string, status?
         hasMore = false;
       }
 
-      // Check termination conditions
-      if (!nextStartingAfter || batchCampaigns.length < BATCH_SIZE) {
-        console.error(`[Instantly MCP] Pagination complete: ${nextStartingAfter ? 'Fewer results than batch size' : 'No next_starting_after token'}`);
+      // Check termination conditions - ONLY terminate when no next_starting_after token
+      // DO NOT terminate based on batch size as API may return fewer items per page
+      if (!nextStartingAfter) {
+        console.error(`[Instantly MCP] Pagination complete: No next_starting_after token`);
         hasMore = false;
       } else {
         startingAfter = nextStartingAfter;
+        console.error(`[Instantly MCP] Continuing pagination with token: ${nextStartingAfter.substring(0, 20)}...`);
       }
 
       // Safety check to prevent infinite loops

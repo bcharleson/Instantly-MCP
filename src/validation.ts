@@ -62,13 +62,15 @@ export const CampaignStageSchema = z.enum(['prerequisite_check', 'preview', 'cre
 
 /**
  * Pagination limit schema - supports both number and "all" string
+ * Updated for bulletproof pagination - now very flexible since we always get complete datasets
  */
 export const PaginationLimitSchema = z.union([
-  z.number().int().min(1).max(100),
-  z.literal("all")
-], {
-  error: 'Limit must be a number between 1-100 or the string "all" for complete pagination'
-});
+  z.number().int().min(1), // No upper limit since bulletproof pagination handles everything
+  z.literal("all"),
+  z.string().refine(val => val.toLowerCase() === "all", {
+    message: "String limit must be 'all'"
+  })
+]).optional(); // Make the entire limit parameter optional
 
 /**
  * Days configuration schema for campaign scheduling
@@ -241,7 +243,7 @@ export const CreateCampaignSchema = z.object({
  * List accounts validation schema
  */
 export const ListAccountsSchema = z.object({
-  limit: PaginationLimitSchema.optional(),
+  limit: PaginationLimitSchema, // Already optional in the schema definition
   starting_after: z.string().optional(),
   get_all: z.boolean().optional()
 });
@@ -250,7 +252,7 @@ export const ListAccountsSchema = z.object({
  * List campaigns validation schema
  */
 export const ListCampaignsSchema = z.object({
-  limit: PaginationLimitSchema.optional(),
+  limit: PaginationLimitSchema, // Already optional in the schema definition
   starting_after: z.string().optional(),
   get_all: z.boolean().optional(),
   search: z.string().optional(),
