@@ -80,75 +80,140 @@ const checkEmailVerificationAvailability = async (): Promise<{ available: boolea
   }
 };
 
+// Helper function to test basic API connectivity
+const testBasicAPIConnection = async (): Promise<any> => {
+  console.error(`[Instantly MCP] 🧪 TESTING: Basic API connection to /accounts endpoint...`);
+
+  try {
+    // Test the most basic API call
+    const response = await makeInstantlyRequest('/accounts');
+    console.error(`[Instantly MCP] 🧪 BASIC TEST RESPONSE:`, JSON.stringify(response, null, 2));
+    console.error(`[Instantly MCP] 🧪 Response type:`, typeof response);
+    console.error(`[Instantly MCP] 🧪 Response keys:`, response ? Object.keys(response) : 'null/undefined');
+
+    if (Array.isArray(response)) {
+      console.error(`[Instantly MCP] 🧪 Direct array response with ${response.length} items`);
+    } else if (response && response.data) {
+      console.error(`[Instantly MCP] 🧪 Paginated response with ${response.data.length} items in data array`);
+    } else if (response && response.items) {
+      console.error(`[Instantly MCP] 🧪 Items response with ${response.items.length} items in items array`);
+    }
+
+    return response;
+  } catch (error) {
+    console.error(`[Instantly MCP] 🧪 BASIC TEST FAILED:`, error);
+    return null;
+  }
+};
+
 // Helper function to retrieve ALL accounts with TRULY BULLETPROOF pagination (ALWAYS complete)
 const getTrulyAllAccounts = async (): Promise<any[]> => {
-  console.error(`[Instantly MCP] 🚀 TRULY BULLETPROOF: Forcing complete account retrieval...`);
+  console.error(`[Instantly MCP] 🚀 TRULY BULLETPROOF: Starting complete account retrieval with comprehensive debugging...`);
 
   const allAccounts: any[] = [];
   let startingAfter: string | undefined = undefined;
   let pageCount = 0;
   const MAX_PAGES = 50; // Safety limit
 
-  while (pageCount < MAX_PAGES) {
-    pageCount++;
+  try {
+    while (pageCount < MAX_PAGES) {
+      pageCount++;
 
-    // Force pagination with limit=100
-    const queryParams = new URLSearchParams();
-    queryParams.append('limit', '100');
-    if (startingAfter) {
-      queryParams.append('starting_after', startingAfter);
+      // Force pagination with limit=100
+      const queryParams = new URLSearchParams();
+      queryParams.append('limit', '100');
+      if (startingAfter) {
+        queryParams.append('starting_after', startingAfter);
+      }
+
+      const endpoint = `/accounts?${queryParams.toString()}`;
+      console.error(`[Instantly MCP] 🔄 Page ${pageCount}: Calling makeInstantlyRequest with endpoint: ${endpoint}`);
+
+      try {
+        // Test the API call with comprehensive error handling
+        const response = await makeInstantlyRequest(endpoint);
+
+        // Log the complete response for debugging
+        console.error(`[Instantly MCP] 📥 Page ${pageCount} RAW RESPONSE:`, JSON.stringify(response, null, 2));
+        console.error(`[Instantly MCP] 📥 Page ${pageCount} response type:`, typeof response);
+        console.error(`[Instantly MCP] 📥 Page ${pageCount} response keys:`, response ? Object.keys(response) : 'null/undefined');
+
+        let pageAccounts: any[] = [];
+        let nextToken: string | undefined = undefined;
+
+        // Comprehensive response format handling with detailed logging
+        if (response && typeof response === 'object' && response.data && Array.isArray(response.data)) {
+          pageAccounts = response.data;
+          nextToken = response.next_starting_after;
+          console.error(`[Instantly MCP] ✅ Page ${pageCount}: PAGINATED RESPONSE - Found ${pageAccounts.length} accounts, next_token: ${nextToken ? 'YES' : 'NO'}`);
+        } else if (response && typeof response === 'object' && response.items && Array.isArray(response.items)) {
+          pageAccounts = response.items;
+          nextToken = response.next_starting_after;
+          console.error(`[Instantly MCP] ✅ Page ${pageCount}: ITEMS RESPONSE - Found ${pageAccounts.length} accounts, next_token: ${nextToken ? 'YES' : 'NO'}`);
+        } else if (Array.isArray(response)) {
+          pageAccounts = response;
+          nextToken = undefined;
+          console.error(`[Instantly MCP] ⚠️  Page ${pageCount}: DIRECT ARRAY - Found ${pageAccounts.length} accounts (no pagination info)`);
+        } else if (response === null || response === undefined) {
+          console.error(`[Instantly MCP] ❌ Page ${pageCount}: NULL/UNDEFINED response - API call may have failed`);
+          break;
+        } else {
+          console.error(`[Instantly MCP] ❌ Page ${pageCount}: UNEXPECTED RESPONSE FORMAT`);
+          console.error(`[Instantly MCP] ❌ Response type: ${typeof response}`);
+          console.error(`[Instantly MCP] ❌ Response value:`, response);
+          break;
+        }
+
+        // Add accounts to total with detailed logging
+        if (pageAccounts.length > 0) {
+          console.error(`[Instantly MCP] 📊 Page ${pageCount}: Adding ${pageAccounts.length} accounts to collection...`);
+          allAccounts.push(...pageAccounts);
+          console.error(`[Instantly MCP] 📊 Page ${pageCount}: Successfully added ${pageAccounts.length} accounts (total: ${allAccounts.length})`);
+
+          // Log first account for verification
+          if (pageAccounts[0]) {
+            console.error(`[Instantly MCP] 📋 Page ${pageCount}: Sample account:`, {
+              email: pageAccounts[0].email,
+              status: pageAccounts[0].status,
+              id: pageAccounts[0].id
+            });
+          }
+        } else {
+          console.error(`[Instantly MCP] ⚠️  Page ${pageCount}: No accounts in this page - ending pagination`);
+          break;
+        }
+
+        // Check termination conditions
+        if (!nextToken) {
+          console.error(`[Instantly MCP] 🏁 Page ${pageCount}: No next_starting_after token - pagination complete`);
+          break;
+        }
+
+        console.error(`[Instantly MCP] ➡️  Page ${pageCount}: Continuing to next page with token: ${nextToken.substring(0, 20)}...`);
+        startingAfter = nextToken;
+
+      } catch (apiError) {
+        console.error(`[Instantly MCP] ❌ Page ${pageCount} API ERROR:`, apiError);
+        console.error(`[Instantly MCP] ❌ Error type:`, typeof apiError);
+        console.error(`[Instantly MCP] ❌ Error message:`, apiError instanceof Error ? apiError.message : 'Unknown error');
+        console.error(`[Instantly MCP] ❌ Error stack:`, apiError instanceof Error ? apiError.stack : 'No stack trace');
+        break;
+      }
     }
 
-    const endpoint = `/accounts?${queryParams.toString()}`;
-    console.error(`[Instantly MCP] 🔄 Page ${pageCount}: GET ${endpoint}`);
+    console.error(`[Instantly MCP] 🎯 PAGINATION COMPLETE: Retrieved ${allAccounts.length} total accounts in ${pageCount} pages`);
 
-    try {
-      const response = await makeInstantlyRequest(endpoint);
-      console.error(`[Instantly MCP] 📥 Page ${pageCount} response type:`, typeof response);
-
-      let pageAccounts: any[] = [];
-      let nextToken: string | undefined = undefined;
-
-      // Handle response format
-      if (response && response.data && Array.isArray(response.data)) {
-        pageAccounts = response.data;
-        nextToken = response.next_starting_after;
-        console.error(`[Instantly MCP] ✅ Page ${pageCount}: Found ${pageAccounts.length} accounts, next_token: ${nextToken ? 'YES' : 'NO'}`);
-      } else if (Array.isArray(response)) {
-        pageAccounts = response;
-        nextToken = undefined;
-        console.error(`[Instantly MCP] ⚠️  Page ${pageCount}: Direct array with ${pageAccounts.length} accounts (no pagination info)`);
-      } else {
-        console.error(`[Instantly MCP] ❌ Page ${pageCount}: Unexpected response format:`, response);
-        break;
-      }
-
-      // Add accounts to total
-      if (pageAccounts.length > 0) {
-        allAccounts.push(...pageAccounts);
-        console.error(`[Instantly MCP] 📊 Page ${pageCount}: Added ${pageAccounts.length} accounts (total: ${allAccounts.length})`);
-      }
-
-      // Check if we should continue
-      if (!nextToken) {
-        console.error(`[Instantly MCP] 🏁 Page ${pageCount}: No next token - pagination complete`);
-        break;
-      }
-
-      if (pageAccounts.length === 0) {
-        console.error(`[Instantly MCP] 🏁 Page ${pageCount}: No accounts returned - ending`);
-        break;
-      }
-
-      startingAfter = nextToken;
-    } catch (error) {
-      console.error(`[Instantly MCP] ❌ Page ${pageCount} error:`, error);
-      break;
+    if (allAccounts.length === 0) {
+      console.error(`[Instantly MCP] ⚠️  WARNING: No accounts retrieved - this indicates an API or parsing issue`);
     }
+
+    return allAccounts;
+
+  } catch (outerError) {
+    console.error(`[Instantly MCP] ❌ CRITICAL ERROR in getTrulyAllAccounts:`, outerError);
+    console.error(`[Instantly MCP] ❌ Returning empty array due to critical error`);
+    return [];
   }
-
-  console.error(`[Instantly MCP] 🎯 COMPLETE: Retrieved ${allAccounts.length} total accounts in ${pageCount} pages`);
-  return allAccounts;
 };
 
 // Helper function to retrieve ALL accounts with bulletproof batched pagination
@@ -1716,13 +1781,33 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       // Account endpoints
       case 'list_accounts': {
-        // TRULY BULLETPROOF: ALWAYS retrieve complete dataset regardless of parameters
-        // Ignore get_all parameter and any other parameters - just get EVERYTHING
-        console.error(`[Instantly MCP] 🚀 TRULY BULLETPROOF: Retrieving ALL accounts (ignoring all parameters)...`);
+        // TRULY BULLETPROOF with FALLBACK: Try new method first, fallback to original if needed
+        console.error(`[Instantly MCP] 🚀 TRULY BULLETPROOF with FALLBACK: Attempting complete account retrieval...`);
 
         try {
-          // Use the new truly bulletproof function that ALWAYS gets complete data
-          const allAccounts = await getTrulyAllAccounts();
+          // First, test basic API connectivity
+          console.error(`[Instantly MCP] 🧪 Step 0: Testing basic API connectivity...`);
+          await testBasicAPIConnection();
+
+          // Try the new truly bulletproof function first
+          console.error(`[Instantly MCP] 🔄 Step 1: Using getTrulyAllAccounts() function...`);
+          let allAccounts = await getTrulyAllAccounts();
+
+          // If we got 0 accounts, try the fallback approach
+          if (allAccounts.length === 0) {
+            console.error(`[Instantly MCP] ⚠️  Step 1 FAILED: Got 0 accounts, trying fallback approach...`);
+            console.error(`[Instantly MCP] 🔄 Step 2: Using original getAllAccountsWithPagination() function...`);
+            allAccounts = await getAllAccountsWithPagination(args);
+
+            if (allAccounts.length === 0) {
+              console.error(`[Instantly MCP] ❌ Step 2 FAILED: Both methods returned 0 accounts - API connectivity issue detected`);
+              console.error(`[Instantly MCP] 🔍 DEBUGGING: This suggests either authentication failure or API endpoint issues`);
+            } else {
+              console.error(`[Instantly MCP] ✅ Step 2 SUCCESS: Fallback method retrieved ${allAccounts.length} accounts`);
+            }
+          } else {
+            console.error(`[Instantly MCP] ✅ Step 1 SUCCESS: New method retrieved ${allAccounts.length} accounts`);
+          }
 
           // Build complete response without truncation
           const enhancedResult = {
