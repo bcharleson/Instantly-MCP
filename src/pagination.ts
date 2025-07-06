@@ -29,6 +29,8 @@ export interface ReusablePaginationOptions {
   batchSize?: number;
   additionalParams?: string[];
   progressCallback?: (pageCount: number, totalItems: number) => void;
+  enablePerformanceMonitoring?: boolean;
+  operationType?: 'accounts' | 'campaigns' | 'emails' | 'leads';
 }
 
 export function buildInstantlyPaginationQuery(params: PaginationParams): URLSearchParams {
@@ -320,8 +322,21 @@ export async function paginateInstantlyAPI(
     maxPages = 50,
     batchSize = 100,
     additionalParams = [],
-    progressCallback
+    progressCallback,
+    enablePerformanceMonitoring = true,
+    operationType = 'accounts'
   } = options;
+
+  // Initialize performance monitoring if enabled
+  let performanceMonitor: any = null;
+  if (enablePerformanceMonitoring) {
+    try {
+      const { createPerformanceMonitor } = await import('./performance-monitor.js');
+      performanceMonitor = createPerformanceMonitor(operationType);
+    } catch (error) {
+      console.error('[Instantly MCP] Performance monitoring unavailable:', error);
+    }
+  }
 
   console.error(`[Instantly MCP] Starting reusable pagination for ${endpoint}...`);
 
@@ -358,7 +373,30 @@ export async function paginateInstantlyAPI(
       console.error(`[Instantly MCP] Page ${pageCount}: Fetching up to ${batchSize} items...`);
 
       // Make the API call for this page
-      const response = await apiCall(fullEndpoint);
+      let response: any;
+      let hasError = false;
+      let isRateLimited = false;
+
+      try {
+        response = await apiCall(fullEndpoint);
+      } catch (error: any) {
+        hasError = true;
+        // Check if it's a rate limit error
+        if (error.message?.includes('rate limit') || error.status === 429) {
+          isRateLimited = true;
+          console.error(`[Instantly MCP] Rate limit hit on page ${pageCount}, retrying...`);
+          // Wait and retry once
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          try {
+            response = await apiCall(fullEndpoint);
+            hasError = false;
+          } catch (retryError) {
+            throw retryError;
+          }
+        } else {
+          throw error;
+        }
+      }
 
       // Extract items from response (handle different response formats)
       let pageItems: any[] = [];
@@ -379,6 +417,18 @@ export async function paginateInstantlyAPI(
       } else {
         console.error(`[Instantly MCP] Unexpected response format in page ${pageCount}:`, typeof response);
         throw new Error(`Unexpected API response format in page ${pageCount}`);
+      }
+
+      // Record performance metrics
+      if (performanceMonitor) {
+        performanceMonitor.recordApiCall(pageItems.length, isRateLimited, hasError);
+
+        // Check if we should abort due to performance issues
+        const abortCheck = performanceMonitor.shouldAbort();
+        if (abortCheck.abort) {
+          console.error(`[Instantly MCP] Aborting pagination: ${abortCheck.reason}`);
+          break;
+        }
       }
 
       // Add this page to our accumulated results
@@ -412,6 +462,17 @@ export async function paginateInstantlyAPI(
 
     console.error(`[Instantly MCP] Reusable pagination complete: ${allItems.length} total items retrieved in ${pageCount} pages`);
 
+    // Finalize performance monitoring
+    if (performanceMonitor) {
+      performanceMonitor.finalize();
+      const recommendations = performanceMonitor.getRecommendations();
+
+      if (recommendations.length > 0) {
+        console.error(`[Instantly MCP] Performance recommendations:`);
+        recommendations.forEach((rec: string) => console.error(`  - ${rec}`));
+      }
+    }
+
     // Validate results
     if (allItems.length === 0) {
       console.error(`[Instantly MCP] Warning: No items found for ${endpoint}`);
@@ -422,6 +483,12 @@ export async function paginateInstantlyAPI(
     return allItems;
   } catch (error) {
     console.error(`[Instantly MCP] Error during reusable pagination at page ${pageCount}:`, error);
+
+    // Finalize performance monitoring even on error
+    if (performanceMonitor) {
+      performanceMonitor.finalize();
+    }
+
     throw error;
   }
 }

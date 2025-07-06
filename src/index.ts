@@ -1857,6 +1857,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               maxPages: 50,
               batchSize: 100,
               additionalParams: ['campaign_id', 'account_id'],
+              enablePerformanceMonitoring: true,
+              operationType: 'emails',
               progressCallback: (pageCount, totalItems) => {
                 console.error(`[Instantly MCP] Email pagination progress: Page ${pageCount}, Total emails: ${totalItems}`);
               }

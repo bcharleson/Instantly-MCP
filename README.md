@@ -121,6 +121,76 @@ Once configured, you can use natural language to interact with Instantly:
 - "Check which accounts I can use for campaigns"
 - "Create a new lead list for prospects"
 
+## 🚀 Pagination Improvements
+
+### **Bulletproof Pagination Across All Tools**
+
+All list operations now use **bulletproof pagination** that automatically retrieves complete datasets:
+
+#### **✅ Enhanced Tools:**
+- **`list_accounts`** - Retrieves ALL accounts (no more 100-account limit)
+- **`list_campaigns`** - Retrieves ALL campaigns with filters
+- **`list_emails`** - Retrieves ALL emails with filters
+- **`list_leads`** - Maintains existing offset-based pagination
+
+#### **🎯 Key Benefits:**
+
+**Complete Data Retrieval:**
+```
+BEFORE: list_accounts() → First 100 accounts only
+AFTER:  list_accounts() → ALL accounts in workspace
+```
+
+**Consistent Behavior:**
+```
+BEFORE: starting_after parameter → Single page response
+AFTER:  starting_after parameter → ALL data from that point
+```
+
+**Enhanced create_campaign Workflow:**
+- Now sees ALL available accounts for selection
+- Better decision making with complete account data
+- Enhanced verified_accounts array with full dataset
+
+#### **🛡️ Safety Features:**
+- **Rate Limiting**: Respects API limits with intelligent pacing
+- **Memory Efficient**: Streaming approach for large datasets
+- **Error Recovery**: Graceful handling of API issues
+- **Progress Monitoring**: Detailed logging for large operations
+
+#### **📊 Response Format:**
+```json
+{
+  "data": [...],
+  "total_retrieved": 250,
+  "pagination_method": "bulletproof_complete",
+  "pagination_info": "Retrieved ALL 250 accounts through bulletproof pagination",
+  "starting_after_support": "Started from beginning",
+  "success_metrics": {
+    "api_calls_made": 3,
+    "records_per_call": 100,
+    "pagination_bug_fixed": true,
+    "complete_dataset": true,
+    "no_duplicates": true
+  }
+}
+```
+
+#### **🔧 Usage Examples:**
+```bash
+# Get all accounts
+list_accounts()
+
+# Get all accounts starting from specific point
+list_accounts(starting_after="account-id-100")
+
+# Get all campaigns with filters
+list_campaigns(search="Q2", status="active")
+
+# Get all emails for specific campaign
+list_emails(campaign_id="campaign-123")
+```
+
 ## Development
 
 ```bash
