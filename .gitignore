@@ -10,5 +10,15 @@ npm-debug.log*
 .claude/
 cursor/
 
+# Cursor MCP testing configuration (contains API keys and local configs)
+.cursor/
+.cursor/**
+mcp.json
+cursor-mcp-config.json
+
+# Local testing files
+test-mcp-local/
+local-mcp-test/
+
 # Bug report folder (preserved locally but excluded from repository)
 bug report/

@@ -1,0 +1,167 @@
+{
+  "dxt_version": "0.1",
+  "name": "instantly-mcp",
+  "display_name": "Instantly MCP Server",
+  "version": "1.0.8-beta.1",
+  "description": "Streamlined MCP server for Instantly.ai v2 API with comprehensive email campaign management and Zod v4 validation",
+  "long_description": "A comprehensive MCP server that brings Instantly.ai's email automation capabilities directly into Claude and other AI assistants. Features include campaign creation and management, account management with warmup analytics, lead management, email verification, and complete analytics tracking. Now enhanced with Zod v4 validation for dramatically improved performance, better error messages, and enhanced compatibility across different environments including Claude Desktop, Cursor IDE, and n8n integrations.",
+  "author": {
+    "name": "Brandon Charleson",
+    "email": "170791+bcharleson@users.noreply.github.com",
+    "url": "https://github.com/bcharleson"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bcharleson/Instantly-MCP.git"
+  },
+  "homepage": "https://github.com/bcharleson/Instantly-MCP",
+  "documentation": "https://github.com/bcharleson/Instantly-MCP#readme",
+  "support": "https://github.com/bcharleson/Instantly-MCP/issues",
+  "keywords": [
+    "instantly",
+    "email",
+    "automation",
+    "campaigns",
+    "mcp",
+    "ai",
+    "productivity",
+    "marketing",
+    "outreach",
+    "analytics"
+  ],
+  "license": "MIT",
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "dist/index.js",
+        "--api-key",
+        "${user_config.api_key}"
+      ],
+      "env": {
+        "NODE_ENV": "production"
+      }
+    }
+  },
+  "compatibility": {
+    "claude_desktop": ">=0.10.0",
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "node": ">=16.0.0"
+    }
+  },
+  "user_config": {
+    "api_key": {
+      "type": "string",
+      "title": "Instantly API Key",
+      "description": "Your Instantly.ai API key. You can find this in your Instantly dashboard under Settings > API Keys. The key should start with 'inst_'.",
+      "sensitive": true,
+      "required": true
+    }
+  },
+  "tools": [
+    {
+      "name": "list_campaigns",
+      "description": "List all email campaigns with optional filters and pagination"
+    },
+    {
+      "name": "get_campaign",
+      "description": "Get details of a specific campaign by ID"
+    },
+    {
+      "name": "create_campaign",
+      "description": "Create a new email campaign with comprehensive validation"
+    },
+    {
+      "name": "update_campaign",
+      "description": "Update an existing campaign"
+    },
+    {
+      "name": "activate_campaign",
+      "description": "Activate a campaign to start sending emails"
+    },
+    {
+      "name": "list_accounts",
+      "description": "List all sending accounts with pagination support"
+    },
+    {
+      "name": "create_account",
+      "description": "Create a new sending account"
+    },
+    {
+      "name": "update_account",
+      "description": "Update sending account settings"
+    },
+    {
+      "name": "get_warmup_analytics",
+      "description": "Get warmup analytics for specified email accounts"
+    },
+    {
+      "name": "list_leads",
+      "description": "List leads with filtering options"
+    },
+    {
+      "name": "create_lead",
+      "description": "Create a new lead"
+    },
+    {
+      "name": "update_lead",
+      "description": "Update an existing lead"
+    },
+    {
+      "name": "list_lead_lists",
+      "description": "List all lead lists"
+    },
+    {
+      "name": "create_lead_list",
+      "description": "Create a new lead list"
+    },
+    {
+      "name": "reply_to_email",
+      "description": "Reply to an email in a campaign"
+    },
+    {
+      "name": "list_emails",
+      "description": "List emails with filtering options"
+    },
+    {
+      "name": "get_email",
+      "description": "Get details of a specific email"
+    },
+    {
+      "name": "verify_email",
+      "description": "Verify an email address"
+    },
+    {
+      "name": "get_campaign_analytics",
+      "description": "Get analytics for a specific campaign"
+    },
+    {
+      "name": "get_campaign_analytics_overview",
+      "description": "Get overview analytics across campaigns"
+    },
+    {
+      "name": "list_api_keys",
+      "description": "List API keys for the account"
+    },
+    {
+      "name": "create_api_key",
+      "description": "Create a new API key"
+    },
+    {
+      "name": "validate_campaign_accounts",
+      "description": "Validate that accounts are available for campaign creation"
+    },
+    {
+      "name": "get_account_details",
+      "description": "Get detailed information about a specific account"
+    },
+    {
+      "name": "check_feature_availability",
+      "description": "Check availability of specific Instantly features"
+    }
+  ],
+  "tools_generated": false
+}

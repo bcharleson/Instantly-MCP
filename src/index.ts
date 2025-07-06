@@ -10,6 +10,17 @@ import {
 import { handleInstantlyError, parseInstantlyResponse } from './error-handler.js';
 import { rateLimiter } from './rate-limiter.js';
 import { buildInstantlyPaginationQuery, buildQueryParams, parsePaginatedResponse } from './pagination.js';
+import {
+  validateToolParameters,
+  validateCampaignData,
+  validateCampaignPrerequisiteData,
+  validateGetCampaignAnalyticsData,
+  validateWarmupAnalyticsData,
+  validateEmailVerificationData,
+  validateListAccountsData,
+  validateListCampaignsData,
+  isValidEmail
+} from './validation.js';
 
 const INSTANTLY_API_URL = 'https://api.instantly.ai/api/v2';
 
@@ -43,11 +54,7 @@ const server = new Server(
   }
 );
 
-// Helper function to validate email addresses
-const isValidEmail = (email: string): boolean => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-};
+// Note: isValidEmail is now imported from validation.js and uses Zod internally
 
 // Helper function to check if email verification is available
 const checkEmailVerificationAvailability = async (): Promise<{ available: boolean; reason?: string }> => {
@@ -354,107 +361,9 @@ const validateEmailListAgainstAccounts = async (emailList: string[]): Promise<vo
   }
 };
 
-// Helper function to validate campaign creation data
-const validateCampaignData = (args: any): void => {
-  // Validate email_list contains valid email addresses
-  if (args.email_list && Array.isArray(args.email_list)) {
-    for (const email of args.email_list) {
-      if (!isValidEmail(email)) {
-        throw new McpError(ErrorCode.InvalidParams, `Invalid email address in email_list: ${email}`);
-      }
-    }
-  }
-
-  // Validate body format - must be plain string, no HTML tags or escaped JSON
-  if (args.body) {
-    if (typeof args.body !== 'string') {
-      throw new McpError(ErrorCode.InvalidParams, `Body must be a plain string, not ${typeof args.body}`);
-    }
-    
-    // Check for potentially problematic HTML tags (allow <p>, <br>, <br/> for formatting)
-    if (args.body.includes('<') && args.body.includes('>')) {
-      // Allow specific formatting tags that are safe and enhance visual rendering
-      const allowedTags = /<\/?(?:p|br|br\/)>/gi;
-      const bodyWithoutAllowedTags = args.body.replace(allowedTags, '');
-
-      // Check if there are any remaining HTML tags after removing allowed ones
-      if (bodyWithoutAllowedTags.includes('<') && bodyWithoutAllowedTags.includes('>')) {
-        throw new McpError(ErrorCode.InvalidParams, `Body contains unsupported HTML tags. Only <p>, <br>, and <br/> tags are allowed for formatting. Use plain text with \\n for line breaks. Example: "Hi {{firstName}},\\n\\nYour message here."`);
-      }
-    }
-    
-    // Check for escaped JSON characters that might indicate improper formatting
-    if (args.body.includes('\\"') || args.body.includes('\\t') || args.body.includes('\\r')) {
-      console.error(`[Instantly MCP] Warning: Body contains escaped characters. Ensure it's a plain string with actual \\n characters, not escaped JSON.`);
-    }
-  }
-
-  // Validate timezone if provided - exact values from Instantly API documentation
-  const validTimezones = [
-    "Etc/GMT+12", "Etc/GMT+11", "Etc/GMT+10", "America/Anchorage", "America/Dawson",
-    "America/Creston", "America/Chihuahua", "America/Boise", "America/Belize",
-    "America/Chicago", "America/New_York", "America/Denver", "America/Los_Angeles",
-    "Europe/London", "Europe/Paris", "Asia/Tokyo", "Asia/Singapore", "Australia/Sydney"
-  ];
-
-  if (args.timezone && !validTimezones.includes(args.timezone)) {
-    throw new McpError(ErrorCode.InvalidParams, `Invalid timezone: ${args.timezone}. Must be one of: ${validTimezones.join(', ')}`);
-  }
-
-  // Validate timing format
-  const timeRegex = /^([01][0-9]|2[0-3]):([0-5][0-9])$/;
-  if (args.timing_from && !timeRegex.test(args.timing_from)) {
-    throw new McpError(ErrorCode.InvalidParams, `Invalid timing_from format: ${args.timing_from}. Must be HH:MM format (e.g., 09:00)`);
-  }
-  if (args.timing_to && !timeRegex.test(args.timing_to)) {
-    throw new McpError(ErrorCode.InvalidParams, `Invalid timing_to format: ${args.timing_to}. Must be HH:MM format (e.g., 17:00)`);
-  }
-
-  // Validate sequence parameters (new multi-step improvements)
-  if (args.sequence_steps) {
-    const numSteps = Number(args.sequence_steps);
-    if (isNaN(numSteps) || numSteps < 1 || numSteps > 10) {
-      throw new McpError(ErrorCode.InvalidParams, `Invalid sequence_steps: ${args.sequence_steps}. Must be a number between 1 and 10.`);
-    }
-
-    // Validate sequence_bodies if provided
-    if (args.sequence_bodies) {
-      if (!Array.isArray(args.sequence_bodies)) {
-        throw new McpError(ErrorCode.InvalidParams, `sequence_bodies must be an array of strings, not ${typeof args.sequence_bodies}`);
-      }
-      if (args.sequence_bodies.length < numSteps) {
-        throw new McpError(ErrorCode.InvalidParams, `sequence_bodies array must contain at least ${numSteps} items to match sequence_steps, but only has ${args.sequence_bodies.length} items.`);
-      }
-      // Validate each body is a string
-      for (let i = 0; i < numSteps; i++) {
-        if (typeof args.sequence_bodies[i] !== 'string') {
-          throw new McpError(ErrorCode.InvalidParams, `sequence_bodies[${i}] must be a string, not ${typeof args.sequence_bodies[i]}`);
-        }
-      }
-    }
-
-    // Validate sequence_subjects if provided
-    if (args.sequence_subjects) {
-      if (!Array.isArray(args.sequence_subjects)) {
-        throw new McpError(ErrorCode.InvalidParams, `sequence_subjects must be an array of strings, not ${typeof args.sequence_subjects}`);
-      }
-      if (args.sequence_subjects.length < numSteps) {
-        throw new McpError(ErrorCode.InvalidParams, `sequence_subjects array must contain at least ${numSteps} items to match sequence_steps, but only has ${args.sequence_subjects.length} items.`);
-      }
-      // Validate each subject is a string (empty strings are allowed for thread continuation)
-      for (let i = 0; i < numSteps; i++) {
-        if (typeof args.sequence_subjects[i] !== 'string') {
-          throw new McpError(ErrorCode.InvalidParams, `sequence_subjects[${i}] must be a string, not ${typeof args.sequence_subjects[i]}`);
-        }
-      }
-    }
-  }
-
-  // Validate continue_thread parameter
-  if (args.continue_thread !== undefined && typeof args.continue_thread !== 'boolean') {
-    throw new McpError(ErrorCode.InvalidParams, `continue_thread must be a boolean, not ${typeof args.continue_thread}`);
-  }
-};
+// Note: Campaign validation is now handled by Zod schemas in validation.js
+// This provides better type safety, clearer error messages, and improved compatibility
+// The validateCampaignData function from validation.js is used instead of this legacy function
 
 const makeInstantlyRequest = async (endpoint: string, method: string = 'GET', data?: any) => {
   // Check if we're rate limited before making request
@@ -682,8 +591,8 @@ const handleCampaignPreview = async (args: any): Promise<any> => {
     );
   }
 
-  // Validate campaign data
-  validateCampaignData(args);
+  // Validate campaign data using Zod schemas for better type safety
+  const validatedArgs = validateCampaignData(args);
 
   // Validate email_list against available accounts
   await validateEmailListAgainstAccounts(args.email_list);
@@ -1428,6 +1337,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
   try {
+    // Universal Zod validation for all tools
+    console.error(`[Instantly MCP] Validating parameters for tool: ${name}`);
+    const validatedArgs = validateToolParameters(name, args);
+    console.error(`[Instantly MCP] ✅ Parameters validated successfully for ${name}`);
+
     switch (name) {
       // Campaign endpoints
       case 'list_campaigns': {
@@ -1532,7 +1446,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         // Handle each stage of the workflow
         switch (stage) {
           case 'prerequisite_check': {
-            const result = await handlePrerequisiteCheck(args);
+            // Use flexible validation for prerequisite check stage
+            const validatedArgs = validateCampaignPrerequisiteData(args);
+            const result = await handlePrerequisiteCheck(validatedArgs);
             return {
               content: [{
                 type: 'text',
@@ -1579,8 +1495,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               );
             }
 
-            // Validate campaign data and email accounts
-            validateCampaignData(args);
+            // Validate campaign data and email accounts using Zod schemas
+            const validatedArgs = validateCampaignData(args);
             await validateEmailListAgainstAccounts(args.email_list as string[]);
 
             // Build and execute campaign creation
@@ -1663,19 +1579,55 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       // Analytics endpoints
       case 'get_campaign_analytics': {
-        const queryParams = buildQueryParams(args, ['campaign_id', 'start_date', 'end_date']);
+        try {
+          // Validate parameters with Zod v4 schema
+          const validatedArgs = validateGetCampaignAnalyticsData(args);
 
-        const endpoint = `/campaigns/analytics${queryParams.toString() ? `?${queryParams}` : ''}`;
-        const result = await makeInstantlyRequest(endpoint);
+          // Use query parameter approach (like list_emails) - this is the correct Instantly API pattern
+          const queryParams = buildQueryParams(validatedArgs, ['campaign_id', 'start_date', 'end_date']);
+          const endpoint = `/campaigns/analytics${queryParams.toString() ? `?${queryParams}` : ''}`;
 
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        };
+          console.error(`[Instantly MCP] get_campaign_analytics endpoint: ${endpoint}`);
+
+          const result = await makeInstantlyRequest(endpoint);
+
+          // If campaign_id was provided, add context about the filtering
+          const enhancedResult = validatedArgs?.campaign_id ? {
+            ...result,
+            _metadata: {
+              filtered_by_campaign_id: validatedArgs.campaign_id,
+              endpoint_used: endpoint,
+              note: "Analytics filtered for specific campaign"
+            }
+          } : result;
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(enhancedResult, null, 2),
+              },
+            ],
+          };
+        } catch (error: any) {
+          // Enhanced error handling for campaign analytics
+          if (error.message?.includes('404') && args?.campaign_id) {
+            // If specific campaign not found, try to provide helpful guidance
+            throw new McpError(
+              ErrorCode.InvalidParams,
+              `Campaign analytics not found for campaign_id: ${args.campaign_id}. ` +
+              `This could mean: 1) Campaign ID is invalid, 2) Campaign has no analytics data yet, ` +
+              `or 3) You don't have access to this campaign. Try calling without campaign_id to see all available campaigns.`
+            );
+          } else if (error.message?.includes('404')) {
+            throw new McpError(
+              ErrorCode.InvalidRequest,
+              `Campaign analytics endpoint not available. The Instantly API may not support analytics for your account type.`
+            );
+          }
+          // Re-throw other errors as-is
+          throw error;
+        }
       }
 
       case 'get_campaign_analytics_overview': {
@@ -1799,23 +1751,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'get_warmup_analytics': {
-        if (!args?.emails || !Array.isArray(args.emails) || args.emails.length === 0) {
-          throw new McpError(ErrorCode.InvalidParams, 'emails array is required and must contain at least one email address');
-        }
-
-        if (args.emails.length > 100) {
-          throw new McpError(ErrorCode.InvalidParams, 'emails array cannot contain more than 100 email addresses');
-        }
-
-        // Enhanced validation for get_warmup_analytics
-        for (const email of args.emails) {
-          if (!isValidEmail(email)) {
-            throw new McpError(
-              ErrorCode.InvalidParams,
-              `Invalid email address: ${email}. Use list_accounts tool first to obtain valid account emails.`
-            );
-          }
-        }
+        // Validation is now handled by Zod schemas in validateToolParameters
+        // validatedArgs contains type-safe, validated parameters
 
         const result = await makeInstantlyRequest('/accounts/warmup-analytics', 'POST', args);
 
@@ -2035,14 +1972,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       // Email Verification
       case 'verify_email': {
-        if (!args?.email) {
-          throw new McpError(ErrorCode.InvalidParams, 'email is required');
-        }
-
-        // Validate email format before making API call
-        if (!isValidEmail(args.email as string)) {
-          throw new McpError(ErrorCode.InvalidParams, `Invalid email format: ${args.email}`);
-        }
+        // Validation is now handled by Zod schemas in validateToolParameters
+        // validatedArgs contains type-safe, validated email parameter
 
         // Check if email verification is likely available before attempting
         console.error(`[Instantly MCP] Checking email verification availability...`);
@@ -2060,8 +1991,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
 
         try {
-          console.error(`[Instantly MCP] Attempting email verification for: ${args.email}`);
-          const result = await makeInstantlyRequest('/email-verification', 'POST', { email: args.email });
+          console.error(`[Instantly MCP] Attempting email verification for: ${validatedArgs.email}`);
+          const result = await makeInstantlyRequest('/email-verification', 'POST', { email: validatedArgs.email });
 
           return {
             content: [
@@ -2079,7 +2010,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               `Email verification access denied (403): This feature requires a premium Instantly plan. ` +
               `Your current plan does not include email verification capabilities. ` +
               `Please: 1) Upgrade to a premium plan, 2) Verify your API key permissions, ` +
-              `3) Contact Instantly support at support@instantly.ai for plan details. Email: ${args.email}`
+              `3) Contact Instantly support at support@instantly.ai for plan details. Email: ${validatedArgs.email}`
             );
           }
           
