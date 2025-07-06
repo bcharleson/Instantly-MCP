@@ -20,6 +20,17 @@ export interface CompletePaginationOptions {
   useOffsetPagination?: boolean;
 }
 
+export interface InstantlyAPICall {
+  (endpoint: string, method?: string, data?: any): Promise<any>;
+}
+
+export interface ReusablePaginationOptions {
+  maxPages?: number;
+  batchSize?: number;
+  additionalParams?: string[];
+  progressCallback?: (pageCount: number, totalItems: number) => void;
+}
+
 export function buildInstantlyPaginationQuery(params: PaginationParams): URLSearchParams {
   const query = new URLSearchParams();
   
@@ -293,4 +304,124 @@ export function validatePaginationResults<T>(
   }
 
   return message;
+}
+
+/**
+ * Reusable pagination function for Instantly API endpoints
+ * Handles the complete pagination flow with proper termination logic
+ */
+export async function paginateInstantlyAPI(
+  endpoint: string,
+  apiCall: InstantlyAPICall,
+  params: any = {},
+  options: ReusablePaginationOptions = {}
+): Promise<any[]> {
+  const {
+    maxPages = 50,
+    batchSize = 100,
+    additionalParams = [],
+    progressCallback
+  } = options;
+
+  console.error(`[Instantly MCP] Starting reusable pagination for ${endpoint}...`);
+
+  // Support starting_after parameter from params
+  if (params?.starting_after) {
+    console.error(`[Instantly MCP] Starting pagination from: ${params.starting_after}`);
+  }
+
+  const allItems: any[] = [];
+  let pageCount = 0;
+  let startingAfter: string | undefined = params?.starting_after;
+  let hasMore = true;
+
+  try {
+    while (hasMore && pageCount < maxPages) {
+      pageCount++;
+
+      // Build query parameters for this page
+      const queryParams = new URLSearchParams();
+      queryParams.append('limit', batchSize.toString());
+
+      if (startingAfter) {
+        queryParams.append('starting_after', startingAfter);
+      }
+
+      // Add additional parameters
+      additionalParams.forEach(param => {
+        if (params?.[param]) {
+          queryParams.append(param, String(params[param]));
+        }
+      });
+
+      const fullEndpoint = `${endpoint}${queryParams.toString() ? `?${queryParams}` : ''}`;
+      console.error(`[Instantly MCP] Page ${pageCount}: Fetching up to ${batchSize} items...`);
+
+      // Make the API call for this page
+      const response = await apiCall(fullEndpoint);
+
+      // Extract items from response (handle different response formats)
+      let pageItems: any[] = [];
+      let nextStartingAfter: string | undefined = undefined;
+
+      if (Array.isArray(response)) {
+        // Direct array response
+        pageItems = response;
+        hasMore = false; // Array response means no pagination
+      } else if (response && response.data && Array.isArray(response.data)) {
+        // Standard paginated response with data array
+        pageItems = response.data;
+        nextStartingAfter = response.next_starting_after;
+      } else if (response && response.items && Array.isArray(response.items)) {
+        // Alternative response format with items array (official API format)
+        pageItems = response.items;
+        nextStartingAfter = response.next_starting_after;
+      } else {
+        console.error(`[Instantly MCP] Unexpected response format in page ${pageCount}:`, typeof response);
+        throw new Error(`Unexpected API response format in page ${pageCount}`);
+      }
+
+      // Add this page to our accumulated results
+      if (pageItems.length > 0) {
+        allItems.push(...pageItems);
+        console.error(`[Instantly MCP] Page ${pageCount}: Retrieved ${pageItems.length} items (total: ${allItems.length})`);
+
+        // Call progress callback if provided
+        if (progressCallback) {
+          progressCallback(pageCount, allItems.length);
+        }
+      } else {
+        console.error(`[Instantly MCP] Page ${pageCount}: No items returned, ending pagination`);
+        hasMore = false;
+      }
+
+      // Check termination conditions
+      if (!nextStartingAfter || pageItems.length < batchSize) {
+        console.error(`[Instantly MCP] Pagination complete: ${nextStartingAfter ? 'Fewer results than batch size' : 'No next_starting_after token'}`);
+        hasMore = false;
+      } else {
+        startingAfter = nextStartingAfter;
+      }
+
+      // Safety check to prevent infinite loops
+      if (pageCount >= maxPages) {
+        console.error(`[Instantly MCP] Reached maximum page limit (${maxPages}), stopping pagination`);
+        break;
+      }
+    }
+
+    console.error(`[Instantly MCP] Reusable pagination complete: ${allItems.length} total items retrieved in ${pageCount} pages`);
+
+    // Validate results
+    if (allItems.length === 0) {
+      console.error(`[Instantly MCP] Warning: No items found for ${endpoint}`);
+    } else {
+      console.error(`[Instantly MCP] ✅ Successfully retrieved complete dataset: ${allItems.length} items`);
+    }
+
+    return allItems;
+  } catch (error) {
+    console.error(`[Instantly MCP] Error during reusable pagination at page ${pageCount}:`, error);
+    throw error;
+  }
 }

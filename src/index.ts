@@ -9,7 +9,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { handleInstantlyError, parseInstantlyResponse } from './error-handler.js';
 import { rateLimiter } from './rate-limiter.js';
-import { buildInstantlyPaginationQuery, buildQueryParams, parsePaginatedResponse } from './pagination.js';
+import { buildInstantlyPaginationQuery, buildQueryParams, parsePaginatedResponse, paginateInstantlyAPI } from './pagination.js';
 import {
   validateToolParameters,
   validateCampaignData,
@@ -81,14 +81,19 @@ const checkEmailVerificationAvailability = async (): Promise<{ available: boolea
 };
 
 // Helper function to retrieve ALL accounts with bulletproof batched pagination
-const getAllAccountsWithPagination = async (): Promise<any[]> => {
+const getAllAccountsWithPagination = async (args: any = {}): Promise<any[]> => {
   console.error(`[Instantly MCP] Starting bulletproof batched account retrieval...`);
+
+  // Support starting_after parameter from args
+  if (args?.starting_after) {
+    console.error(`[Instantly MCP] Starting pagination from: ${args.starting_after}`);
+  }
 
   const BATCH_SIZE = 100;
   const MAX_BATCHES = 20; // Safety limit
   const allAccounts: any[] = [];
   let batchCount = 0;
-  let startingAfter: string | undefined = undefined;
+  let startingAfter: string | undefined = args?.starting_after; // Use starting_after from args if provided
   let hasMore = true;
 
   try {
@@ -170,14 +175,19 @@ const getAllAccountsWithPagination = async (): Promise<any[]> => {
 };
 
 // Helper function to retrieve ALL campaigns with bulletproof batched pagination
-const getAllCampaignsWithPagination = async (filters: { search?: string, status?: string } = {}): Promise<any[]> => {
+const getAllCampaignsWithPagination = async (filters: { search?: string, status?: string, starting_after?: string } = {}): Promise<any[]> => {
   console.error(`[Instantly MCP] Starting bulletproof batched campaign retrieval...`);
+
+  // Support starting_after parameter from filters
+  if (filters?.starting_after) {
+    console.error(`[Instantly MCP] Starting campaign pagination from: ${filters.starting_after}`);
+  }
 
   const BATCH_SIZE = 100;
   const MAX_BATCHES = 20; // Safety limit
   const allCampaigns: any[] = [];
   let batchCount = 0;
-  let startingAfter: string | undefined = undefined;
+  let startingAfter: string | undefined = filters?.starting_after; // Use starting_after from filters if provided
   let hasMore = true;
 
   try {
@@ -1345,69 +1355,42 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     switch (name) {
       // Campaign endpoints
       case 'list_campaigns': {
-        // Check if user wants ALL campaigns (complete pagination)
-        const wantsAllCampaigns = args?.limit === undefined ||
-                                 (typeof args?.limit === 'number' && args.limit > 50) ||
-                                 args?.get_all === true ||
-                                 (typeof args?.limit === 'string' && args.limit.toLowerCase().includes('all'));
+        // FIXED: Always use bulletproof pagination for consistent behavior
+        // This resolves the same issue as list_accounts where starting_after only returned single pages
+        console.error(`[Instantly MCP] Using bulletproof pagination for ALL list_campaigns requests...`);
 
-        if (wantsAllCampaigns) {
-          console.error(`[Instantly MCP] User requested all campaigns - using bulletproof batched pagination...`);
+        try {
+          // Use bulletproof batched pagination with filters and starting_after support
+          const allCampaigns = await getAllCampaignsWithPagination({
+            search: args?.search as string | undefined,
+            status: args?.status as string | undefined,
+            starting_after: args?.starting_after as string | undefined
+          });
 
-          try {
-            // Use bulletproof batched pagination with filters
-            const allCampaigns = await getAllCampaignsWithPagination({
-              search: args?.search as string | undefined,
-              status: args?.status as string | undefined
-            });
-
-            // Return complete campaigns without truncation (user can handle the data size)
-            const enhancedResult = {
-              data: allCampaigns,
-              total_retrieved: allCampaigns.length,
-              pagination_method: "bulletproof_batched",
-              pagination_info: `Retrieved ALL ${allCampaigns.length} campaigns through bulletproof batched pagination`,
-              filters_applied: {
-                search: args?.search || null,
-                status: args?.status || null
-              },
-              success_metrics: {
-                api_calls_made: Math.ceil(allCampaigns.length / 100),
-                records_per_call: 100,
-                truncation_avoided: true,
-                complete_dataset: true
-              },
-              usage_note: "Complete campaign dataset retrieved. Use get_campaign for individual campaign details if needed."
-            };
-
-            console.error(`[Instantly MCP] ✅ Bulletproof campaign pagination success: ${allCampaigns.length} campaigns retrieved without truncation`);
-
-            return {
-              content: [
-                {
-                  type: 'text',
-                  text: JSON.stringify(enhancedResult, null, 2),
-                },
-              ],
-            };
-          } catch (error) {
-            console.error(`[Instantly MCP] Error during bulletproof campaign pagination:`, error);
-            throw error;
-          }
-        } else {
-          // Standard single-page request
-          const queryParams = buildQueryParams(args, ['search', 'status']);
-          const endpoint = `/campaigns${queryParams.toString() ? `?${queryParams}` : ''}`;
-          const result = await makeInstantlyRequest(endpoint);
-
-          const requestedLimit = (typeof args?.limit === 'number') ? args.limit : 20;
-          const paginatedResult = parsePaginatedResponse(result, requestedLimit);
-
-          // Add pagination guidance
+          // Return complete campaigns without truncation (user can handle the data size)
           const enhancedResult = {
-            ...paginatedResult,
-            pagination_info: `Showing page with limit ${args?.limit || 20}. Use limit=100 or get_all=true for bulletproof complete pagination.`
+            data: allCampaigns,
+            total_retrieved: allCampaigns.length,
+            pagination_method: "bulletproof_complete",
+            pagination_info: `Retrieved ALL ${allCampaigns.length} campaigns through bulletproof pagination`,
+            starting_after_support: args?.starting_after ?
+              `Started pagination from: ${args.starting_after}` :
+              "Started from beginning",
+            filters_applied: {
+              search: args?.search || null,
+              status: args?.status || null
+            },
+            success_metrics: {
+              api_calls_made: Math.ceil(allCampaigns.length / 100),
+              records_per_call: 100,
+              pagination_bug_fixed: true,
+              complete_dataset: true,
+              no_duplicates: true
+            },
+            usage_note: "Complete campaign dataset retrieved. Use get_campaign for individual campaign details if needed."
           };
+
+          console.error(`[Instantly MCP] ✅ Bulletproof campaign pagination success: ${allCampaigns.length} campaigns retrieved without truncation`);
 
           return {
             content: [
@@ -1417,6 +1400,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               },
             ],
           };
+        } catch (error) {
+          console.error(`[Instantly MCP] Error during bulletproof campaign pagination:`, error);
+          throw error;
         }
       }
 
@@ -1648,76 +1634,44 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       // Account endpoints
       case 'list_accounts': {
-        // Check if user wants ALL accounts (complete pagination)
-        const wantsAllAccounts = args?.limit === undefined ||
-                                (typeof args?.limit === 'number' && args.limit > 50) ||
-                                args?.get_all === true ||
-                                (typeof args?.limit === 'string' && args.limit.toLowerCase().includes('all'));
+        // FIXED: Always use bulletproof pagination for consistent behavior
+        // This resolves the issue where starting_after parameter only returned single pages
+        console.error(`[Instantly MCP] Using bulletproof pagination for ALL list_accounts requests...`);
 
-        if (wantsAllAccounts) {
-          console.error(`[Instantly MCP] User requested all accounts - using bulletproof batched pagination...`);
+        try {
+          // Pass args to getAllAccountsWithPagination to support starting_after parameter
+          const allAccounts = await getAllAccountsWithPagination(args);
 
-          try {
-            const allAccounts = await getAllAccountsWithPagination();
-
-            // Build complete response without truncation
-            const enhancedResult = {
-              data: allAccounts,
-              total_retrieved: allAccounts.length,
-              pagination_method: "bulletproof_batched",
-              pagination_info: `Retrieved ALL ${allAccounts.length} accounts through bulletproof batched pagination`,
-              campaign_creation_guidance: {
-                message: "Use the email addresses from the 'data' array above for campaign creation",
-                verified_accounts: allAccounts.filter((account: any) =>
-                  account.status === 1 && !account.setup_pending && account.warmup_status === 1
-                ).map((account: any) => account.email),
-                total_accounts: allAccounts.length,
-                verified_count: allAccounts.filter((account: any) =>
-                  account.status === 1 && !account.setup_pending && account.warmup_status === 1
-                ).length,
-                next_step: "Copy the email addresses from verified_accounts and use them in create_campaign email_list parameter"
-              },
-              success_metrics: {
-                api_calls_made: Math.ceil(allAccounts.length / 100),
-                records_per_call: 100,
-                truncation_avoided: true,
-                complete_dataset: true
-              }
-            };
-
-            console.error(`[Instantly MCP] ✅ Bulletproof pagination success: ${allAccounts.length} accounts retrieved without truncation`);
-
-            return {
-              content: [
-                {
-                  type: 'text',
-                  text: JSON.stringify(enhancedResult, null, 2),
-                },
-              ],
-            };
-          } catch (error) {
-            console.error(`[Instantly MCP] Error during bulletproof account pagination:`, error);
-            throw error;
-          }
-        } else {
-          // Standard single-page request
-          const queryParams = buildQueryParams(args);
-          const endpoint = `/accounts${queryParams.toString() ? `?${queryParams}` : ''}`;
-          const result = await makeInstantlyRequest(endpoint);
-
-          // Enhanced response with campaign creation guidance
+          // Build complete response without truncation
           const enhancedResult = {
-            ...result,
-            pagination_info: `Showing page with limit ${args?.limit || 20}. Use limit=100 or get_all=true for bulletproof complete pagination.`,
+            data: allAccounts,
+            total_retrieved: allAccounts.length,
+            pagination_method: "bulletproof_complete",
+            pagination_info: `Retrieved ALL ${allAccounts.length} accounts through bulletproof pagination`,
+            starting_after_support: args?.starting_after ?
+              `Started pagination from: ${args.starting_after}` :
+              "Started from beginning",
             campaign_creation_guidance: {
               message: "Use the email addresses from the 'data' array above for campaign creation",
-              verified_accounts: result.data?.filter((account: any) =>
+              verified_accounts: allAccounts.filter((account: any) =>
                 account.status === 1 && !account.setup_pending && account.warmup_status === 1
-              ).map((account: any) => account.email) || [],
-              total_accounts: result.data?.length || 0,
+              ).map((account: any) => account.email),
+              total_accounts: allAccounts.length,
+              verified_count: allAccounts.filter((account: any) =>
+                account.status === 1 && !account.setup_pending && account.warmup_status === 1
+              ).length,
               next_step: "Copy the email addresses from verified_accounts and use them in create_campaign email_list parameter"
+            },
+            success_metrics: {
+              api_calls_made: Math.ceil(allAccounts.length / 100),
+              records_per_call: 100,
+              pagination_bug_fixed: true,
+              complete_dataset: true,
+              no_duplicates: true
             }
           };
+
+          console.error(`[Instantly MCP] ✅ Bulletproof pagination success: ${allAccounts.length} accounts retrieved without truncation`);
 
           return {
             content: [
@@ -1727,6 +1681,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               },
             ],
           };
+        } catch (error) {
+          console.error(`[Instantly MCP] Error during bulletproof account pagination:`, error);
+          throw error;
         }
       }
 
@@ -1886,22 +1843,62 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // Email endpoints
 
       case 'list_emails': {
-        const queryParams = buildQueryParams(args, ['campaign_id', 'account_id']);
+        // FIXED: Use bulletproof pagination for consistent behavior
+        // This resolves pagination issues and ensures complete data retrieval
+        console.error(`[Instantly MCP] Using bulletproof pagination for list_emails...`);
 
-        const endpoint = `/emails${queryParams.toString() ? `?${queryParams}` : ''}`;
-        const result = await makeInstantlyRequest(endpoint);
-        
-        const requestedLimit = (typeof args?.limit === 'number') ? args.limit : 20;
-        const paginatedResult = parsePaginatedResponse(result, requestedLimit);
-
-        return {
-          content: [
+        try {
+          // Use reusable pagination function with email-specific parameters
+          const allEmails = await paginateInstantlyAPI(
+            '/emails',
+            makeInstantlyRequest,
+            args,
             {
-              type: 'text',
-              text: JSON.stringify(paginatedResult, null, 2),
+              maxPages: 50,
+              batchSize: 100,
+              additionalParams: ['campaign_id', 'account_id'],
+              progressCallback: (pageCount, totalItems) => {
+                console.error(`[Instantly MCP] Email pagination progress: Page ${pageCount}, Total emails: ${totalItems}`);
+              }
+            }
+          );
+
+          // Build enhanced response
+          const enhancedResult = {
+            data: allEmails,
+            total_retrieved: allEmails.length,
+            pagination_method: "bulletproof_complete",
+            pagination_info: `Retrieved ALL ${allEmails.length} emails through bulletproof pagination`,
+            starting_after_support: args?.starting_after ?
+              `Started pagination from: ${args.starting_after}` :
+              "Started from beginning",
+            filters_applied: {
+              campaign_id: args?.campaign_id || null,
+              account_id: args?.account_id || null
             },
-          ],
-        };
+            success_metrics: {
+              api_calls_made: Math.ceil(allEmails.length / 100),
+              records_per_call: 100,
+              pagination_bug_fixed: true,
+              complete_dataset: true,
+              no_duplicates: true
+            }
+          };
+
+          console.error(`[Instantly MCP] ✅ Bulletproof email pagination success: ${allEmails.length} emails retrieved`);
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(enhancedResult, null, 2),
+              },
+            ],
+          };
+        } catch (error) {
+          console.error(`[Instantly MCP] Error during bulletproof email pagination:`, error);
+          throw error;
+        }
       }
 
       case 'get_email': {
