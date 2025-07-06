@@ -1,7 +1,7 @@
 {
   "name": "instantly-mcp",
   "version": "1.0.8-beta.1",
-  "description": "Streamlined MCP server for Instantly v2 API with bulletproof campaign creation, HTML paragraph formatting, and complete pagination",
+  "description": "Streamlined MCP server for Instantly v2 API with Zod v4 validation, bulletproof campaign creation, and enhanced error handling",
   "keywords": [
     "mcp",
     "instantly",

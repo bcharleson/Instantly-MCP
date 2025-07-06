@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "instantly-mcp-local-zod-v4": {
+      "command": "node",
+      "args": [
+        "/Users/brandoncharleson/Documents/DeveloperProjects/instantly-mcp/dist/index.js",
+        "--api-key",
+        "YOUR_INSTANTLY_API_KEY_HERE"
+      ],
+      "env": {
+        "NODE_ENV": "development"
+      }
+    }
+  }
+}

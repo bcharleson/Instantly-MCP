@@ -88,8 +88,62 @@ export const DaysConfigSchema = z.object({
 // ============================================================================
 
 /**
+ * Campaign prerequisite check validation schema
+ * Flexible validation for prerequisite_check stage - allows optional parameters
+ */
+export const CreateCampaignPrerequisiteSchema = z.object({
+  // Workflow control
+  stage: CampaignStageSchema.optional(),
+  confirm_creation: z.boolean().optional(),
+
+  // Optional campaign fields for prerequisite check
+  name: z.string()
+    .min(1, { error: 'Campaign name cannot be empty' })
+    .max(255, { error: 'Campaign name cannot exceed 255 characters' })
+    .optional(),
+
+  subject: z.string()
+    .min(1, { error: 'Subject line cannot be empty' })
+    .max(255, { error: 'Subject line cannot exceed 255 characters' })
+    .optional(),
+
+  body: z.string()
+    .min(1, { error: 'Email body cannot be empty' })
+    .optional(),
+
+  // Message shortcut for quick setup
+  message: z.string().optional(),
+
+  email_list: z.array(EmailSchema)
+    .min(1, { error: 'At least one email address is required' })
+    .max(100, { error: 'Cannot specify more than 100 email addresses' })
+    .optional(),
+
+  // Optional scheduling parameters
+  timezone: TimezoneSchema.optional(),
+  timing_from: TimeFormatSchema.optional(),
+  timing_to: TimeFormatSchema.optional(),
+  days: DaysConfigSchema,
+
+  // Optional campaign settings
+  daily_limit: z.number().int().min(1).max(1000).optional(),
+  email_gap_minutes: z.number().int().min(1).max(1440).optional(),
+
+  // Sequence parameters
+  sequence_steps: z.number().int().min(1).max(10).optional(),
+  sequence_bodies: z.array(z.string()).optional(),
+  sequence_subjects: z.array(z.string()).optional(),
+  continue_thread: z.boolean().optional(),
+
+  // Tracking settings
+  open_tracking: z.boolean().optional(),
+  link_tracking: z.boolean().optional(),
+  stop_on_reply: z.boolean().optional()
+});
+
+/**
  * Campaign creation validation schema
- * Comprehensive validation for all campaign parameters
+ * Comprehensive validation for all campaign parameters (create stage)
  */
 export const CreateCampaignSchema = z.object({
   // Workflow control
@@ -403,6 +457,13 @@ export function validateWithSchema<T>(
  */
 export function validateCampaignData(args: unknown): z.infer<typeof CreateCampaignSchema> {
   return validateWithSchema(CreateCampaignSchema, args, 'create_campaign');
+}
+
+/**
+ * Validate campaign prerequisite check data with flexible validation
+ */
+export function validateCampaignPrerequisiteData(args: unknown): z.infer<typeof CreateCampaignPrerequisiteSchema> {
+  return validateWithSchema(CreateCampaignPrerequisiteSchema, args, 'create_campaign_prerequisite');
 }
 
 /**

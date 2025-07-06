@@ -13,6 +13,7 @@ import { buildInstantlyPaginationQuery, buildQueryParams, parsePaginatedResponse
 import {
   validateToolParameters,
   validateCampaignData,
+  validateCampaignPrerequisiteData,
   validateWarmupAnalyticsData,
   validateEmailVerificationData,
   validateListAccountsData,
@@ -1444,7 +1445,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         // Handle each stage of the workflow
         switch (stage) {
           case 'prerequisite_check': {
-            const result = await handlePrerequisiteCheck(args);
+            // Use flexible validation for prerequisite check stage
+            const validatedArgs = validateCampaignPrerequisiteData(args);
+            const result = await handlePrerequisiteCheck(validatedArgs);
             return {
               content: [{
                 type: 'text',
@@ -1575,19 +1578,36 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       // Analytics endpoints
       case 'get_campaign_analytics': {
-        const queryParams = buildQueryParams(args, ['campaign_id', 'start_date', 'end_date']);
+        // Fix: Use RESTful endpoint structure for specific campaign analytics
+        if (args?.campaign_id) {
+          // Get analytics for specific campaign: /campaigns/{id}/analytics
+          const queryParams = buildQueryParams(args, ['start_date', 'end_date']);
+          const endpoint = `/campaigns/${args.campaign_id}/analytics${queryParams.toString() ? `?${queryParams}` : ''}`;
+          const result = await makeInstantlyRequest(endpoint);
 
-        const endpoint = `/campaigns/analytics${queryParams.toString() ? `?${queryParams}` : ''}`;
-        const result = await makeInstantlyRequest(endpoint);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(result, null, 2),
+              },
+            ],
+          };
+        } else {
+          // Get analytics for all campaigns: /campaigns/analytics
+          const queryParams = buildQueryParams(args, ['start_date', 'end_date']);
+          const endpoint = `/campaigns/analytics${queryParams.toString() ? `?${queryParams}` : ''}`;
+          const result = await makeInstantlyRequest(endpoint);
 
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        };
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(result, null, 2),
+              },
+            ],
+          };
+        }
       }
 
       case 'get_campaign_analytics_overview': {
