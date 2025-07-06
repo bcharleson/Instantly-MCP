@@ -283,6 +283,15 @@ export const GetCampaignSchema = z.object({
 });
 
 /**
+ * Get campaign analytics validation schema
+ */
+export const GetCampaignAnalyticsSchema = z.object({
+  campaign_id: z.string().min(1, { error: 'Campaign ID cannot be empty' }).optional(),
+  start_date: DateFormatSchema.optional(),
+  end_date: DateFormatSchema.optional()
+});
+
+/**
  * Update campaign validation schema
  */
 export const UpdateCampaignSchema = z.object({
@@ -291,14 +300,7 @@ export const UpdateCampaignSchema = z.object({
   status: z.string().optional()
 });
 
-/**
- * Campaign analytics validation schema
- */
-export const GetCampaignAnalyticsSchema = z.object({
-  campaign_id: z.string().optional(),
-  start_date: DateFormatSchema.optional(),
-  end_date: DateFormatSchema.optional()
-});
+
 
 /**
  * Create account validation schema
@@ -467,6 +469,13 @@ export function validateCampaignPrerequisiteData(args: unknown): z.infer<typeof 
 }
 
 /**
+ * Validate get campaign analytics parameters
+ */
+export function validateGetCampaignAnalyticsData(args: unknown): z.infer<typeof GetCampaignAnalyticsSchema> {
+  return validateWithSchema(GetCampaignAnalyticsSchema, args, 'get_campaign_analytics');
+}
+
+/**
  * Validate list accounts parameters
  */
 export function validateListAccountsData(args: unknown): z.infer<typeof ListAccountsSchema> {
@@ -508,12 +517,7 @@ export function validateUpdateCampaignData(args: unknown): z.infer<typeof Update
   return validateWithSchema(UpdateCampaignSchema, args, 'update_campaign');
 }
 
-/**
- * Validate campaign analytics parameters
- */
-export function validateCampaignAnalyticsData(args: unknown): z.infer<typeof GetCampaignAnalyticsSchema> {
-  return validateWithSchema(GetCampaignAnalyticsSchema, args, 'get_campaign_analytics');
-}
+
 
 /**
  * Validate create account parameters
@@ -616,8 +620,8 @@ export const TOOL_VALIDATORS = {
   'create_campaign': validateCampaignData,
   'get_campaign': validateGetCampaignData,
   'update_campaign': validateUpdateCampaignData,
-  'get_campaign_analytics': validateCampaignAnalyticsData,
-  'get_campaign_analytics_overview': validateCampaignAnalyticsData,
+  'get_campaign_analytics': validateGetCampaignAnalyticsData,
+  'get_campaign_analytics_overview': validateGetCampaignAnalyticsData,
 
   // Account Management
   'list_accounts': validateListAccountsData,
