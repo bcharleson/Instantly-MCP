@@ -1,13 +1,17 @@
 {
   "name": "instantly-mcp",
-  "version": "1.0.8-beta.1",
-  "description": "Streamlined MCP server for Instantly v2 API with Zod v4 validation, bulletproof campaign creation, and enhanced error handling",
+  "version": "1.1.0",
+  "description": "Multi-transport MCP server for Instantly.ai with stdio, SSE, and DXT support. Features bulletproof pagination, one-click installation, and comprehensive email automation tools.",
   "keywords": [
     "mcp",
     "instantly",
     "api",
     "email",
-    "automation"
+    "automation",
+    "sse",
+    "dxt",
+    "claude",
+    "cursor"
   ],
   "license": "MIT",
   "author": "bcharleson",
@@ -21,21 +25,32 @@
   "homepage": "https://github.com/bcharleson/Instantly-MCP#readme",
   "type": "module",
   "bin": "dist/index.js",
+  "main": "dist/index.js",
   "files": [
-    "dist"
+    "dist",
+    "manifest.json",
+    "icon.png",
+    "README.md"
   ],
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
+    "start:sse": "node dist/sse-server.js",
+    "start:http": "node dist/http-server.js",
     "publish:beta": "npm run build && npm publish --tag beta",
     "prepublishOnly": "npm run build",
     "check-tools": "tsx check-tools.ts",
-    "publish:sdk": "npm run build --workspace packages/instantly-sdk && npm publish --access public --workspace packages/instantly-sdk"
+    "dxt:init": "dxt init",
+    "dxt:pack": "dxt pack",
+    "test:local": "node dist/index.js",
+    "test:sse": "curl -H \"Accept: text/event-stream\" http://localhost:3000/sse"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.13.3",
-    "zod": "^3.25.0"
+    "@modelcontextprotocol/sdk": "^1.15.1",
+    "zod": "^3.25.0",
+    "express": "^4.21.2",
+    "cors": "^2.8.5"
   },
   "devDependencies": {
     "@babel/parser": "^7.27.5",
@@ -43,10 +58,16 @@
     "@babel/types": "^7.27.6",
     "@types/babel__traverse": "^7.20.7",
     "@types/node": "^20.0.0",
+    "@types/express": "^5.0.0",
+    "@types/cors": "^2.8.17",
     "tsx": "^4.7.0",
     "typescript": "^5.3.0"
   },
-  "workspaces": [
-    "packages/*"
-  ]
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dxt": {
+    "compatible": true,
+    "version": "0.1"
+  }
 }
