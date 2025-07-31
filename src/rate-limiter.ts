@@ -8,6 +8,12 @@ export class RateLimiter {
   private rateLimitInfo: RateLimitInfo | null = null;
 
   updateFromHeaders(headers: Headers): void {
+    // Safety check: ensure headers object exists and has get method
+    if (!headers || typeof headers.get !== 'function') {
+      console.error('[Rate Limiter] Invalid headers object provided');
+      return;
+    }
+
     const limit = headers.get('x-ratelimit-limit');
     const remaining = headers.get('x-ratelimit-remaining');
     const reset = headers.get('x-ratelimit-reset');

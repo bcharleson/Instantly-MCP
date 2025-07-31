@@ -36,30 +36,33 @@
     "build": "tsc",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
-    "start:sse": "node dist/sse-server.js",
-    "start:http": "node dist/http-server.js",
+    "start:stdio": "node dist/index.js",
+    "start:http": "TRANSPORT_MODE=http node dist/index.js",
+    "start:n8n": "TRANSPORT_MODE=http node dist/index.js",
+    "start:production": "NODE_ENV=production TRANSPORT_MODE=http node dist/index.js",
     "publish:beta": "npm run build && npm publish --tag beta",
     "prepublishOnly": "npm run build",
     "check-tools": "tsx check-tools.ts",
-    "dxt:init": "dxt init",
-    "dxt:pack": "dxt pack",
     "test:local": "node dist/index.js",
-    "test:sse": "curl -H \"Accept: text/event-stream\" http://localhost:3000/sse"
+    "test:n8n": "curl -X POST http://localhost:3000/health",
+    "verify:parity": "npm run build && node verify-tool-parity.js",
+    "deploy:railway": "railway up",
+    "test:railway": "echo 'Replace with your Railway URL' && curl https://your-app.railway.app/health"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.15.1",
-    "zod": "^3.25.0",
+    "cors": "^2.8.5",
     "express": "^4.21.2",
-    "cors": "^2.8.5"
+    "zod": "^3.25.0"
   },
   "devDependencies": {
     "@babel/parser": "^7.27.5",
     "@babel/traverse": "^7.27.4",
     "@babel/types": "^7.27.6",
     "@types/babel__traverse": "^7.20.7",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
     "@types/node": "^20.0.0",
-    "@types/express": "^5.0.0",
-    "@types/cors": "^2.8.17",
     "tsx": "^4.7.0",
     "typescript": "^5.3.0"
   },

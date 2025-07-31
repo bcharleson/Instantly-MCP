@@ -377,8 +377,12 @@ export async function paginateInstantlyAPI(
       let hasError = false;
       let isRateLimited = false;
 
+      console.error(`[Instantly MCP] 🔍 DEBUG: About to call apiCall for ${fullEndpoint}`);
+
       try {
         response = await apiCall(fullEndpoint);
+        console.error(`[Instantly MCP] 🔍 DEBUG: apiCall completed, response type: ${typeof response}`);
+        console.error(`[Instantly MCP] 🔍 DEBUG: response keys: ${response ? Object.keys(response) : 'response is null/undefined'}`);
       } catch (error: any) {
         hasError = true;
         // Check if it's a rate limit error
