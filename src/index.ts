@@ -156,13 +156,8 @@ async function makeInstantlyRequest(endpoint: string, options: any = {}): Promis
       console.error('[Instantly MCP] ⚠️ Rate limiter error stack:', error.stack);
     }
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`HTTP ${response.status}: ${errorText}`);
-    }
-
-    const data = await response.json();
-    return parseInstantlyResponse(data);
+    // Let centralized parser handle success and error payloads
+    return await parseInstantlyResponse(response as unknown as Response);
   } catch (error) {
     throw handleInstantlyError(error, 'makeInstantlyRequest');
   }

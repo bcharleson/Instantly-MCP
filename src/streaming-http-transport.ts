@@ -4,6 +4,7 @@
  */
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import express from 'express';
 import cors from 'cors';
 import { createServer, Server as HttpServer } from 'http';
@@ -27,12 +28,22 @@ export class StreamingHttpTransport {
   private app: express.Application;
   private httpServer?: HttpServer;
   private activeSessions = new Map<string, any>();
+  private transport: StreamableHTTPServerTransport;
+  private requestHandlers?: {
+    toolsList: (id: any) => Promise<any>;
+    toolCall: (params: any, id: any) => Promise<any>;
+  };
 
   constructor(server: Server, config: StreamingHttpConfig) {
     this.server = server;
     this.config = config;
     this.app = express();
     this.setupMiddleware();
+    // Initialize official streamable HTTP transport (connect during start())
+    this.transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      enableDnsRebindingProtection: true,
+    });
     this.setupRoutes();
   }
 
@@ -125,8 +136,34 @@ export class StreamingHttpTransport {
       });
     });
 
-    // Main MCP endpoint with authentication
-    this.app.post('/mcp', this.authMiddleware.bind(this), this.handleMcpRequest.bind(this));
+    // Main MCP endpoint with authentication using official streamable transport
+    this.app.post('/mcp', this.authMiddleware.bind(this), async (req, res) => {
+      const startTime = Date.now();
+      const sessionId = (req.headers['mcp-session-id'] as string) || `session-${Date.now()}`;
+      try {
+        this.activeSessions.set(sessionId, {
+          startTime,
+          lastActivity: Date.now(),
+          requestCount: (this.activeSessions.get(sessionId)?.requestCount || 0) + 1
+        });
+
+        // Delegate to SDK transport for full streaming compliance
+        await this.transport.handleRequest(req, res, req.body);
+
+        res.setHeader('mcp-session-id', sessionId);
+        res.setHeader('x-response-time', `${Date.now() - startTime}ms`);
+      } catch (error: any) {
+        console.error('[Instantly MCP] ❌ Streamable transport error:', error);
+        res.status(500).json({
+          jsonrpc: '2.0',
+          id: req.body?.id || null,
+          error: { code: -32603, message: 'Internal server error' }
+        });
+      } finally {
+        const session = this.activeSessions.get(sessionId);
+        if (session) session.lastActivity = Date.now();
+      }
+    });
 
     // CORS preflight
     this.app.options('*', (req, res) => {
@@ -208,125 +245,9 @@ export class StreamingHttpTransport {
     next();
   }
 
-  /**
-   * Handle MCP requests
-   */
-  private async handleMcpRequest(req: express.Request, res: express.Response): Promise<void> {
-    const startTime = Date.now();
-    const sessionId = req.headers['mcp-session-id'] as string || `session-${Date.now()}`;
-    
-    try {
-      // Validate JSON-RPC format
-      if (!req.body || typeof req.body !== 'object') {
-        throw new Error('Invalid JSON-RPC request format');
-      }
-
-      const { jsonrpc, id, method, params } = req.body;
-
-      if (jsonrpc !== '2.0') {
-        throw new Error('Invalid JSON-RPC version');
-      }
-
-      // Track session
-      this.activeSessions.set(sessionId, {
-        startTime,
-        lastActivity: Date.now(),
-        requestCount: (this.activeSessions.get(sessionId)?.requestCount || 0) + 1
-      });
-
-      // Handle the request through the MCP server
-      const response = await this.processRequest(method, params, id);
-
-      // Add session tracking headers
-      res.setHeader('mcp-session-id', sessionId);
-      res.setHeader('x-response-time', `${Date.now() - startTime}ms`);
-
-      res.json(response);
-
-      // Log successful request
-      console.error(`[HTTP] ✅ ${method} completed in ${Date.now() - startTime}ms`);
-
-    } catch (error: any) {
-      console.error(`[HTTP] ❌ Request error:`, error);
-
-      const errorResponse = {
-        jsonrpc: '2.0',
-        id: req.body?.id || null,
-        error: {
-          code: -32603,
-          message: 'Internal error',
-          data: {
-            error: error.message,
-            timestamp: new Date().toISOString(),
-            sessionId
-          }
-        }
-      };
-
-      res.status(500).json(errorResponse);
-    } finally {
-      // Update session activity
-      const session = this.activeSessions.get(sessionId);
-      if (session) {
-        session.lastActivity = Date.now();
-      }
-    }
-  }
-
-  /**
-   * Process MCP request through the server
-   */
-  private async processRequest(method: string, params: any, id: any): Promise<any> {
-    // This is a simplified implementation
-    // In a full implementation, you would create a proper transport
-    // that integrates with the MCP server's request handling
-    
-    switch (method) {
-      case 'tools/list':
-        return await this.handleToolsList(id);
-      
-      case 'tools/call':
-        return await this.handleToolCall(params, id);
-      
-      default:
-        throw new Error(`Unknown method: ${method}`);
-    }
-  }
-
-  /**
-   * Handle tools/list requests
-   */
-  private async handleToolsList(id: any): Promise<any> {
-    // This would integrate with your existing tools list
-    // For now, return a placeholder that matches your 22 tools
-    return {
-      jsonrpc: '2.0',
-      id,
-      result: {
-        tools: [] // This will be populated by the main server
-      }
-    };
-  }
-
-  /**
-   * Handle tools/call requests
-   */
-  private async handleToolCall(params: any, id: any): Promise<any> {
-    // This would integrate with your existing tool handlers
-    // For now, return a placeholder
-    return {
-      jsonrpc: '2.0',
-      id,
-      result: {
-        content: [
-          {
-            type: 'text',
-            text: 'Tool call placeholder - will be implemented by main server'
-          }
-        ]
-      }
-    };
-  }
+  // Deprecated placeholder handlers are no longer needed because we delegate
+  // to the official transport. setRequestHandlers is retained for backward
+  // compatibility but not used by the transport.
 
   /**
    * Start the HTTP server
@@ -335,7 +256,10 @@ export class StreamingHttpTransport {
     return new Promise((resolve, reject) => {
       this.httpServer = createServer(this.app);
 
-      this.httpServer.listen(this.config.port, this.config.host, () => {
+      // Connect server to transport before listening
+      this.server.connect(this.transport).then(() => {
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
+        this.httpServer!.listen(this.config.port, this.config.host, () => {
         console.error(`[Instantly MCP] 🌐 Streaming HTTP server running at http://${this.config.host}:${this.config.port}`);
         console.error(`[Instantly MCP] 📋 Health check: http://${this.config.host}:${this.config.port}/health`);
         console.error(`[Instantly MCP] 🔗 MCP endpoint: http://${this.config.host}:${this.config.port}/mcp`);
@@ -343,8 +267,11 @@ export class StreamingHttpTransport {
         if (process.env.NODE_ENV === 'production') {
           console.error(`[Instantly MCP] 🏢 Production endpoint: https://instantly.ai/mcp`);
         }
-
         resolve();
+        });
+      }).catch((error) => {
+        console.error('[Instantly MCP] ❌ Failed to connect streamable transport:', error);
+        reject(error);
       });
 
       this.httpServer.on('error', (error) => {
@@ -381,8 +308,7 @@ export class StreamingHttpTransport {
     toolsList: (id: any) => Promise<any>;
     toolCall: (params: any, id: any) => Promise<any>;
   }): void {
-    this.handleToolsList = handlers.toolsList;
-    this.handleToolCall = handlers.toolCall;
+    this.requestHandlers = handlers;
   }
 
   /**
