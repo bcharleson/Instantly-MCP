@@ -1,0 +1,26 @@
+{
+  "name": "Test Campaign - Demo",
+  "subject": "Test Email Subject Line", 
+  "body": "Hi there,\n\nThis is a test email campaign created for demonstration purposes.\n\nThis email is part of a test campaign to verify that everything is working correctly with the Instantly platform.\n\nBest regards,\nMike Curry",
+  "email_list": [
+    "REPLACE_WITH_YOUR_VERIFIED_EMAIL@253paymentpros.com"
+  ],
+  
+  // Optional but recommended settings
+  "timezone": "America/New_York",
+  "timing_from": "09:00",
+  "timing_to": "17:00",
+  "days": {
+    "monday": true,
+    "tuesday": true,
+    "wednesday": true,
+    "thursday": true,
+    "friday": true,
+    "saturday": false,
+    "sunday": false
+  },
+  "daily_limit": 50,
+  "link_tracking": true,
+  "open_tracking": true,
+  "stop_on_reply": true
+}
