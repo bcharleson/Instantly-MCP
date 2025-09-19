@@ -10,12 +10,12 @@ services:
     repo: bcharleson/Instantly-MCP
     branch: streamable-http-overhaul
     deploy_on_push: true
-  
-  # Build configuration
+
+  # Build configuration - explicitly use buildpacks, not Docker
   build_command: npm ci && npm run build
-  
+
   # Runtime configuration
-  run_command: npm start:production
+  run_command: npm run start:production
   
   # Environment configuration
   environment_slug: node-js
