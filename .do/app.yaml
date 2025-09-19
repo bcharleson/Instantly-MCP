@@ -1,6 +1,6 @@
 # Digital Ocean App Platform Configuration
 # Deploy Instantly MCP Server as a streamable HTTP service
-name: instantly-mcp-server
+name: Instantly MCP
 region: nyc
 
 services:
@@ -50,11 +50,9 @@ services:
   - path: /
     preserve_path_prefix: true
 
-# Domain configuration (will be updated with actual domain)
-domains:
-- domain: mcp.instantly.ai
-  type: PRIMARY
-  zone: instantly.ai
+# Domain configuration (using default DigitalOcean App Platform URL for testing)
+# Custom domain will be configured separately later
+# domains: []
 
 # Alerts configuration
 alerts:
