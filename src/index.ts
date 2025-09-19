@@ -1504,16 +1504,30 @@ async function handleToolCall(params: any) {
       };
 
     case 'get_account_info':
-      if (!args.email) throw new Error('Email address is required');
-      const accountResult = await makeInstantlyRequest(`/api/v2/accounts/${args.email}`, {}, args.apiKey);
+      const accountInfoResult = await makeInstantlyRequest('/api/v2/account', {}, args.apiKey);
       return {
         content: [
           {
             type: 'text',
             text: JSON.stringify({
               success: true,
-              account: accountResult,
+              account: accountInfoResult,
               message: 'Account information retrieved successfully'
+            }, null, 2)
+          }
+        ]
+      };
+
+    case 'check_feature_availability':
+      const featuresResult = await makeInstantlyRequest('/api/v2/account/features', {}, args.apiKey);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              features: featuresResult,
+              message: 'Feature availability checked successfully'
             }, null, 2)
           }
         ]
@@ -1629,12 +1643,16 @@ async function main() {
         };
       },
       toolCall: async (params: any, id: any) => {
+        // Call the main tool handler logic directly
+        const { name, arguments: args } = params;
+
+        console.error(`[Instantly MCP] 🔧 HTTP Tool called: ${name}`);
+
+        // The API key should already be in args.apiKey from the HTTP transport
+        // Just call the existing handleToolCall function which expects this format
         const result = await handleToolCall(params);
-        return {
-          jsonrpc: '2.0',
-          id,
-          result
-        };
+
+        return result;
       }
     });
 
