@@ -472,6 +472,32 @@ export class StreamingHttpTransport {
     
     try {
       switch (method) {
+        case 'initialize':
+          // MCP protocol initialization
+          return {
+            jsonrpc: '2.0',
+            id,
+            result: {
+              protocolVersion: '2024-11-05',
+              capabilities: {
+                tools: {},
+                logging: {}
+              },
+              serverInfo: {
+                name: 'instantly-mcp',
+                version: '1.1.0'
+              }
+            }
+          };
+
+        case 'initialized':
+          // MCP protocol initialization complete notification
+          return {
+            jsonrpc: '2.0',
+            id,
+            result: {}
+          };
+
         case 'tools/list':
           // Return the tools list
           if (this.requestHandlers?.toolsList) {
@@ -485,7 +511,7 @@ export class StreamingHttpTransport {
               tools: [] // Will be populated by the actual handler
             }
           };
-          
+
         case 'tools/call':
           // Execute tool with API key
           if (this.requestHandlers?.toolCall) {
@@ -494,7 +520,7 @@ export class StreamingHttpTransport {
             return await this.requestHandlers.toolCall(paramsWithApiKey, id);
           }
           throw new Error('Tool call handler not configured');
-          
+
         default:
           return {
             jsonrpc: '2.0',
