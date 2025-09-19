@@ -42,9 +42,9 @@ ENV TRANSPORT_MODE=http
 ENV PORT=8080
 ENV HOST=0.0.0.0
 
-# Health check using curl
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
+# Health check disabled temporarily for debugging
+# HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+#     CMD curl -f http://localhost:8080/health || exit 1
 
 # Start the application directly
 CMD ["node", "dist/index.js"]
