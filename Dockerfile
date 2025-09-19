@@ -1,17 +1,13 @@
-# Multi-stage build for production deployment on Digital Ocean
-# Optimized for minimal size and maximum security
-
-# Build stage
-FROM node:18-alpine AS builder
+# Single-stage build for DigitalOcean App Platform
+FROM node:18-alpine
 
 # Set working directory
 WORKDIR /app
 
-# Copy package files
+# Copy package files first for better caching
 COPY package*.json ./
-COPY yarn.lock ./
 
-# Install dependencies (including dev dependencies for build)
+# Install ALL dependencies (including dev dependencies for building)
 RUN npm ci --silent
 
 # Copy source code
@@ -21,32 +17,18 @@ COPY tsconfig.json ./
 # Build the application
 RUN npm run build
 
-# Production stage
-FROM node:18-alpine AS production
-
-# Create non-root user for security
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S instantly -u 1001
-
-# Set working directory
-WORKDIR /app
-
-# Copy package files
-COPY package*.json ./
-
-# Install only production dependencies
-RUN npm ci --only=production --silent && \
-    npm cache clean --force
-
-# Copy built application from builder stage
-COPY --from=builder /app/dist ./dist/
-
-# Copy essential files
+# Copy additional files needed at runtime
 COPY README.md ./
 COPY manifest.json ./
 
-# Change ownership to non-root user
-RUN chown -R instantly:nodejs /app
+# Remove dev dependencies after build to reduce size
+RUN npm ci --only=production --silent && npm cache clean --force
+
+# Create non-root user for security
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S instantly -u 1001 && \
+    chown -R instantly:nodejs /app
+
 USER instantly
 
 # Expose port
