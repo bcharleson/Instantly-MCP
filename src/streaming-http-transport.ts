@@ -486,8 +486,8 @@ export class StreamingHttpTransport {
             result: {
               protocolVersion: '2024-11-05',
               capabilities: {
-                tools: {},
-                logging: {}
+                tools: {}
+                // Removed logging capability since we don't implement logging/setLevel
               },
               serverInfo: {
                 name: 'instantly-mcp',
