@@ -212,7 +212,7 @@ export class StreamingHttpTransport {
     // URL-based authentication endpoint: /mcp/{API_KEY}
     this.app.post('/mcp/:apiKey', async (req, res) => {
       // Extract API key from URL path
-      const apiKey = req.params.apiKey;
+      let apiKey = req.params.apiKey;
 
       if (!apiKey || apiKey.length < 10) {
         res.status(401).json({
@@ -230,6 +230,22 @@ export class StreamingHttpTransport {
           }
         });
         return;
+      }
+
+      // Decode base64-encoded API key if it appears to be base64
+      try {
+        // Check if the API key looks like base64 (ends with = or ==, contains only base64 chars)
+        if (apiKey.match(/^[A-Za-z0-9+/]+=*$/)) {
+          const decoded = Buffer.from(apiKey, 'base64').toString('utf-8');
+          // Validate that decoded string looks like an API key (contains colon separator)
+          if (decoded.includes(':') && decoded.length > 20) {
+            console.error(`[HTTP] 🔓 Decoded base64 API key from URL path`);
+            apiKey = decoded;
+          }
+        }
+      } catch (error) {
+        console.error(`[HTTP] ⚠️ Failed to decode base64 API key, using as-is:`, error);
+        // Continue with original API key if decoding fails
       }
 
       // Store the API key in request for tool handlers
@@ -259,7 +275,7 @@ export class StreamingHttpTransport {
   private authMiddleware(req: express.Request, res: express.Response, next: express.NextFunction): void {
     // Extract Instantly API key from request headers
     let instantlyApiKey = '';
-    
+
     // Try multiple header formats
     const authHeader = req.headers.authorization as string;
     if (authHeader) {
@@ -305,6 +321,22 @@ export class StreamingHttpTransport {
         }
       });
       return;
+    }
+
+    // Decode base64-encoded API key if it appears to be base64
+    try {
+      // Check if the API key looks like base64 (ends with = or ==, contains only base64 chars)
+      if (instantlyApiKey.match(/^[A-Za-z0-9+/]+=*$/)) {
+        const decoded = Buffer.from(instantlyApiKey, 'base64').toString('utf-8');
+        // Validate that decoded string looks like an API key (contains colon separator)
+        if (decoded.includes(':') && decoded.length > 20) {
+          console.error(`[HTTP] 🔓 Decoded base64 API key from headers`);
+          instantlyApiKey = decoded;
+        }
+      }
+    } catch (error) {
+      console.error(`[HTTP] ⚠️ Failed to decode base64 API key, using as-is:`, error);
+      // Continue with original API key if decoding fails
     }
 
     // Store the API key in request for tool handlers
