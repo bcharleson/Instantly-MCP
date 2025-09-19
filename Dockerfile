@@ -46,5 +46,5 @@ ENV HOST=0.0.0.0
 # HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
 #     CMD curl -f http://localhost:8080/health || exit 1
 
-# Start the application directly
-CMD ["node", "dist/index.js"]
+# Start the application using npm script (matches DigitalOcean run_command)
+CMD ["npm", "run", "start:production"]

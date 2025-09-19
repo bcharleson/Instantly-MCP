@@ -39,7 +39,7 @@
     "start:stdio": "node dist/index.js",
     "start:http": "TRANSPORT_MODE=http node dist/index.js",
     "start:n8n": "TRANSPORT_MODE=http node dist/index.js",
-    "start:production": "node start-production.js",
+    "start:production": "node dist/index.js",
     "publish:beta": "npm run build && npm publish --tag beta",
     "prepublishOnly": "npm run build",
     "check-tools": "tsx check-tools.ts",
