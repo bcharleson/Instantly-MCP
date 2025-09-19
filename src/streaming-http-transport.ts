@@ -403,7 +403,13 @@ export class StreamingHttpTransport {
       res.setHeader('mcp-session-id', sessionId);
       res.setHeader('x-response-time', `${responseTime}ms`);
       res.setHeader('x-auth-method', authMethod);
-      res.json(response);
+
+      // Handle notifications (no response expected)
+      if (response === null) {
+        res.status(204).end(); // 204 No Content for notifications
+      } else {
+        res.json(response);
+      }
 
       // Log successful response
       console.error(`[MCP] ${sessionId} - Success - ${responseTime}ms`);
@@ -491,12 +497,10 @@ export class StreamingHttpTransport {
           };
 
         case 'initialized':
+        case 'notifications/initialized':
           // MCP protocol initialization complete notification
-          return {
-            jsonrpc: '2.0',
-            id,
-            result: {}
-          };
+          // Notifications don't return responses, just acknowledge receipt
+          return null; // No response for notifications
 
         case 'tools/list':
           // Return the tools list
