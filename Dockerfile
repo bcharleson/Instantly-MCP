@@ -21,8 +21,10 @@ RUN npm run build
 COPY README.md ./
 COPY manifest.json ./
 
-# Remove dev dependencies after build to reduce size
-RUN npm ci --only=production --silent && npm cache clean --force
+# Install curl for health checks and remove dev dependencies after build
+RUN apk add --no-cache curl && \
+    npm ci --only=production --silent && \
+    npm cache clean --force
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && \
@@ -40,8 +42,7 @@ ENV TRANSPORT_MODE=http
 ENV PORT=8080
 ENV HOST=0.0.0.0
 
-# Health check using curl (more reliable)
-RUN apk add --no-cache curl
+# Health check using curl
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
