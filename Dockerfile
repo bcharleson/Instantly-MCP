@@ -40,9 +40,10 @@ ENV TRANSPORT_MODE=http
 ENV PORT=8080
 ENV HOST=0.0.0.0
 
-# Health check
+# Health check using curl (more reliable)
+RUN apk add --no-cache curl
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:8080/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) }).on('error', () => process.exit(1))"
+    CMD curl -f http://localhost:8080/health || exit 1
 
 # Start the application directly
 CMD ["node", "dist/index.js"]
