@@ -5,17 +5,23 @@
  *
  * Supports both local and remote usage:
  * - Stdio Transport: For Claude Desktop, Cursor IDE, local NPM usage
- * - Streaming HTTP Transport: For remote hosting at https://instantly.ai/mcp
+ * - Streaming HTTP Transport: For remote hosting at https://mcp.instantly.ai/mcp
  *
  * Usage:
  *   node dist/index.js                    # stdio mode (default)
- *   TRANSPORT_MODE=http node dist/index.js # HTTP mode for instantly.ai/mcp
+ *   TRANSPORT_MODE=http node dist/index.js # HTTP mode for mcp.instantly.ai
  *
  * Environment Variables:
- *   INSTANTLY_API_KEY: Your Instantly.ai API key (required)
+ *   INSTANTLY_API_KEY: Your Instantly.ai API key (required for stdio mode)
  *   TRANSPORT_MODE: 'stdio' (default) or 'http'
  *   PORT: HTTP server port (default: 3000)
- *   NODE_ENV: 'production' for instantly.ai deployment
+ *   NODE_ENV: 'production' for mcp.instantly.ai deployment
+ *
+ * Authentication Methods (HTTP mode):
+ *   1. Header-based (more secure): mcp.instantly.ai/mcp
+ *      - Authorization: Bearer [API_KEY]
+ *      - x-instantly-api-key: [API_KEY]
+ *   2. URL-based: mcp.instantly.ai/mcp/{API_KEY}
  */
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -63,22 +69,6 @@ import {
 
 const INSTANTLY_API_URL = 'https://api.instantly.ai';
 
-// API key configuration
-let INSTANTLY_API_KEY = process.env.INSTANTLY_API_KEY;
-
-if (!INSTANTLY_API_KEY) {
-  const args = process.argv.slice(2);
-  const apiKeyIndex = args.findIndex(arg => arg === '--api-key');
-  INSTANTLY_API_KEY = apiKeyIndex !== -1 && args[apiKeyIndex + 1] ? args[apiKeyIndex + 1] : undefined;
-}
-
-if (!INSTANTLY_API_KEY) {
-  console.error('Error: API key must be provided via INSTANTLY_API_KEY environment variable or --api-key argument');
-  console.error('For security, using the environment variable is recommended:');
-  console.error('  export INSTANTLY_API_KEY="your-api-key-here"');
-  process.exit(1);
-}
-
 // Parse command line arguments and environment
 function parseConfig() {
   const args = process.argv.slice(2);
@@ -90,6 +80,30 @@ function parseConfig() {
     transportMode,
     isHttpMode: transportMode === 'http' || isN8nMode
   };
+}
+
+// API key configuration
+let INSTANTLY_API_KEY = process.env.INSTANTLY_API_KEY;
+
+if (!INSTANTLY_API_KEY) {
+  const args = process.argv.slice(2);
+  const apiKeyIndex = args.findIndex(arg => arg === '--api-key');
+  INSTANTLY_API_KEY = apiKeyIndex !== -1 && args[apiKeyIndex + 1] ? args[apiKeyIndex + 1] : undefined;
+}
+
+// Check if we need an API key at startup
+const { transportMode } = parseConfig();
+
+if (!INSTANTLY_API_KEY && transportMode === 'stdio') {
+  console.error('Error: API key must be provided via INSTANTLY_API_KEY environment variable or --api-key argument for stdio mode');
+  console.error('For security, using the environment variable is recommended:');
+  console.error('  export INSTANTLY_API_KEY="your-api-key-here"');
+  process.exit(1);
+}
+
+if (!INSTANTLY_API_KEY && transportMode === 'http') {
+  console.error('[Instantly MCP] ⚠️  No API key provided at startup - using per-request API key mode');
+  console.error('[Instantly MCP] 🔑 Clients must provide API key via x-instantly-api-key header');
 }
 
 // Core server implementation
@@ -108,15 +122,22 @@ const server = new Server(
 console.error('[Instantly MCP] 🚀 Initializing server...');
 console.error('[Instantly MCP] 🔑 API key configured:', INSTANTLY_API_KEY ? '✅ Present' : '❌ Missing');
 
-// Core API request function
-async function makeInstantlyRequest(endpoint: string, options: any = {}): Promise<any> {
+// Core API request function - now supports per-request API keys
+async function makeInstantlyRequest(endpoint: string, options: any = {}, apiKey?: string): Promise<any> {
   const method = options.method || 'GET';
+  
+  // Use provided API key or fall back to environment variable
+  const useApiKey = apiKey || INSTANTLY_API_KEY;
+  
+  if (!useApiKey) {
+    throw new Error('Instantly API key is required - provide via parameter or INSTANTLY_API_KEY environment variable');
+  }
   
   const requestOptions: any = {
     method,
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${INSTANTLY_API_KEY}`,
+      'Authorization': `Bearer ${useApiKey}`,
     },
   };
 
@@ -163,13 +184,17 @@ async function makeInstantlyRequest(endpoint: string, options: any = {}): Promis
   }
 }
 
-// FIXED: Simple, reliable pagination for list_accounts
-async function getAllAccounts(): Promise<any[]> {
+// FIXED: Simple, reliable pagination for list_accounts - now supports per-request API keys
+async function getAllAccounts(apiKey?: string): Promise<any[]> {
   console.error('[Instantly MCP] 📊 Retrieving all accounts with reliable pagination...');
 
   try {
+    // Create a wrapper function that includes the API key
+    const makeRequestWithKey = (endpoint: string, options: any = {}) => 
+      makeInstantlyRequest(endpoint, options, apiKey);
+    
     // Use direct API call with pagination
-    const result = await paginateInstantlyAPI('/api/v2/accounts', makeInstantlyRequest);
+    const result = await paginateInstantlyAPI('/api/v2/accounts', makeRequestWithKey);
 
     console.error(`[Instantly MCP] ✅ Successfully retrieved ${result.length} accounts`);
     return result;
@@ -558,11 +583,30 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   };
 });
 
-// Call tool handler
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
+// Call tool handler - now supports per-request API keys
+server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
   const { name, arguments: args } = request.params;
   
   console.error(`[Instantly MCP] 🔧 Tool called: ${name}`);
+
+  // Extract API key from params (for HTTP transport) or environment (for stdio)
+  let apiKey: string | undefined;
+  
+  // Check if API key is provided in params (from HTTP transport)
+  if (args && typeof args === 'object' && 'apiKey' in args) {
+    apiKey = (args as any).apiKey;
+    // Remove apiKey from args to avoid passing it to tool functions
+    delete (args as any).apiKey;
+  }
+  
+  // Fall back to environment variable for stdio transport
+  if (!apiKey) {
+    apiKey = INSTANTLY_API_KEY;
+  }
+  
+  if (!apiKey) {
+    throw new McpError(ErrorCode.InvalidParams, 'Instantly API key is required. Provide via x-instantly-api-key header (HTTP) or INSTANTLY_API_KEY environment variable (stdio).');
+  }
 
   try {
     // Check rate limit status
@@ -580,7 +624,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           console.error('[Instantly MCP] 📊 Parameters validated:', validatedData);
 
           console.error('[Instantly MCP] 🔍 DEBUG: About to call getAllAccounts()');
-          const allAccounts = await getAllAccounts();
+          const allAccounts = await getAllAccounts(apiKey);
           console.error('[Instantly MCP] 🔍 DEBUG: getAllAccounts() completed successfully');
 
           return {
@@ -613,7 +657,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const response = await makeInstantlyRequest('/api/v2/campaigns', {
           method: 'POST',
           body: validatedData
-        });
+        }, apiKey);
 
         return {
           content: [
@@ -632,7 +676,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'list_campaigns': {
         console.error('[Instantly MCP] 📋 Executing list_campaigns...');
 
-        const campaigns = await paginateInstantlyAPI('/api/v2/campaigns', makeInstantlyRequest);
+        const makeRequestWithKey = (endpoint: string, options: any = {}) => 
+          makeInstantlyRequest(endpoint, options, apiKey);
+        const campaigns = await paginateInstantlyAPI('/api/v2/campaigns', makeRequestWithKey);
 
         return {
           content: [
@@ -652,7 +698,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         console.error('[Instantly MCP] 📈 Executing get_campaign_analytics...');
 
         const validatedData = validateGetCampaignAnalyticsData(args);
-        const analytics = await makeInstantlyRequest(`/api/v2/campaigns/${validatedData.campaign_id}/analytics`);
+        const analytics = await makeInstantlyRequest(`/api/v2/campaigns/${validatedData.campaign_id}/analytics`, {}, apiKey);
 
         return {
           content: [
@@ -674,7 +720,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const verification = await makeInstantlyRequest('/api/v2/email-verification', {
           method: 'POST',
           body: { email: validatedData.email }
-        });
+        }, apiKey);
 
         return {
           content: [
@@ -693,7 +739,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         console.error('[Instantly MCP] 📋 Executing get_campaign...');
 
         const validatedData = validateGetCampaignData(args);
-        const campaign = await makeInstantlyRequest(`/api/v2/campaigns/${validatedData.campaign_id}`);
+        const campaign = await makeInstantlyRequest(`/api/v2/campaigns/${validatedData.campaign_id}`, {}, apiKey);
 
         return {
           content: [
@@ -717,7 +763,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const updatedCampaign = await makeInstantlyRequest(`/api/v2/campaigns/${campaign_id}`, {
           method: 'PATCH',
           body: updateData
-        });
+        }, apiKey);
 
         return {
           content: [
@@ -741,7 +787,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const analytics = await makeInstantlyRequest(`/api/v2/accounts/warmup-analytics`, {
           method: 'POST',
           body: { emails: validatedData.emails }
-        });
+        }, apiKey);
 
         return {
           content: [
@@ -759,7 +805,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'list_leads': {
         console.error('[Instantly MCP] 👥 Executing list_leads...');
 
-        const leads = await paginateInstantlyAPI('/api/v2/leads', makeInstantlyRequest);
+        const makeRequestWithKey = (endpoint: string, options: any = {}) => 
+          makeInstantlyRequest(endpoint, options, apiKey);
+        const leads = await paginateInstantlyAPI('/api/v2/leads', makeRequestWithKey);
 
         return {
           content: [
@@ -782,7 +830,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const lead = await makeInstantlyRequest('/api/v2/leads', {
           method: 'POST',
           body: validatedData
-        });
+        }, apiKey);
 
         return {
           content: [
@@ -806,7 +854,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const updatedLead = await makeInstantlyRequest(`/api/v2/leads/${lead_id}`, {
           method: 'PATCH',
           body: updateData
-        });
+        }, apiKey);
 
         return {
           content: [
@@ -824,7 +872,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'list_lead_lists': {
         console.error('[Instantly MCP] 📋 Executing list_lead_lists...');
 
-        const leadLists = await paginateInstantlyAPI('/api/v2/lead-lists', makeInstantlyRequest);
+        const makeRequestWithKey = (endpoint: string, options: any = {}) => 
+          makeInstantlyRequest(endpoint, options, apiKey);
+        const leadLists = await paginateInstantlyAPI('/api/v2/lead-lists', makeRequestWithKey);
 
         return {
           content: [
@@ -847,7 +897,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const leadList = await makeInstantlyRequest('/api/v2/lead-lists', {
           method: 'POST',
           body: validatedData
-        });
+        }, apiKey);
 
         return {
           content: [
@@ -865,7 +915,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'list_emails': {
         console.error('[Instantly MCP] 📧 Executing list_emails...');
 
-        const emails = await paginateInstantlyAPI('/api/v2/emails', makeInstantlyRequest);
+        const makeRequestWithKey = (endpoint: string, options: any = {}) => 
+          makeInstantlyRequest(endpoint, options, apiKey);
+        const emails = await paginateInstantlyAPI('/api/v2/emails', makeRequestWithKey);
 
         return {
           content: [
@@ -885,7 +937,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         console.error('[Instantly MCP] 📧 Executing get_email...');
 
         const validatedData = validateGetEmailData(args);
-        const email = await makeInstantlyRequest(`/api/v2/emails/${validatedData.email_id}`);
+        const email = await makeInstantlyRequest(`/api/v2/emails/${validatedData.email_id}`, {}, apiKey);
 
         return {
           content: [
@@ -907,7 +959,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const reply = await makeInstantlyRequest('/api/v2/emails/reply', {
           method: 'POST',
           body: validatedData
-        });
+        }, apiKey);
 
         return {
           content: [
@@ -925,7 +977,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'list_api_keys': {
         console.error('[Instantly MCP] 🔑 Executing list_api_keys...');
 
-        const apiKeys = await makeInstantlyRequest('/api/v2/api-keys');
+        const apiKeys = await makeInstantlyRequest('/api/v2/api-keys', {}, apiKey);
 
         return {
           content: [
@@ -946,7 +998,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const validatedData = validateGetCampaignAnalyticsOverviewData(args);
         const overview = await makeInstantlyRequest('/api/v2/campaigns/analytics/overview', {
           params: validatedData
-        });
+        }, apiKey);
 
         return {
           content: [
@@ -970,7 +1022,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const updatedAccount = await makeInstantlyRequest(`/api/v2/accounts/${email}`, {
           method: 'PATCH',
           body: updateData
-        });
+        }, apiKey);
 
         return {
           content: [
@@ -991,7 +1043,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const validatedData = validateCampaignAccountsData(args);
 
         // Get all accounts first
-        const allAccounts = await getAllAccounts();
+        const allAccounts = await getAllAccounts(apiKey);
 
         // Filter to specific emails if provided
         const accountsToCheck = validatedData.email_list
@@ -1027,7 +1079,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         console.error('[Instantly MCP] 🔍 Executing get_account_details...');
 
         const validatedData = validateGetAccountDetailsData(args);
-        const details = await makeInstantlyRequest(`/api/v2/accounts/${validatedData.email}`);
+        const details = await makeInstantlyRequest(`/api/v2/accounts/${validatedData.email}`, {}, apiKey);
 
         return {
           content: [
@@ -1047,7 +1099,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         try {
           // Test basic API connectivity with accounts endpoint
-          const accounts = await makeInstantlyRequest('/api/v2/accounts');
+          const accounts = await makeInstantlyRequest('/api/v2/accounts', {}, apiKey);
 
           // Basic feature availability based on successful API calls
           const features = {
@@ -1094,7 +1146,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         console.error('[Instantly MCP] 📧 Executing count_unread_emails...');
 
         try {
-          const result = await makeInstantlyRequest('/api/v2/emails/unread/count');
+          const result = await makeInstantlyRequest('/api/v2/emails/unread/count', {}, apiKey);
 
           return {
             content: [
@@ -1124,7 +1176,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           if (args?.end_date) params.end_date = args.end_date;
           if (args?.campaign_status !== undefined) params.campaign_status = args.campaign_status;
 
-          const result = await makeInstantlyRequest('/api/v2/campaigns/analytics/daily', { params });
+          const result = await makeInstantlyRequest('/api/v2/campaigns/analytics/daily', { params }, apiKey);
 
           return {
             content: [
@@ -1152,7 +1204,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             throw new McpError(ErrorCode.InvalidParams, 'Email address is required');
           }
 
-          const result = await makeInstantlyRequest(`/api/v2/accounts/${args.email}`);
+          const result = await makeInstantlyRequest(`/api/v2/accounts/${args.email}`, {}, apiKey);
 
           return {
             content: [
@@ -1181,7 +1233,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             throw new McpError(ErrorCode.InvalidParams, 'Campaign ID is required');
           }
 
-          const result = await makeInstantlyRequest(`/api/v2/campaigns/${args.campaign_id}/activate`, { method: 'POST' });
+          const result = await makeInstantlyRequest(`/api/v2/campaigns/${args.campaign_id}/activate`, { method: 'POST' }, apiKey);
 
           return {
             content: [
@@ -1208,7 +1260,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             throw new McpError(ErrorCode.InvalidParams, 'Campaign ID is required');
           }
 
-          const result = await makeInstantlyRequest(`/api/v2/campaigns/${args.campaign_id}/pause`, { method: 'POST' });
+          const result = await makeInstantlyRequest(`/api/v2/campaigns/${args.campaign_id}/pause`, { method: 'POST' }, apiKey);
 
           return {
             content: [
@@ -1235,7 +1287,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             throw new McpError(ErrorCode.InvalidParams, 'Email address is required');
           }
 
-          const result = await makeInstantlyRequest(`/api/v2/accounts/${args.email}/pause`, { method: 'POST' });
+          const result = await makeInstantlyRequest(`/api/v2/accounts/${args.email}/pause`, { method: 'POST' }, apiKey);
 
           return {
             content: [
@@ -1262,7 +1314,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             throw new McpError(ErrorCode.InvalidParams, 'Email address is required');
           }
 
-          const result = await makeInstantlyRequest(`/api/v2/accounts/${args.email}/resume`, { method: 'POST' });
+          const result = await makeInstantlyRequest(`/api/v2/accounts/${args.email}/resume`, { method: 'POST' }, apiKey);
 
           return {
             content: [
@@ -1382,7 +1434,7 @@ async function handleToolCall(params: any) {
   // For now, return a placeholder that will be replaced with actual implementation
   switch (name) {
     case 'list_campaigns':
-      const campaigns = await makeInstantlyRequest('/api/v2/campaigns');
+      const campaigns = await makeInstantlyRequest('/api/v2/campaigns', {}, args.apiKey);
       return {
         content: [
           {
@@ -1398,7 +1450,7 @@ async function handleToolCall(params: any) {
       };
 
     case 'list_accounts':
-      const accounts = await getAllAccounts();
+      const accounts = await getAllAccounts(args.apiKey);
       return {
         content: [
           {
@@ -1415,7 +1467,7 @@ async function handleToolCall(params: any) {
 
     // ===== NEW TIER 1 TOOLS - PRODUCTION VERIFIED =====
     case 'count_unread_emails':
-      const unreadResult = await makeInstantlyRequest('/api/v2/emails/unread/count');
+      const unreadResult = await makeInstantlyRequest('/api/v2/emails/unread/count', {}, args.apiKey);
       return {
         content: [
           {
@@ -1436,7 +1488,7 @@ async function handleToolCall(params: any) {
       if (args.end_date) analyticsParams.end_date = args.end_date;
       if (args.campaign_status !== undefined) analyticsParams.campaign_status = args.campaign_status;
 
-      const analyticsResult = await makeInstantlyRequest('/api/v2/campaigns/analytics/daily', { params: analyticsParams });
+      const analyticsResult = await makeInstantlyRequest('/api/v2/campaigns/analytics/daily', { params: analyticsParams }, args.apiKey);
       return {
         content: [
           {
@@ -1453,7 +1505,7 @@ async function handleToolCall(params: any) {
 
     case 'get_account_info':
       if (!args.email) throw new Error('Email address is required');
-      const accountResult = await makeInstantlyRequest(`/api/v2/accounts/${args.email}`);
+      const accountResult = await makeInstantlyRequest(`/api/v2/accounts/${args.email}`, {}, args.apiKey);
       return {
         content: [
           {
@@ -1470,7 +1522,7 @@ async function handleToolCall(params: any) {
     // ===== NEW TIER 2 TOOLS - TESTABLE STATE-CHANGE =====
     case 'activate_campaign':
       if (!args.campaign_id) throw new Error('Campaign ID is required');
-      const activateResult = await makeInstantlyRequest(`/api/v2/campaigns/${args.campaign_id}/activate`, { method: 'POST' });
+      const activateResult = await makeInstantlyRequest(`/api/v2/campaigns/${args.campaign_id}/activate`, { method: 'POST' }, args.apiKey);
       return {
         content: [
           {
@@ -1486,7 +1538,7 @@ async function handleToolCall(params: any) {
 
     case 'pause_campaign':
       if (!args.campaign_id) throw new Error('Campaign ID is required');
-      const pauseCampaignResult = await makeInstantlyRequest(`/api/v2/campaigns/${args.campaign_id}/pause`, { method: 'POST' });
+      const pauseCampaignResult = await makeInstantlyRequest(`/api/v2/campaigns/${args.campaign_id}/pause`, { method: 'POST' }, args.apiKey);
       return {
         content: [
           {
@@ -1502,7 +1554,7 @@ async function handleToolCall(params: any) {
 
     case 'pause_account':
       if (!args.email) throw new Error('Email address is required');
-      const pauseAccountResult = await makeInstantlyRequest(`/api/v2/accounts/${args.email}/pause`, { method: 'POST' });
+      const pauseAccountResult = await makeInstantlyRequest(`/api/v2/accounts/${args.email}/pause`, { method: 'POST' }, args.apiKey);
       return {
         content: [
           {
@@ -1518,7 +1570,7 @@ async function handleToolCall(params: any) {
 
     case 'resume_account':
       if (!args.email) throw new Error('Email address is required');
-      const resumeAccountResult = await makeInstantlyRequest(`/api/v2/accounts/${args.email}/resume`, { method: 'POST' });
+      const resumeAccountResult = await makeInstantlyRequest(`/api/v2/accounts/${args.email}/resume`, { method: 'POST' }, args.apiKey);
       return {
         content: [
           {
@@ -1546,7 +1598,9 @@ async function main() {
     console.error(`[Instantly MCP] 🌐 Starting ${transportMode} transport mode...`);
 
     if (process.env.NODE_ENV === 'production') {
-      console.error('[Instantly MCP] 🏢 Production mode: https://instantly.ai/mcp');
+      console.error('[Instantly MCP] 🏢 Production endpoints:');
+      console.error('[Instantly MCP] 🔐 Header auth: https://mcp.instantly.ai/mcp');
+      console.error('[Instantly MCP] 🔗 URL auth: https://mcp.instantly.ai/mcp/{API_KEY}');
     }
 
     // Use new streaming HTTP transport
@@ -1555,14 +1609,11 @@ async function main() {
       host: process.env.HOST || '0.0.0.0',
       cors: {
         origin: process.env.NODE_ENV === 'production'
-          ? ['https://claude.ai', 'https://cursor.sh', 'https://instantly.ai']
+          ? ['https://claude.ai', 'https://cursor.sh', 'https://instantly.ai', 'https://mcp.instantly.ai']
           : true,
         credentials: true
-      },
-      auth: {
-        apiKeyHeader: 'x-api-key',
-        requiredApiKey: process.env.INSTANTLY_API_KEY
       }
+      // No auth config - using per-request API key passthrough
     };
 
     const httpTransport = new StreamingHttpTransport(server, config);

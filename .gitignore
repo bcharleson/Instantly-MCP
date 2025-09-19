@@ -22,3 +22,54 @@ local-mcp-test/
 
 # Bug report folder (preserved locally but excluded from repository)
 bug report/
+
+# Production deployment cleanup - exclude non-essential files
+# Markdown files (except README.md)
+*.md
+!README.md
+
+# Test scripts and testing files
+test-*.js
+test-*.ts
+test-*.cjs
+test-*.sh
+*test*.js
+*test*.ts
+*test*.cjs
+debug-*.js
+diagnose-*.js
+check-*.sh
+verify-*.js
+validate-*.ts
+
+# Development and build scripts
+build-and-test.sh
+deploy-staging.sh
+scripts/
+
+# Example files and documentation
+examples/
+manual-test-examples.md
+visual-verification-guide.md
+
+# Configuration files for development
+claude-desktop-config.json
+corrected-campaign.json
+corrected-campaign.jsonc
+production.config.js
+
+# Package files for distribution testing
+*.tgz
+*.dxt
+dxt-official/
+
+# Build artifacts and temporary files
+tsconfig.tsbuildinfo
+webpack.config.js
+
+# Railway and deployment specific files (keep for production)
+# railway.json - keep
+# railway.toml - keep
+# nixpacks.toml - keep
+# Dockerfile - keep
+# Dockerfile.production - keep

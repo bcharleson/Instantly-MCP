@@ -1,0 +1,81 @@
+# Digital Ocean App Platform Configuration
+# Deploy Instantly MCP Server as a streamable HTTP service
+name: instantly-mcp-server
+region: nyc
+
+services:
+- name: mcp-server
+  source_dir: /
+  github:
+    repo: bcharleson/Instantly-MCP
+    branch: streamable-http-overhaul
+    deploy_on_push: true
+  
+  # Build configuration
+  build_command: npm ci && npm run build
+  
+  # Runtime configuration
+  run_command: npm start:production
+  
+  # Environment configuration
+  environment_slug: node-js
+  instance_count: 1
+  instance_size_slug: basic-xxs
+  
+  # Environment variables
+  envs:
+  - key: NODE_ENV
+    value: production
+  - key: TRANSPORT_MODE
+    value: http
+  - key: PORT
+    value: "8080"
+  - key: HOST
+    value: "0.0.0.0"
+  
+  # Health check configuration
+  health_check:
+    http_path: /health
+    initial_delay_seconds: 30
+    period_seconds: 10
+    timeout_seconds: 5
+    success_threshold: 1
+    failure_threshold: 3
+  
+  # HTTP configuration
+  http_port: 8080
+  
+  # Routes configuration
+  routes:
+  - path: /
+    preserve_path_prefix: true
+
+# Domain configuration (will be updated with actual domain)
+domains:
+- domain: mcp.instantly.ai
+  type: PRIMARY
+  zone: instantly.ai
+
+# Alerts configuration
+alerts:
+- rule: CPU_UTILIZATION
+  disabled: false
+  value: 80
+- rule: MEM_UTILIZATION
+  disabled: false
+  value: 80
+- rule: RESTART_COUNT
+  disabled: false
+  value: 5
+
+# Database configuration (none needed for this stateless service)
+databases: []
+
+# Static sites configuration (none needed)
+static_sites: []
+
+# Workers configuration (none needed)
+workers: []
+
+# Jobs configuration (none needed)
+jobs: []

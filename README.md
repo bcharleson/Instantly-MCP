@@ -3,7 +3,7 @@
 [![npm version](https://badge.fury.io/js/instantly-mcp.svg)](https://badge.fury.io/js/instantly-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A streamlined MCP server for Instantly.ai v2 API integration. Enables AI assistants to manage email campaigns, accounts, leads, and analytics through Instantly's platform.
+A streamable HTTP MCP server for Instantly.ai v2 API integration. Enables AI assistants to manage email campaigns, accounts, leads, and analytics through Instantly's platform with both local and remote deployment options.
 
 ## Key Features
 
@@ -13,6 +13,9 @@ A streamlined MCP server for Instantly.ai v2 API integration. Enables AI assista
 - **Analytics**: Track campaign performance and metrics
 - **Email Operations**: Send emails and verify addresses
 - **API Integration**: Full access to Instantly.ai v2 API endpoints
+- **Dual Transport**: Supports both local (stdio) and remote (HTTP) deployment
+- **Flexible Authentication**: Header-based and URL-based API key authentication
+- **Production Ready**: Optimized for cloud deployment with rate limiting and monitoring
 
 ## Overview
 
@@ -69,6 +72,64 @@ npm run build
 1. Log in to [Instantly.ai](https://app.instantly.ai)
 2. Navigate to Settings > Integrations > API
 3. Generate or copy your API key
+
+## Remote HTTP Deployment
+
+The MCP server can be deployed remotely for use with cloud-based AI assistants. It supports two authentication methods:
+
+### 1. Header-based Authentication (Recommended)
+
+**Endpoint**: `https://mcp.instantly.ai/mcp`
+
+Use any of these header formats:
+```bash
+# Bearer token (recommended)
+Authorization: Bearer YOUR_INSTANTLY_API_KEY
+
+# Custom header
+x-instantly-api-key: YOUR_INSTANTLY_API_KEY
+
+# Legacy header
+x-api-key: YOUR_INSTANTLY_API_KEY
+```
+
+### 2. URL-based Authentication
+
+**Endpoint**: `https://mcp.instantly.ai/mcp/{API_KEY}`
+
+Example: `https://mcp.instantly.ai/mcp/your-instantly-api-key-here`
+
+### Digital Ocean Deployment
+
+Deploy to Digital Ocean App Platform:
+
+```bash
+# Clone the repository
+git clone https://github.com/bcharleson/Instantly-MCP.git
+cd Instantly-MCP
+git checkout streamable-http-overhaul
+
+# Deploy to Digital Ocean
+./deploy-digitalocean.sh
+```
+
+See [DIGITAL-OCEAN-DEPLOYMENT.md](DIGITAL-OCEAN-DEPLOYMENT.md) for detailed deployment instructions.
+
+### Local HTTP Testing
+
+Test the HTTP server locally:
+
+```bash
+# Start HTTP server
+npm run start:http
+
+# Test authentication methods
+npm run test:http
+
+# Test specific endpoints
+curl http://localhost:3000/health
+curl http://localhost:3000/info
+```
 
 ## Available Tools
 

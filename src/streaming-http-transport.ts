@@ -9,6 +9,12 @@ import express from 'express';
 import cors from 'cors';
 import { createServer, Server as HttpServer } from 'http';
 
+// Simple rate limiting interface
+interface RateLimitEntry {
+  count: number;
+  resetTime: number;
+}
+
 export interface StreamingHttpConfig {
   port: number;
   host: string;
@@ -33,6 +39,9 @@ export class StreamingHttpTransport {
     toolsList: (id: any) => Promise<any>;
     toolCall: (params: any, id: any) => Promise<any>;
   };
+  private rateLimitMap = new Map<string, RateLimitEntry>();
+  private readonly RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+  private readonly RATE_LIMIT_MAX_REQUESTS = 100; // 100 requests per minute per IP
 
   constructor(server: Server, config: StreamingHttpConfig) {
     this.server = server;
@@ -60,6 +69,7 @@ export class StreamingHttpTransport {
         'Content-Type',
         'Authorization',
         'x-api-key',
+        'x-instantly-api-key',
         'mcp-session-id',
         'mcp-protocol-version'
       ]
@@ -68,10 +78,52 @@ export class StreamingHttpTransport {
     // JSON parsing with larger limit for complex requests
     this.app.use(express.json({ limit: '10mb' }));
 
-    // Request logging
+    // Rate limiting middleware
+    this.app.use((req, res, next) => {
+      if (process.env.NODE_ENV === 'production') {
+        const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
+        const now = Date.now();
+        const rateLimitEntry = this.rateLimitMap.get(clientIp);
+
+        if (rateLimitEntry) {
+          if (now < rateLimitEntry.resetTime) {
+            if (rateLimitEntry.count >= this.RATE_LIMIT_MAX_REQUESTS) {
+              res.status(429).json({
+                jsonrpc: '2.0',
+                id: req.body?.id || null,
+                error: {
+                  code: -32000,
+                  message: 'Rate limit exceeded',
+                  data: {
+                    limit: this.RATE_LIMIT_MAX_REQUESTS,
+                    window: this.RATE_LIMIT_WINDOW / 1000,
+                    resetTime: new Date(rateLimitEntry.resetTime).toISOString()
+                  }
+                }
+              });
+              return;
+            }
+            rateLimitEntry.count++;
+          } else {
+            // Reset the rate limit window
+            this.rateLimitMap.set(clientIp, { count: 1, resetTime: now + this.RATE_LIMIT_WINDOW });
+          }
+        } else {
+          // First request from this IP
+          this.rateLimitMap.set(clientIp, { count: 1, resetTime: now + this.RATE_LIMIT_WINDOW });
+        }
+      }
+      next();
+    });
+
+    // Enhanced request logging with user agent and auth method detection
     this.app.use((req, res, next) => {
       const timestamp = new Date().toISOString();
-      console.error(`[HTTP] ${timestamp} ${req.method} ${req.path} - ${req.ip}`);
+      const userAgent = req.headers['user-agent'] || 'unknown';
+      const hasAuth = !!(req.headers.authorization || req.headers['x-instantly-api-key'] || req.params?.apiKey);
+      const authMethod = req.params?.apiKey ? 'URL' : (req.headers.authorization ? 'Bearer' : (req.headers['x-instantly-api-key'] ? 'Header' : 'None'));
+
+      console.error(`[HTTP] ${timestamp} ${req.method} ${req.path} - ${req.ip} - Auth: ${authMethod} - UA: ${userAgent.substring(0, 50)}`);
       next();
     });
 
@@ -97,6 +149,7 @@ export class StreamingHttpTransport {
         activeSessions: this.activeSessions.size,
         endpoints: {
           mcp: '/mcp',
+          'mcp-with-key': '/mcp/:apiKey',
           health: '/health',
           info: '/info'
         }
@@ -110,7 +163,7 @@ export class StreamingHttpTransport {
         version: '1.1.0',
         description: 'Official Instantly.ai MCP server with 22 email automation tools',
         transport: 'streaming-http',
-        endpoint: 'https://instantly.ai/mcp',
+        endpoint: 'https://mcp.instantly.ai/mcp',
         protocol: '2025-06-18',
         tools: 22,
         capabilities: {
@@ -121,48 +174,68 @@ export class StreamingHttpTransport {
         },
         features: [
           'Email campaign management',
-          'Lead management', 
+          'Lead management',
           'Account management',
           'Analytics and reporting',
           'Email verification',
           'Subsequence management'
         ],
         authentication: {
-          required: !!this.config.auth?.requiredApiKey,
-          method: 'api-key',
-          header: this.config.auth?.apiKeyHeader || 'x-api-key'
+          methods: [
+            {
+              type: 'header-based',
+              description: 'API key in request headers (more secure)',
+              endpoint: '/mcp',
+              formats: [
+                'Authorization: Bearer [INSTANTLY_API_KEY]',
+                'x-instantly-api-key: [INSTANTLY_API_KEY]',
+                'x-api-key: [INSTANTLY_API_KEY] (legacy)'
+              ]
+            },
+            {
+              type: 'url-based',
+              description: 'API key as path parameter',
+              endpoint: '/mcp/{API_KEY}',
+              example: '/mcp/your-instantly-api-key-here'
+            }
+          ]
         },
         documentation: 'https://github.com/bcharleson/Instantly-MCP'
       });
     });
 
-    // Main MCP endpoint with authentication using official streamable transport
+    // Main MCP endpoint with header-based authentication (more secure)
     this.app.post('/mcp', this.authMiddleware.bind(this), async (req, res) => {
-      const startTime = Date.now();
-      const sessionId = (req.headers['mcp-session-id'] as string) || `session-${Date.now()}`;
-      try {
-        this.activeSessions.set(sessionId, {
-          startTime,
-          lastActivity: Date.now(),
-          requestCount: (this.activeSessions.get(sessionId)?.requestCount || 0) + 1
-        });
+      await this.handleMcpRequest(req, res);
+    });
 
-        // Delegate to SDK transport for full streaming compliance
-        await this.transport.handleRequest(req, res, req.body);
+    // URL-based authentication endpoint: /mcp/{API_KEY}
+    this.app.post('/mcp/:apiKey', async (req, res) => {
+      // Extract API key from URL path
+      const apiKey = req.params.apiKey;
 
-        res.setHeader('mcp-session-id', sessionId);
-        res.setHeader('x-response-time', `${Date.now() - startTime}ms`);
-      } catch (error: any) {
-        console.error('[Instantly MCP] ❌ Streamable transport error:', error);
-        res.status(500).json({
+      if (!apiKey || apiKey.length < 10) {
+        res.status(401).json({
           jsonrpc: '2.0',
           id: req.body?.id || null,
-          error: { code: -32603, message: 'Internal server error' }
+          error: {
+            code: -32001,
+            message: 'Invalid API key in URL path',
+            data: {
+              reason: 'API key too short or missing',
+              format: '/mcp/{INSTANTLY_API_KEY}',
+              example: '/mcp/your-instantly-api-key-here',
+              note: 'Provide your Instantly.ai API key as the path parameter'
+            }
+          }
         });
-      } finally {
-        const session = this.activeSessions.get(sessionId);
-        if (session) session.lastActivity = Date.now();
+        return;
       }
+
+      // Store the API key in request for tool handlers
+      (req as any).instantlyApiKey = apiKey;
+
+      await this.handleMcpRequest(req, res);
     });
 
     // CORS preflight
@@ -181,67 +254,61 @@ export class StreamingHttpTransport {
   }
 
   /**
-   * Authentication middleware - Supports both Bearer token and x-api-key formats
+   * Authentication middleware - Extracts per-request API keys for passthrough
    */
   private authMiddleware(req: express.Request, res: express.Response, next: express.NextFunction): void {
-    // Skip auth if no API key is configured
-    if (!this.config.auth?.requiredApiKey) {
-      return next();
-    }
-
-    // Try Authorization: Bearer format first (preferred for n8n)
-    let apiKey = '';
+    // Extract Instantly API key from request headers
+    let instantlyApiKey = '';
+    
+    // Try multiple header formats
     const authHeader = req.headers.authorization as string;
-
     if (authHeader) {
       if (authHeader.startsWith('Bearer ')) {
-        // Extract API key from "Bearer [API_KEY]" format
-        apiKey = authHeader.substring(7);
+        instantlyApiKey = authHeader.substring(7);
       } else {
-        // Support raw API key in Authorization header (auto-add Bearer prefix)
-        apiKey = authHeader;
+        instantlyApiKey = authHeader;
       }
     }
 
-    // Fallback to x-api-key header for backward compatibility
-    if (!apiKey) {
-      apiKey = req.headers[this.config.auth.apiKeyHeader] as string;
+    // Fallback to x-instantly-api-key header
+    if (!instantlyApiKey) {
+      instantlyApiKey = req.headers['x-instantly-api-key'] as string;
     }
 
-    if (!apiKey) {
+    // Fallback to query parameter
+    if (!instantlyApiKey) {
+      instantlyApiKey = req.query.instantly_api_key as string;
+    }
+
+    // For backward compatibility, check old x-api-key header
+    if (!instantlyApiKey) {
+      instantlyApiKey = req.headers['x-api-key'] as string;
+    }
+
+    if (!instantlyApiKey) {
       res.status(401).json({
         jsonrpc: '2.0',
         id: req.body?.id || null,
         error: {
           code: -32001,
-          message: 'Authentication required',
+          message: 'Instantly API key required',
           data: {
             reason: 'Missing API key',
             supportedFormats: [
-              'Authorization: Bearer [API_KEY]',
-              `${this.config.auth.apiKeyHeader}: [API_KEY]`
-            ]
+              'Authorization: Bearer [INSTANTLY_API_KEY]',
+              'x-instantly-api-key: [INSTANTLY_API_KEY]',
+              'x-api-key: [INSTANTLY_API_KEY] (legacy)',
+              '?instantly_api_key=[INSTANTLY_API_KEY]'
+            ],
+            note: 'Provide your Instantly.ai API key, not a server authentication key'
           }
         }
       });
       return;
     }
 
-    if (apiKey !== this.config.auth.requiredApiKey) {
-      res.status(401).json({
-        jsonrpc: '2.0',
-        id: req.body?.id || null,
-        error: {
-          code: -32001,
-          message: 'Invalid API key',
-          data: {
-            reason: 'API key does not match'
-          }
-        }
-      });
-      return;
-    }
-
+    // Store the API key in request for tool handlers
+    (req as any).instantlyApiKey = instantlyApiKey;
     next();
   }
 
@@ -265,7 +332,9 @@ export class StreamingHttpTransport {
         console.error(`[Instantly MCP] 🔗 MCP endpoint: http://${this.config.host}:${this.config.port}/mcp`);
         
         if (process.env.NODE_ENV === 'production') {
-          console.error(`[Instantly MCP] 🏢 Production endpoint: https://instantly.ai/mcp`);
+          console.error(`[Instantly MCP] 🏢 Production endpoints:`);
+          console.error(`[Instantly MCP] 🔐 Header auth: https://mcp.instantly.ai/mcp`);
+          console.error(`[Instantly MCP] 🔗 URL auth: https://mcp.instantly.ai/mcp/{API_KEY}`);
         }
         resolve();
         });
@@ -287,17 +356,164 @@ export class StreamingHttpTransport {
   }
 
   /**
-   * Clean up inactive sessions
+   * Shared MCP request handler for both authentication methods
+   */
+  private async handleMcpRequest(req: express.Request, res: express.Response): Promise<void> {
+    const startTime = Date.now();
+    const sessionId = (req.headers['mcp-session-id'] as string) || `session-${Date.now()}`;
+    const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
+    const authMethod = req.params?.apiKey ? 'URL' : (req.headers.authorization ? 'Bearer' : 'Header');
+
+    try {
+      // Enhanced session tracking
+      this.activeSessions.set(sessionId, {
+        startTime,
+        lastActivity: Date.now(),
+        requestCount: (this.activeSessions.get(sessionId)?.requestCount || 0) + 1,
+        clientIp,
+        authMethod,
+        userAgent: req.headers['user-agent'] || 'unknown'
+      });
+
+      // Validate request body
+      if (!req.body || typeof req.body !== 'object') {
+        res.status(400).json({
+          jsonrpc: '2.0',
+          id: null,
+          error: {
+            code: -32700,
+            message: 'Parse error',
+            data: { reason: 'Invalid JSON-RPC request body' }
+          }
+        });
+        return;
+      }
+
+      // Handle MCP request with per-request API key
+      const apiKey = (req as any).instantlyApiKey;
+      const mcpRequest = req.body;
+
+      // Log the request for monitoring
+      console.error(`[MCP] ${sessionId} - ${mcpRequest.method || 'unknown'} - ${authMethod} auth - ${clientIp}`);
+
+      // Process the MCP request with the extracted API key
+      const response = await this.handleMcpRequestWithApiKey(mcpRequest, apiKey);
+
+      const responseTime = Date.now() - startTime;
+      res.setHeader('mcp-session-id', sessionId);
+      res.setHeader('x-response-time', `${responseTime}ms`);
+      res.setHeader('x-auth-method', authMethod);
+      res.json(response);
+
+      // Log successful response
+      console.error(`[MCP] ${sessionId} - Success - ${responseTime}ms`);
+
+    } catch (error: any) {
+      const responseTime = Date.now() - startTime;
+      console.error(`[Instantly MCP] ❌ MCP request error (${sessionId}):`, {
+        error: error.message,
+        stack: error.stack?.split('\n')[0],
+        method: req.body?.method,
+        authMethod,
+        clientIp,
+        responseTime
+      });
+
+      res.status(500).json({
+        jsonrpc: '2.0',
+        id: req.body?.id || null,
+        error: {
+          code: -32603,
+          message: process.env.NODE_ENV === 'production' ? 'Internal server error' : error.message,
+          data: process.env.NODE_ENV === 'production' ? undefined : { stack: error.stack }
+        }
+      });
+    } finally {
+      const session = this.activeSessions.get(sessionId);
+      if (session) session.lastActivity = Date.now();
+    }
+  }
+
+  /**
+   * Clean up inactive sessions and rate limit entries
    */
   private cleanupSessions(): void {
     const now = Date.now();
-    const timeout = 30 * 60 * 1000; // 30 minutes
+    const sessionTimeout = 30 * 60 * 1000; // 30 minutes
+    let cleanedSessions = 0;
+    let cleanedRateLimits = 0;
 
+    // Clean up inactive sessions
     for (const [sessionId, session] of this.activeSessions.entries()) {
-      if (now - session.lastActivity > timeout) {
+      if (now - session.lastActivity > sessionTimeout) {
         this.activeSessions.delete(sessionId);
-        console.error(`[HTTP] 🧹 Cleaned up inactive session: ${sessionId}`);
+        cleanedSessions++;
       }
+    }
+
+    // Clean up expired rate limit entries
+    for (const [ip, entry] of this.rateLimitMap.entries()) {
+      if (now > entry.resetTime) {
+        this.rateLimitMap.delete(ip);
+        cleanedRateLimits++;
+      }
+    }
+
+    if (cleanedSessions > 0 || cleanedRateLimits > 0) {
+      console.error(`[HTTP] 🧹 Cleanup: ${cleanedSessions} sessions, ${cleanedRateLimits} rate limits - Active: ${this.activeSessions.size} sessions, ${this.rateLimitMap.size} rate limits`);
+    }
+  }
+
+  /**
+   * Handle MCP request with per-request API key
+   */
+  private async handleMcpRequestWithApiKey(mcpRequest: any, apiKey: string): Promise<any> {
+    const { method, params, id } = mcpRequest;
+    
+    try {
+      switch (method) {
+        case 'tools/list':
+          // Return the tools list
+          if (this.requestHandlers?.toolsList) {
+            return await this.requestHandlers.toolsList(id);
+          }
+          // Fallback to static tools list
+          return {
+            jsonrpc: '2.0',
+            id,
+            result: {
+              tools: [] // Will be populated by the actual handler
+            }
+          };
+          
+        case 'tools/call':
+          // Execute tool with API key
+          if (this.requestHandlers?.toolCall) {
+            // Add API key to params for tool execution
+            const paramsWithApiKey = { ...params, apiKey };
+            return await this.requestHandlers.toolCall(paramsWithApiKey, id);
+          }
+          throw new Error('Tool call handler not configured');
+          
+        default:
+          return {
+            jsonrpc: '2.0',
+            id,
+            error: {
+              code: -32601,
+              message: `Method not found: ${method}`
+            }
+          };
+      }
+    } catch (error: any) {
+      return {
+        jsonrpc: '2.0',
+        id,
+        error: {
+          code: -32603,
+          message: error.message || 'Internal error'
+        }
+      };
     }
   }
 
