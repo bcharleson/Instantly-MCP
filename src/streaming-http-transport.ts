@@ -551,8 +551,14 @@ export class StreamingHttpTransport {
         case 'tools/call':
           // Execute tool with API key
           if (this.requestHandlers?.toolCall) {
-            // Add API key to params for tool execution
-            const paramsWithApiKey = { ...params, apiKey };
+            // Add API key to arguments for tool execution (expected by handleToolCall function)
+            const paramsWithApiKey = {
+              ...params,
+              arguments: {
+                ...params.arguments,
+                apiKey
+              }
+            };
             return await this.requestHandlers.toolCall(paramsWithApiKey, id);
           }
           throw new Error('Tool call handler not configured');
