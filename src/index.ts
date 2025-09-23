@@ -1643,14 +1643,27 @@ async function main() {
         };
       },
       toolCall: async (params: any, id: any) => {
-        // Call the main tool handler logic directly
+        // Call the main comprehensive tool handler directly
         const { name, arguments: args } = params;
 
         console.error(`[Instantly MCP] 🔧 HTTP Tool called: ${name}`);
 
-        // The API key should already be in args.apiKey from the HTTP transport
-        // Just call the existing handleToolCall function which expects this format
-        const result = await handleToolCall(params);
+        // Create a mock request that matches the main handler's expected format
+        const mockRequest = {
+          params: {
+            name,
+            arguments: args // API key is already in args.apiKey from HTTP transport
+          }
+        };
+
+        // Get the main tool handler (the comprehensive one with all 29 tools)
+        const mainHandler = server.getRequestHandler(CallToolRequestSchema);
+        if (!mainHandler) {
+          throw new Error('Main tool handler not found');
+        }
+
+        // Call the main handler directly
+        const result = await mainHandler(mockRequest as any, {} as any);
 
         return result;
       }
