@@ -1671,7 +1671,12 @@ async function main() {
         // The API key should already be in args.apiKey from the HTTP transport
         const result = await handleToolCall(params);
 
-        return result;
+        // Wrap the tool response in proper JSON-RPC 2.0 format
+        return {
+          jsonrpc: '2.0',
+          id,
+          result
+        };
       }
     });
 
