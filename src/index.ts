@@ -1598,6 +1598,26 @@ async function handleToolCall(params: any) {
         ]
       };
 
+    // ===== ADDITIONAL TOOLS FROM MAIN HANDLER =====
+    case 'create_campaign':
+      const validatedCampaignData = validateCampaignData(args);
+      const campaign = await makeInstantlyRequest('/api/v2/campaigns', {
+        method: 'POST',
+        body: validatedCampaignData
+      }, args.apiKey);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              campaign: campaign,
+              message: 'Campaign created successfully'
+            }, null, 2)
+          }
+        ]
+      };
+
     // Add other tool handlers here
     default:
       throw new Error(`Unknown tool: ${name}`);
@@ -1643,27 +1663,13 @@ async function main() {
         };
       },
       toolCall: async (params: any, id: any) => {
-        // Call the main comprehensive tool handler directly
+        // Call the existing handleToolCall function which will be enhanced with all tools
         const { name, arguments: args } = params;
 
         console.error(`[Instantly MCP] 🔧 HTTP Tool called: ${name}`);
 
-        // Create a mock request that matches the main handler's expected format
-        const mockRequest = {
-          params: {
-            name,
-            arguments: args // API key is already in args.apiKey from HTTP transport
-          }
-        };
-
-        // Get the main tool handler (the comprehensive one with all 29 tools)
-        const mainHandler = server.getRequestHandler(CallToolRequestSchema);
-        if (!mainHandler) {
-          throw new Error('Main tool handler not found');
-        }
-
-        // Call the main handler directly
-        const result = await mainHandler(mockRequest as any, {} as any);
+        // The API key should already be in args.apiKey from the HTTP transport
+        const result = await handleToolCall(params);
 
         return result;
       }
