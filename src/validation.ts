@@ -152,14 +152,18 @@ export const CreateCampaignSchema = z.object({
   stage: CampaignStageSchema.optional(),
   confirm_creation: z.boolean().optional(),
   
-  // Required campaign fields
+  // Required campaign fields with enhanced guidance
   name: z.string()
-    .min(1, { error: 'Campaign name cannot be empty' })
-    .max(255, { error: 'Campaign name cannot exceed 255 characters' }),
-  
+    .min(1, { error: 'Campaign name is required. Provide a descriptive name like "Q4 Product Launch Campaign" or "Holiday Sales Outreach"' })
+    .max(255, { error: 'Campaign name cannot exceed 255 characters. Keep it concise but descriptive.' }),
+
   subject: z.string()
-    .min(1, { error: 'Subject line cannot be empty' })
-    .max(255, { error: 'Subject line cannot exceed 255 characters' }),
+    .min(1, { error: 'Email subject line is required. This is what recipients see in their inbox.' })
+    .max(255, { error: 'Subject line cannot exceed 255 characters. For better deliverability, keep it under 50 characters.' })
+    .refine(
+      (val) => val.length <= 50,
+      { error: 'Subject line is over 50 characters. Shorter subjects have better open rates. Consider: "{{firstName}}, quick question about {{companyName}}"' }
+    ),
   
   body: z.string()
     .min(1, { error: 'Email body cannot be empty' })
@@ -190,8 +194,12 @@ export const CreateCampaignSchema = z.object({
     ),
   
   email_list: z.array(EmailSchema)
-    .min(1, { error: 'At least one email address is required' })
-    .max(100, { error: 'Cannot specify more than 100 email addresses' }),
+    .min(1, { error: 'At least one sender email address is required. Use emails from your verified accounts. Call list_accounts first to see available options.' })
+    .max(100, { error: 'Cannot specify more than 100 email addresses in a single campaign. Consider creating multiple campaigns for larger lists.' })
+    .refine(
+      (emails) => emails.length === 1,
+      { error: 'Only one sender email address is allowed per campaign creation call. To use multiple senders, create separate campaigns for each email address.' }
+    ),
   
   // Optional scheduling parameters
   timezone: TimezoneSchema.optional(),
@@ -200,11 +208,12 @@ export const CreateCampaignSchema = z.object({
   days: DaysConfigSchema,
   
   // Optional campaign settings
-  daily_limit: z.number().int().min(1).max(1000).optional(),
+  daily_limit: z.number().int().min(1).max(30).optional(),
   email_gap_minutes: z.number().int().min(1).max(1440).optional(),
   
   // Sequence parameters (multi-step improvements)
   sequence_steps: z.number().int().min(1).max(10).optional(),
+  step_delay_days: z.number().int().min(1).max(30).optional(),
   sequence_bodies: z.array(z.string()).optional(),
   sequence_subjects: z.array(z.string()).optional(),
   continue_thread: z.boolean().optional(),
@@ -457,10 +466,46 @@ export function validateWithSchema<T>(
 }
 
 /**
- * Validate campaign creation data with enhanced error messages
+ * Validate campaign creation data with enhanced error messages and contextual guidance
  */
 export function validateCampaignData(args: unknown): z.infer<typeof CreateCampaignSchema> {
-  return validateWithSchema(CreateCampaignSchema, args, 'create_campaign');
+  try {
+    return validateWithSchema(CreateCampaignSchema, args, 'create_campaign');
+  } catch (error: any) {
+    // Enhance error messages with contextual guidance
+    if (error.message) {
+      let enhancedMessage = error.message;
+
+      // Add specific guidance for common issues
+      if (error.message.includes('email_list')) {
+        enhancedMessage += '\n\n💡 GUIDANCE: Call list_accounts first to see your available sender email addresses. Only use verified, warmed-up accounts that show status=1 and warmup_status=1.';
+      }
+
+      if (error.message.includes('subject') || error.message.includes('Subject')) {
+        enhancedMessage += '\n\n💡 GUIDANCE: Good subject lines are personal and specific. Examples:\n• "{{firstName}}, quick question about {{companyName}}"\n• "Helping {{companyName}} with [specific problem]"\n• "{{firstName}}, saw your recent [achievement/news]"';
+      }
+
+      if (error.message.includes('body') || error.message.includes('Body')) {
+        enhancedMessage += '\n\n💡 GUIDANCE: Email body formatting tips:\n• Use \\n for line breaks - they will be automatically converted to <br /> tags for HTML email rendering\n• Double line breaks (\\n\\n) create new paragraphs\n• Personalize with {{firstName}}, {{lastName}}, {{companyName}}\n• Keep it conversational and specific\n• Example: "Hi {{firstName}},\\n\\nI noticed {{companyName}} recently [specific observation].\\n\\nBest regards,\\nYour Name"';
+      }
+
+      if (error.message.includes('daily_limit')) {
+        enhancedMessage += '\n\n💡 GUIDANCE: Daily email limits for cold outreach:\n• Maximum 30 emails per day per account for compliance\n• Higher limits may trigger spam filters\n• Start with lower limits (10-20) for new accounts\n• Gradually increase as account reputation improves';
+      }
+
+      if (error.message.includes('track_opens') || error.message.includes('track_clicks')) {
+        enhancedMessage += '\n\n💡 GUIDANCE: Email tracking considerations:\n• Tracking is disabled by default for better deliverability\n• Many email clients now block tracking pixels\n• Tracking can trigger spam filters and reduce trust\n• Enable only if analytics are absolutely necessary';
+      }
+
+      if (error.message.includes('name') && error.message.includes('Campaign')) {
+        enhancedMessage += '\n\n💡 GUIDANCE: Use descriptive campaign names that help you identify the purpose. Examples:\n• "Q4 Product Launch - Tech Companies"\n• "Holiday Sales Outreach - Existing Customers"\n• "Partnership Inquiry - SaaS Companies"';
+      }
+
+      error.message = enhancedMessage;
+    }
+
+    throw error;
+  }
 }
 
 /**
