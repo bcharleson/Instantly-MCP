@@ -43,6 +43,7 @@ import {
   ErrorCode,
   ListToolsRequestSchema,
   McpError,
+  InitializeRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { handleInstantlyError, parseInstantlyResponse } from './error-handler.js';
 import { rateLimiter } from './rate-limiter.js';
@@ -122,7 +123,6 @@ const server = new Server(
   {
     name: 'instantly-mcp',
     version: '1.1.0',
-    icon: loadInstantlyIcon(),
   },
   {
     capabilities: {
@@ -133,6 +133,21 @@ const server = new Server(
 
 console.error('[Instantly MCP] 🚀 Initializing server...');
 console.error('[Instantly MCP] 🔑 API key configured:', INSTANTLY_API_KEY ? '✅ Present' : '❌ Missing');
+
+// Initialize handler - provides server info with icon for remote MCP connectors
+server.setRequestHandler(InitializeRequestSchema, async (request) => {
+  return {
+    protocolVersion: '2024-11-05',
+    capabilities: {
+      tools: {},
+    },
+    serverInfo: {
+      name: 'instantly-mcp',
+      version: '1.1.0',
+      icon: loadInstantlyIcon(),
+    },
+  };
+});
 
 // Core API request function - now supports per-request API keys
 async function makeInstantlyRequest(endpoint: string, options: any = {}, apiKey?: string): Promise<any> {
