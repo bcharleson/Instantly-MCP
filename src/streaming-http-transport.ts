@@ -71,6 +71,20 @@ export class StreamingHttpTransport {
    * Setup Express middleware
    */
   private setupMiddleware(): void {
+    // Enhanced headers for Claude Desktop remote connector compatibility
+    this.app.use((req, res, next) => {
+      res.set({
+        'Connection': 'keep-alive',
+        'Keep-Alive': 'timeout=30, max=100',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'DENY',
+        'X-XSS-Protection': '1; mode=block',
+        'Server': 'instantly-mcp/1.1.0'
+      });
+      next();
+    });
+
     // CORS configuration for instantly.ai domain
     this.app.use(cors({
       origin: this.config.cors.origin,
@@ -82,7 +96,9 @@ export class StreamingHttpTransport {
         'x-api-key',
         'x-instantly-api-key',
         'mcp-session-id',
-        'mcp-protocol-version'
+        'mcp-protocol-version',
+        'User-Agent',
+        'X-Requested-With'
       ]
     }));
 
@@ -149,6 +165,20 @@ export class StreamingHttpTransport {
    * Setup routes
    */
   private setupRoutes(): void {
+    // Fast ping endpoint for Claude Desktop connection testing
+    this.app.get('/ping', (req, res) => {
+      res.json({
+        pong: true,
+        timestamp: Date.now(),
+        server: 'instantly-mcp'
+      });
+    });
+
+    // Claude Desktop connection test endpoint
+    this.app.options('*', (req, res) => {
+      res.status(200).end();
+    });
+
     // Health check endpoint
     this.app.get('/health', (req, res) => {
       res.json({
@@ -162,7 +192,8 @@ export class StreamingHttpTransport {
           mcp: '/mcp',
           'mcp-with-key': '/mcp/:apiKey',
           health: '/health',
-          info: '/info'
+          info: '/info',
+          ping: '/ping'
         }
       });
     });
@@ -340,14 +371,20 @@ export class StreamingHttpTransport {
     return new Promise((resolve, reject) => {
       this.httpServer = createServer(this.app);
 
+      // Enhanced timeout and connection handling for Claude Desktop
+      this.httpServer.timeout = 30000; // 30 second timeout
+      this.httpServer.keepAliveTimeout = 65000; // 65 second keep-alive
+      this.httpServer.headersTimeout = 66000; // 66 second headers timeout
+
       // Connect server to transport before listening
       this.server.connect(this.transport).then(() => {
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
         this.httpServer!.listen(this.config.port, this.config.host, () => {
         console.error(`[Instantly MCP] 🌐 Streaming HTTP server running at http://${this.config.host}:${this.config.port}`);
         console.error(`[Instantly MCP] 📋 Health check: http://${this.config.host}:${this.config.port}/health`);
+        console.error(`[Instantly MCP] 🔗 Ping endpoint: http://${this.config.host}:${this.config.port}/ping`);
         console.error(`[Instantly MCP] 🔗 MCP endpoint: http://${this.config.host}:${this.config.port}/mcp`);
-        
+
         if (process.env.NODE_ENV === 'production') {
           console.error(`[Instantly MCP] 🏢 Production endpoints:`);
           console.error(`[Instantly MCP] 🔐 Header auth: https://mcp.instantly.ai/mcp`);
@@ -363,6 +400,16 @@ export class StreamingHttpTransport {
       this.httpServer.on('error', (error) => {
         console.error('[Instantly MCP] ❌ HTTP server error:', error);
         reject(error);
+      });
+
+      // Enhanced connection handling for Claude Desktop
+      this.httpServer.on('connection', (socket) => {
+        socket.setKeepAlive(true, 30000);
+        socket.setTimeout(30000);
+        socket.on('timeout', () => {
+          console.error('[Instantly MCP] ⚠️ Socket timeout, closing connection');
+          socket.destroy();
+        });
       });
 
       // Session cleanup interval
@@ -512,12 +559,15 @@ export class StreamingHttpTransport {
           };
 
         case 'initialize':
-          // MCP protocol initialization - Enhanced for Claude Desktop compatibility
+          // MCP protocol initialization - Optimized for Claude Desktop compatibility
+          const startTime = Date.now();
           console.error('[Instantly MCP] 🔧 HTTP Initialize request received from:', params?.clientInfo?.name || 'unknown');
+
+          // Pre-load icon for faster response
           const httpIcon = loadInstantlyIcon();
           console.error('[Instantly MCP] 🎨 HTTP Icon loaded:', httpIcon ? '✅ Present' : '❌ Missing');
 
-          // Enhanced initialization response for Claude Desktop remote connectors
+          // Optimized initialization response for Claude Desktop remote connectors
           const initResponse = {
             jsonrpc: '2.0',
             id,
@@ -551,7 +601,8 @@ export class StreamingHttpTransport {
             }
           };
 
-          console.error('[Instantly MCP] ✅ HTTP Initialize response prepared');
+          const responseTime = Date.now() - startTime;
+          console.error(`[Instantly MCP] ✅ HTTP Initialize response prepared in ${responseTime}ms`);
           return initResponse;
 
         case 'initialized':
