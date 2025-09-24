@@ -497,19 +497,26 @@ export class StreamingHttpTransport {
       switch (method) {
         case 'initialize':
           // MCP protocol initialization
+          console.error('[Instantly MCP] 🔧 HTTP Initialize request received');
+          const httpIcon = loadInstantlyIcon();
+          console.error('[Instantly MCP] 🎨 HTTP Icon loaded:', httpIcon ? '✅ Present' : '❌ Missing');
           return {
             jsonrpc: '2.0',
             id,
             result: {
               protocolVersion: '2024-11-05',
               capabilities: {
-                tools: {}
-                // Removed logging capability since we don't implement logging/setLevel
+                tools: {
+                  // Explicitly declare tool capabilities for Claude Desktop
+                  listChanged: true,
+                },
+                resources: {},
+                prompts: {},
               },
               serverInfo: {
                 name: 'instantly-mcp',
                 version: '1.1.0',
-                icon: loadInstantlyIcon()
+                icon: httpIcon
               }
             }
           };

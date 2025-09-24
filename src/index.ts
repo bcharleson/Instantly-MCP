@@ -137,15 +137,25 @@ console.error('[Instantly MCP] 🔑 API key configured:', INSTANTLY_API_KEY ? '�
 // Initialize handler - provides server info with icon for remote MCP connectors
 server.setRequestHandler(InitializeRequestSchema, async (request) => {
   console.error('[Instantly MCP] 🔧 Initialize request received');
+
+  // Ensure icon is loaded synchronously for Claude Desktop compatibility
+  const icon = loadInstantlyIcon();
+  console.error('[Instantly MCP] 🎨 Icon loaded:', icon ? '✅ Present' : '❌ Missing');
+
   return {
     protocolVersion: '2024-11-05',
     capabilities: {
-      tools: {},
+      tools: {
+        // Explicitly declare tool capabilities for Claude Desktop
+        listChanged: true,
+      },
+      resources: {},
+      prompts: {},
     },
     serverInfo: {
       name: 'instantly-mcp',
       version: '1.1.0',
-      icon: loadInstantlyIcon(),
+      icon: icon,
     },
   };
 });
