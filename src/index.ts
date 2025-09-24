@@ -29,6 +29,9 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { TransportManager, TransportConfig } from './transport-manager.js';
 import { StreamingHttpTransport, StreamingHttpConfig } from './streaming-http-transport.js';
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
 // Ensure fetch is available (Node.js 18+ has it built-in)
 if (typeof fetch === 'undefined') {
@@ -68,6 +71,22 @@ import {
 } from './validation.js';
 
 const INSTANTLY_API_URL = 'https://api.instantly.ai';
+
+// Load the Instantly.ai icon
+function loadInstantlyIcon(): string {
+  try {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+    const iconPath = join(__dirname, '..', 'assets', 'instantly.svg');
+    const svgContent = readFileSync(iconPath, 'utf8');
+    const base64Content = Buffer.from(svgContent).toString('base64');
+    return `data:image/svg+xml;base64,${base64Content}`;
+  } catch (error) {
+    console.error('[Instantly MCP] ⚠️ Could not load icon:', error);
+    // Fallback to a simple default icon
+    return 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iOCIgZmlsbD0iIzQ1ODBGNiIvPgo8dGV4dCB4PSIxNiIgeT0iMjAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0id2hpdGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiPkk8L3RleHQ+Cjwvc3ZnPg==';
+  }
+}
 
 // Parse command line arguments and environment
 function parseConfig() {
@@ -111,7 +130,7 @@ const server = new Server(
   {
     name: 'instantly-mcp',
     version: '1.1.0',
-    icon: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iOCIgZmlsbD0iIzAwN0FGRiIvPgo8cGF0aCBkPSJNOCAxMkgxNlYyMEg4VjEyWiIgZmlsbD0id2hpdGUiLz4KPHA+dGggZD0iTTE4IDhIMjRWMTRIMThWOFoiIGZpbGw9IndoaXRlIi8+CjxwYXRoIGQ9Ik0xOCAxOEgyNFYyNEgxOFYxOFoiIGZpbGw9IndoaXRlIi8+CjxjaXJjbGUgY3g9IjEyIiBjeT0iMTYiIHI9IjIiIGZpbGw9IiMwMDdBRkYiLz4KPC9zdmc+',
+    icon: loadInstantlyIcon(),
   },
   {
     capabilities: {
