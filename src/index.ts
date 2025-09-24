@@ -136,6 +136,7 @@ console.error('[Instantly MCP] 🔑 API key configured:', INSTANTLY_API_KEY ? '�
 
 // Initialize handler - provides server info with icon for remote MCP connectors
 server.setRequestHandler(InitializeRequestSchema, async (request) => {
+  console.error('[Instantly MCP] 🔧 Initialize request received');
   return {
     protocolVersion: '2024-11-05',
     capabilities: {
