@@ -2303,7 +2303,7 @@ async function startN8nHttpServer() {
     });
   });
 
-  // Main MCP endpoint for n8n
+  // Main MCP endpoint for n8n (header-based authentication)
   app.post('/mcp', async (req: any, res: any) => {
     try {
       const transport = new StreamableHTTPServerTransport({
@@ -2317,6 +2317,43 @@ async function startN8nHttpServer() {
 
     } catch (error) {
       console.error('[Instantly MCP n8n] Error:', error);
+      res.status(500).json({
+        jsonrpc: '2.0',
+        error: { code: -32603, message: 'Internal server error' },
+        id: null
+      });
+    }
+  });
+
+  // URL-based authentication endpoint for n8n compatibility
+  app.post('/mcp/:apiKey', async (req: any, res: any) => {
+    try {
+      // Extract API key from URL parameter
+      const apiKey = req.params.apiKey;
+
+      if (!apiKey) {
+        return res.status(400).json({
+          error: 'API key required',
+          message: 'Please provide your Instantly.ai API key in the URL path'
+        });
+      }
+
+      // Add API key to request headers for processing
+      req.headers['x-instantly-api-key'] = apiKey;
+
+      console.error(`[Instantly MCP] 🔗 URL-based auth request with API key: ${apiKey.substring(0, 8)}...`);
+
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => randomUUID(),
+        enableDnsRebindingProtection: false,
+      });
+
+      // Use the same server instance for URL-based requests
+      await server.connect(transport);
+      await transport.handleRequest(req, res, req.body);
+
+    } catch (error) {
+      console.error('[Instantly MCP] ❌ Error handling URL-based MCP request:', error);
       res.status(500).json({
         jsonrpc: '2.0',
         error: { code: -32603, message: 'Internal server error' },
