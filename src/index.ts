@@ -136,28 +136,44 @@ console.error('[Instantly MCP] 🔑 API key configured:', INSTANTLY_API_KEY ? '�
 
 // Initialize handler - provides server info with icon for remote MCP connectors
 server.setRequestHandler(InitializeRequestSchema, async (request) => {
-  console.error('[Instantly MCP] 🔧 Initialize request received');
+  console.error('[Instantly MCP] 🔧 Initialize request received from:', request.params?.clientInfo?.name || 'unknown');
 
   // Ensure icon is loaded synchronously for Claude Desktop compatibility
   const icon = loadInstantlyIcon();
   console.error('[Instantly MCP] 🎨 Icon loaded:', icon ? '✅ Present' : '❌ Missing');
 
-  return {
+  // Enhanced initialization response matching HTTP transport
+  const initResponse = {
     protocolVersion: '2024-11-05',
     capabilities: {
       tools: {
-        // Explicitly declare tool capabilities for Claude Desktop
         listChanged: true,
       },
-      resources: {},
-      prompts: {},
+      resources: {
+        subscribe: false,
+        listChanged: false,
+      },
+      prompts: {
+        listChanged: false,
+      },
+      // Claude Desktop expects explicit auth capability declaration
+      auth: {
+        required: false,
+      },
     },
     serverInfo: {
       name: 'instantly-mcp',
       version: '1.1.0',
       icon: icon,
+      // Add description for Claude Desktop
+      description: 'Instantly.ai email automation and campaign management tools',
     },
+    // Add instructions for Claude Desktop
+    instructions: 'Use these tools to manage Instantly.ai email campaigns, accounts, and automation workflows.',
   };
+
+  console.error('[Instantly MCP] ✅ Initialize response prepared');
+  return initResponse;
 });
 
 // Core API request function - now supports per-request API keys

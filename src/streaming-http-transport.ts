@@ -492,34 +492,67 @@ export class StreamingHttpTransport {
    */
   private async handleMcpRequestWithApiKey(mcpRequest: any, apiKey: string): Promise<any> {
     const { method, params, id } = mcpRequest;
-    
+    console.error(`[Instantly MCP] 📨 HTTP Request: ${method} (API Key: ${apiKey ? '✅ Present' : '❌ Missing'})`);
+
     try {
       switch (method) {
+        case 'ping':
+        case 'health':
+          // Health check endpoint for Claude Desktop remote connector service
+          console.error('[Instantly MCP] 🏥 Health check request received');
+          return {
+            jsonrpc: '2.0',
+            id,
+            result: {
+              status: 'healthy',
+              timestamp: new Date().toISOString(),
+              server: 'instantly-mcp',
+              version: '1.1.0'
+            }
+          };
+
         case 'initialize':
-          // MCP protocol initialization
-          console.error('[Instantly MCP] 🔧 HTTP Initialize request received');
+          // MCP protocol initialization - Enhanced for Claude Desktop compatibility
+          console.error('[Instantly MCP] 🔧 HTTP Initialize request received from:', params?.clientInfo?.name || 'unknown');
           const httpIcon = loadInstantlyIcon();
           console.error('[Instantly MCP] 🎨 HTTP Icon loaded:', httpIcon ? '✅ Present' : '❌ Missing');
-          return {
+
+          // Enhanced initialization response for Claude Desktop remote connectors
+          const initResponse = {
             jsonrpc: '2.0',
             id,
             result: {
               protocolVersion: '2024-11-05',
               capabilities: {
                 tools: {
-                  // Explicitly declare tool capabilities for Claude Desktop
                   listChanged: true,
                 },
-                resources: {},
-                prompts: {},
+                resources: {
+                  subscribe: false,
+                  listChanged: false,
+                },
+                prompts: {
+                  listChanged: false,
+                },
+                // Claude Desktop expects explicit auth capability declaration
+                auth: {
+                  required: false,
+                },
               },
               serverInfo: {
                 name: 'instantly-mcp',
                 version: '1.1.0',
-                icon: httpIcon
-              }
+                icon: httpIcon,
+                // Add description for Claude Desktop
+                description: 'Instantly.ai email automation and campaign management tools',
+              },
+              // Add instructions for Claude Desktop
+              instructions: 'Use these tools to manage Instantly.ai email campaigns, accounts, and automation workflows.',
             }
           };
+
+          console.error('[Instantly MCP] ✅ HTTP Initialize response prepared');
+          return initResponse;
 
         case 'initialized':
         case 'notifications/initialized':
