@@ -8,11 +8,30 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import express from 'express';
 import cors from 'cors';
 import { createServer, Server as HttpServer } from 'http';
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
 // Simple rate limiting interface
 interface RateLimitEntry {
   count: number;
   resetTime: number;
+}
+
+// Load the Instantly.ai icon
+function loadInstantlyIcon(): string {
+  try {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+    const iconPath = join(__dirname, '..', 'assets', 'instantly.svg');
+    const svgContent = readFileSync(iconPath, 'utf8');
+    const base64Content = Buffer.from(svgContent).toString('base64');
+    return `data:image/svg+xml;base64,${base64Content}`;
+  } catch (error) {
+    console.error('[Streaming HTTP Transport] ⚠️ Could not load icon:', error);
+    // Fallback to a simple default icon
+    return 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iOCIgZmlsbD0iIzQ1ODBGNiIvPgo8dGV4dCB4PSIxNiIgeT0iMjAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0id2hpdGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiPkk8L3RleHQ+Cjwvc3ZnPg==';
+  }
 }
 
 export interface StreamingHttpConfig {
@@ -497,7 +516,8 @@ export class StreamingHttpTransport {
               },
               serverInfo: {
                 name: 'instantly-mcp',
-                version: '1.1.0'
+                version: '1.1.0',
+                icon: loadInstantlyIcon()
               }
             }
           };
