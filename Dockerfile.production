@@ -47,6 +47,7 @@ COPY --from=builder /app/dist ./dist/
 COPY production.config.js ./
 COPY manifest.json ./
 COPY icon.png ./
+COPY assets/ ./assets/
 COPY README.md ./
 
 # Change ownership to non-root user
