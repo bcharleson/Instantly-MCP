@@ -2331,6 +2331,9 @@ async function startN8nHttpServer() {
   // Main MCP endpoint for n8n (header-based authentication)
   app.post('/mcp', async (req: any, res: any) => {
     try {
+      console.error('[Instantly MCP] 🔍 /mcp endpoint called');
+      console.error('[Instantly MCP] 🔍 Request body:', JSON.stringify(req.body, null, 2));
+
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => randomUUID(),
         enableDnsRebindingProtection: false, // Simplified for n8n
@@ -2367,6 +2370,7 @@ async function startN8nHttpServer() {
       req.headers['x-instantly-api-key'] = apiKey;
 
       console.error(`[Instantly MCP] 🔗 URL-based auth request with API key: ${apiKey.substring(0, 8)}...`);
+      console.error('[Instantly MCP] 🔍 Request body:', JSON.stringify(req.body, null, 2));
 
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => randomUUID(),
