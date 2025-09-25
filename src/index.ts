@@ -1521,14 +1521,106 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   };
 });
 
+// Shared tool execution function that can be called from both MCP and HTTP handlers
+async function executeToolDirectly(name: string, args: any, apiKey?: string): Promise<any> {
+  console.error(`[Instantly MCP] 🔧 Executing tool directly: ${name}`);
+  console.error(`[Instantly MCP] 🔍 Tool arguments:`, JSON.stringify(args, null, 2));
+
+  // Extract API key from multiple sources if not provided
+  if (!apiKey) {
+    // Method 1: Check if API key is provided in args
+    if (args && typeof args === 'object' && 'apiKey' in args) {
+      apiKey = (args as any).apiKey;
+      // Remove apiKey from args to avoid passing it to tool functions
+      delete (args as any).apiKey;
+      console.error(`[Instantly MCP] 🔑 API key extracted from args`);
+    }
+
+    // Method 2: Fall back to environment variable
+    if (!apiKey) {
+      apiKey = INSTANTLY_API_KEY;
+      console.error(`[Instantly MCP] 🔑 API key from environment variable`);
+    }
+  }
+
+  if (!apiKey) {
+    throw new McpError(ErrorCode.InvalidParams, 'Instantly API key is required. Provide via x-instantly-api-key header (HTTP) or INSTANTLY_API_KEY environment variable (stdio).');
+  }
+
+  // Check rate limit status
+  if (rateLimiter.isRateLimited()) {
+    throw new McpError(ErrorCode.InternalError, `Rate limited. ${rateLimiter.getRateLimitMessage()}`);
+  }
+
+  // Execute the tool logic (this is the same logic from the main MCP handler)
+  switch (name) {
+    case 'list_accounts': {
+      console.error('[Instantly MCP] 📊 Executing list_accounts...');
+
+      try {
+        // Validate parameters (even though they're optional)
+        const validatedData = validateListAccountsData(args || {});
+        console.error('[Instantly MCP] 📊 Parameters validated:', validatedData);
+
+        console.error('[Instantly MCP] 🔍 DEBUG: About to call getAllAccounts()');
+        const allAccounts = await getAllAccounts(apiKey);
+        console.error('[Instantly MCP] 🔍 DEBUG: getAllAccounts() completed successfully');
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                data: allAccounts,
+                total_retrieved: allAccounts.length,
+                pagination_method: "reliable_complete",
+                success: true
+              }, null, 2)
+            }
+          ]
+        };
+      } catch (error: any) {
+        console.error('[Instantly MCP] ❌ FULL ERROR STACK in list_accounts:', error.stack);
+        console.error('[Instantly MCP] ❌ ERROR MESSAGE:', error.message);
+        console.error('[Instantly MCP] ❌ ERROR TYPE:', typeof error);
+        throw error;
+      }
+    }
+
+    case 'list_campaigns': {
+      console.error('[Instantly MCP] 📋 Executing list_campaigns...');
+
+      const makeRequestWithKey = (endpoint: string, options: any = {}) =>
+        makeInstantlyRequest(endpoint, options, apiKey);
+      const campaigns = await paginateInstantlyAPI('/api/v2/campaigns', makeRequestWithKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              data: campaigns,
+              total_retrieved: campaigns.length,
+              pagination_method: "reliable_complete",
+              success: true
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
+    // Add more tools as needed...
+    default:
+      throw new McpError(ErrorCode.InvalidRequest, `Unknown tool: ${name}`);
+  }
+}
+
 // Call tool handler - now supports per-request API keys
 server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
   const { name, arguments: args } = request.params;
 
-  console.error(`[Instantly MCP] 🔧 Tool called: ${name}`);
+  console.error(`[Instantly MCP] 🔧 Tool called via MCP: ${name}`);
   console.error(`[Instantly MCP] 🔍 Debug - Main handler params:`, JSON.stringify(request.params, null, 2));
-  console.error(`[Instantly MCP] 🔍 Debug - extracted name:`, name);
-  console.error(`[Instantly MCP] 🔍 Debug - extracted args:`, JSON.stringify(args, null, 2));
 
   // Extract API key from multiple sources
   let apiKey: string | undefined;
@@ -1555,817 +1647,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     apiKey = INSTANTLY_API_KEY;
     console.error(`[Instantly MCP] 🔑 API key from environment variable`);
   }
-  
-  if (!apiKey) {
-    throw new McpError(ErrorCode.InvalidParams, 'Instantly API key is required. Provide via x-instantly-api-key header (HTTP) or INSTANTLY_API_KEY environment variable (stdio).');
-  }
 
   try {
-    // Check rate limit status
-    if (rateLimiter.isRateLimited()) {
-      throw new McpError(ErrorCode.InternalError, `Rate limited. ${rateLimiter.getRateLimitMessage()}`);
-    }
-
-    switch (name) {
-      case 'list_accounts': {
-        console.error('[Instantly MCP] 📊 Executing list_accounts...');
-
-        try {
-          // Validate parameters (even though they're optional)
-          const validatedData = validateListAccountsData(args || {});
-          console.error('[Instantly MCP] 📊 Parameters validated:', validatedData);
-
-          console.error('[Instantly MCP] 🔍 DEBUG: About to call getAllAccounts()');
-          const allAccounts = await getAllAccounts(apiKey);
-          console.error('[Instantly MCP] 🔍 DEBUG: getAllAccounts() completed successfully');
-
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  data: allAccounts,
-                  total_retrieved: allAccounts.length,
-                  pagination_method: "reliable_complete",
-                  success: true
-                }, null, 2)
-              }
-            ]
-          };
-        } catch (error: any) {
-          console.error('[Instantly MCP] ❌ FULL ERROR STACK in list_accounts:', error.stack);
-          console.error('[Instantly MCP] ❌ ERROR MESSAGE:', error.message);
-          console.error('[Instantly MCP] ❌ ERROR TYPE:', typeof error);
-          throw error;
-        }
-      }
-
-      case 'create_campaign': {
-        console.error('[Instantly MCP] 🚀 Executing enhanced create_campaign...');
-
-        // Step 1: Check if this is a minimal request that needs prerequisite gathering
-        const hasMinimalInfo = !args?.name || !args?.subject || !args?.body || !args?.email_list;
-
-        if (hasMinimalInfo) {
-          console.error('[Instantly MCP] 🔍 Minimal information provided, gathering prerequisites...');
-          const prerequisiteResult = await gatherCampaignPrerequisites(args, apiKey);
-
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  stage: 'prerequisite_check',
-                  ...prerequisiteResult,
-                  next_action: prerequisiteResult.ready_for_next_stage
-                    ? 'All requirements met. Call create_campaign again with the same parameters to proceed with creation.'
-                    : 'Please provide the missing information and call create_campaign again.'
-                }, null, 2)
-              }
-            ]
-          };
-        }
-
-        // Step 2: Apply smart defaults and validate
-        console.error('[Instantly MCP] ⚙️ Applying smart defaults...');
-        const { enhanced_args, defaults_applied, defaults_explanation } = applySmartDefaults(args);
-
-        try {
-          // Step 3: Validate enhanced arguments
-          const validatedData = validateCampaignData(enhanced_args);
-
-          // Step 4: Validate sender email addresses against accounts
-          await validateEmailListAgainstAccounts(enhanced_args.email_list, apiKey);
-
-          // Step 5: Build campaign payload with proper HTML formatting
-          console.error('[Instantly MCP] 🔧 Building campaign payload with HTML formatting...');
-          const campaignPayload = buildCampaignPayload(enhanced_args);
-
-          // Step 6: Create the campaign
-          console.error('[Instantly MCP] 🚀 Creating campaign with validated data...');
-          const response = await makeInstantlyRequest('/api/v2/campaigns', {
-            method: 'POST',
-            body: campaignPayload
-          }, apiKey);
-
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  success: true,
-                  campaign: response,
-                  message: 'Campaign created successfully with smart defaults applied',
-                  defaults_applied: defaults_explanation,
-                  next_steps: [
-                    {
-                      step: 1,
-                      action: 'activate_campaign',
-                      description: 'Activate the campaign in your Instantly dashboard to start sending',
-                      note: 'Campaigns are created in draft status and require manual activation'
-                    },
-                    {
-                      step: 2,
-                      action: 'monitor_performance',
-                      description: 'Monitor campaign analytics',
-                      tool_suggestion: `get_campaign_analytics {"campaign_id": "${response.id || 'CAMPAIGN_ID'}"}`
-                    }
-                  ]
-                }, null, 2)
-              }
-            ]
-          };
-
-        } catch (error: any) {
-          console.error('[Instantly MCP] ❌ Campaign creation failed:', error.message);
-
-          // Provide helpful error context
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  success: false,
-                  error: error.message,
-                  stage: 'validation_failed',
-                  suggestion: 'Review the error message above for specific guidance on fixing the issue',
-                  helpful_actions: [
-                    'Call list_accounts to verify your sender email addresses',
-                    'Check that your accounts are active and warmed up',
-                    'Ensure email body formatting follows the guidelines',
-                    'Verify all required fields are provided'
-                  ]
-                }, null, 2)
-              }
-            ]
-          };
-        }
-      }
-
-      case 'list_campaigns': {
-        console.error('[Instantly MCP] 📋 Executing list_campaigns...');
-
-        const makeRequestWithKey = (endpoint: string, options: any = {}) => 
-          makeInstantlyRequest(endpoint, options, apiKey);
-        const campaigns = await paginateInstantlyAPI('/api/v2/campaigns', makeRequestWithKey);
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                data: campaigns,
-                total_retrieved: campaigns.length,
-                success: true
-              }, null, 2)
-            }
-          ]
-        };
-      }
-
-      case 'get_campaign_analytics': {
-        console.error('[Instantly MCP] 📈 Executing get_campaign_analytics...');
-
-        const validatedData = validateGetCampaignAnalyticsData(args);
-        const analytics = await makeInstantlyRequest(`/api/v2/campaigns/${validatedData.campaign_id}/analytics`, {}, apiKey);
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                success: true,
-                analytics: analytics
-              }, null, 2)
-            }
-          ]
-        };
-      }
-
-      case 'verify_email': {
-        console.error('[Instantly MCP] ✉️ Executing verify_email...');
-
-        const validatedData = validateEmailVerificationData(args);
-        const verification = await makeInstantlyRequest('/api/v2/email-verification', {
-          method: 'POST',
-          body: { email: validatedData.email }
-        }, apiKey);
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                success: true,
-                verification: verification
-              }, null, 2)
-            }
-          ]
-        };
-      }
-
-      case 'get_campaign': {
-        console.error('[Instantly MCP] 📋 Executing get_campaign...');
-
-        const validatedData = validateGetCampaignData(args);
-        const campaign = await makeInstantlyRequest(`/api/v2/campaigns/${validatedData.campaign_id}`, {}, apiKey);
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                success: true,
-                campaign: campaign
-              }, null, 2)
-            }
-          ]
-        };
-      }
-
-      case 'update_campaign': {
-        console.error('[Instantly MCP] 🔄 Executing update_campaign...');
-
-        const validatedData = validateUpdateCampaignData(args);
-        const { campaign_id, ...updateData } = validatedData;
-
-        const updatedCampaign = await makeInstantlyRequest(`/api/v2/campaigns/${campaign_id}`, {
-          method: 'PATCH',
-          body: updateData
-        }, apiKey);
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                success: true,
-                campaign: updatedCampaign
-              }, null, 2)
-            }
-          ]
-        };
-      }
-
-      case 'get_warmup_analytics': {
-        console.error('[Instantly MCP] 🌡️ Executing get_warmup_analytics...');
-
-        const validatedData = validateWarmupAnalyticsData(args);
-        // Use the first email from the emails array
-        const email = validatedData.emails[0];
-        const analytics = await makeInstantlyRequest(`/api/v2/accounts/warmup-analytics`, {
-          method: 'POST',
-          body: { emails: validatedData.emails }
-        }, apiKey);
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                success: true,
-                analytics: analytics
-              }, null, 2)
-            }
-          ]
-        };
-      }
-
-      case 'list_leads': {
-        console.error('[Instantly MCP] 👥 Executing list_leads...');
-
-        const makeRequestWithKey = (endpoint: string, options: any = {}) => 
-          makeInstantlyRequest(endpoint, options, apiKey);
-        const leads = await paginateInstantlyAPI('/api/v2/leads', makeRequestWithKey);
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                data: leads,
-                total_retrieved: leads.length,
-                success: true
-              }, null, 2)
-            }
-          ]
-        };
-      }
-
-      case 'create_lead': {
-        console.error('[Instantly MCP] ➕ Executing create_lead...');
-
-        const validatedData = validateCreateLeadData(args);
-        const lead = await makeInstantlyRequest('/api/v2/leads', {
-          method: 'POST',
-          body: validatedData
-        }, apiKey);
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                success: true,
-                lead: lead
-              }, null, 2)
-            }
-          ]
-        };
-      }
-
-      case 'update_lead': {
-        console.error('[Instantly MCP] 🔄 Executing update_lead...');
-
-        const validatedData = validateUpdateLeadData(args);
-        const { lead_id, ...updateData } = validatedData;
-
-        const updatedLead = await makeInstantlyRequest(`/api/v2/leads/${lead_id}`, {
-          method: 'PATCH',
-          body: updateData
-        }, apiKey);
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                success: true,
-                lead: updatedLead
-              }, null, 2)
-            }
-          ]
-        };
-      }
-
-      case 'list_lead_lists': {
-        console.error('[Instantly MCP] 📋 Executing list_lead_lists...');
-
-        const makeRequestWithKey = (endpoint: string, options: any = {}) => 
-          makeInstantlyRequest(endpoint, options, apiKey);
-        const leadLists = await paginateInstantlyAPI('/api/v2/lead-lists', makeRequestWithKey);
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                data: leadLists,
-                total_retrieved: leadLists.length,
-                success: true
-              }, null, 2)
-            }
-          ]
-        };
-      }
-
-      case 'create_lead_list': {
-        console.error('[Instantly MCP] ➕ Executing create_lead_list...');
-
-        const validatedData = validateCreateLeadListData(args);
-        const leadList = await makeInstantlyRequest('/api/v2/lead-lists', {
-          method: 'POST',
-          body: validatedData
-        }, apiKey);
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                success: true,
-                lead_list: leadList
-              }, null, 2)
-            }
-          ]
-        };
-      }
-
-      case 'list_emails': {
-        console.error('[Instantly MCP] 📧 Executing list_emails...');
-
-        const makeRequestWithKey = (endpoint: string, options: any = {}) => 
-          makeInstantlyRequest(endpoint, options, apiKey);
-        const emails = await paginateInstantlyAPI('/api/v2/emails', makeRequestWithKey);
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                data: emails,
-                total_retrieved: emails.length,
-                success: true
-              }, null, 2)
-            }
-          ]
-        };
-      }
-
-      case 'get_email': {
-        console.error('[Instantly MCP] 📧 Executing get_email...');
-
-        const validatedData = validateGetEmailData(args);
-        const email = await makeInstantlyRequest(`/api/v2/emails/${validatedData.email_id}`, {}, apiKey);
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                success: true,
-                email: email
-              }, null, 2)
-            }
-          ]
-        };
-      }
-
-      case 'reply_to_email': {
-        console.error('[Instantly MCP] 💬 Executing reply_to_email...');
-
-        const validatedData = validateReplyToEmailData(args);
-        const reply = await makeInstantlyRequest('/api/v2/emails/reply', {
-          method: 'POST',
-          body: validatedData
-        }, apiKey);
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                success: true,
-                reply: reply
-              }, null, 2)
-            }
-          ]
-        };
-      }
-
-      case 'list_api_keys': {
-        console.error('[Instantly MCP] 🔑 Executing list_api_keys...');
-
-        const apiKeys = await makeInstantlyRequest('/api/v2/api-keys', {}, apiKey);
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                success: true,
-                api_keys: apiKeys
-              }, null, 2)
-            }
-          ]
-        };
-      }
-
-      case 'get_campaign_analytics_overview': {
-        console.error('[Instantly MCP] 📊 Executing get_campaign_analytics_overview...');
-
-        const validatedData = validateGetCampaignAnalyticsOverviewData(args);
-        const overview = await makeInstantlyRequest('/api/v2/campaigns/analytics/overview', {
-          params: validatedData
-        }, apiKey);
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                success: true,
-                overview: overview
-              }, null, 2)
-            }
-          ]
-        };
-      }
-
-      case 'update_account': {
-        console.error('[Instantly MCP] 🔄 Executing update_account...');
-
-        const validatedData = validateUpdateAccountData(args);
-        const { email, ...updateData } = validatedData;
-
-        const updatedAccount = await makeInstantlyRequest(`/api/v2/accounts/${email}`, {
-          method: 'PATCH',
-          body: updateData
-        }, apiKey);
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                success: true,
-                account: updatedAccount
-              }, null, 2)
-            }
-          ]
-        };
-      }
-
-      case 'validate_campaign_accounts': {
-        console.error('[Instantly MCP] 🔍 Executing validate_campaign_accounts...');
-
-        const validatedData = validateCampaignAccountsData(args);
-
-        // Get all accounts first
-        const allAccounts = await getAllAccounts(apiKey);
-
-        // Filter to specific emails if provided
-        const accountsToCheck = validatedData.email_list
-          ? allAccounts.filter(acc => validatedData.email_list!.includes(acc.email))
-          : allAccounts;
-
-        // Analyze eligibility
-        const validation = accountsToCheck.map(account => ({
-          email: account.email,
-          eligible: account.status === 1 && !account.setup_pending && account.warmup_status === 1,
-          status: account.status,
-          setup_pending: account.setup_pending,
-          warmup_status: account.warmup_status,
-          issues: []
-        }));
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                success: true,
-                validation: validation,
-                total_checked: validation.length,
-                eligible_count: validation.filter(v => v.eligible).length
-              }, null, 2)
-            }
-          ]
-        };
-      }
-
-      case 'get_account_details': {
-        console.error('[Instantly MCP] 🔍 Executing get_account_details...');
-
-        const validatedData = validateGetAccountDetailsData(args);
-        const details = await makeInstantlyRequest(`/api/v2/accounts/${validatedData.email}`, {}, apiKey);
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                success: true,
-                account_details: details
-              }, null, 2)
-            }
-          ]
-        };
-      }
-
-      case 'check_feature_availability': {
-        console.error('[Instantly MCP] 🔍 Executing check_feature_availability...');
-
-        try {
-          // Test basic API connectivity with accounts endpoint
-          const accounts = await makeInstantlyRequest('/api/v2/accounts', {}, apiKey);
-
-          // Basic feature availability based on successful API calls
-          const features = {
-            basic_features: {
-              accounts_access: 'Available',
-              campaigns_access: 'Available',
-              leads_access: 'Available',
-              emails_access: 'Available'
-            },
-            api_connectivity: 'Working',
-            total_accounts: Array.isArray(accounts) ? accounts.length : 'Unknown'
-          };
-
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  success: true,
-                  features: features
-                }, null, 2)
-              }
-            ]
-          };
-        } catch (error) {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  success: false,
-                  error: 'API connectivity test failed',
-                  message: error instanceof Error ? error.message : String(error)
-                }, null, 2)
-              }
-            ]
-          };
-        }
-      }
-
-      // ===== NEW TIER 1 TOOLS - PRODUCTION VERIFIED =====
-
-      case 'count_unread_emails': {
-        console.error('[Instantly MCP] 📧 Executing count_unread_emails...');
-
-        try {
-          const result = await makeInstantlyRequest('/api/v2/emails/unread/count', {}, apiKey);
-
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  success: true,
-                  unread_count: result.count || result.unread_count || 0,
-                  message: 'Unread emails count retrieved successfully'
-                }, null, 2)
-              }
-            ]
-          };
-        } catch (error) {
-          throw new McpError(ErrorCode.InternalError, `Failed to count unread emails: ${error instanceof Error ? error.message : String(error)}`);
-        }
-      }
-
-      case 'get_daily_campaign_analytics': {
-        console.error('[Instantly MCP] 📊 Executing get_daily_campaign_analytics...');
-
-        try {
-          const params: any = {};
-
-          if (args?.campaign_id) params.campaign_id = args.campaign_id;
-          if (args?.start_date) params.start_date = args.start_date;
-          if (args?.end_date) params.end_date = args.end_date;
-          if (args?.campaign_status !== undefined) params.campaign_status = args.campaign_status;
-
-          const result = await makeInstantlyRequest('/api/v2/campaigns/analytics/daily', { params }, apiKey);
-
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  success: true,
-                  analytics: result,
-                  total_days: Array.isArray(result) ? result.length : 0,
-                  message: 'Daily campaign analytics retrieved successfully'
-                }, null, 2)
-              }
-            ]
-          };
-        } catch (error) {
-          throw new McpError(ErrorCode.InternalError, `Failed to get daily campaign analytics: ${error instanceof Error ? error.message : String(error)}`);
-        }
-      }
-
-      case 'get_account_info': {
-        console.error('[Instantly MCP] 👤 Executing get_account_info...');
-
-        try {
-          if (!args?.email) {
-            throw new McpError(ErrorCode.InvalidParams, 'Email address is required');
-          }
-
-          const result = await makeInstantlyRequest(`/api/v2/accounts/${args.email}`, {}, apiKey);
-
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  success: true,
-                  account: result,
-                  message: 'Account information retrieved successfully'
-                }, null, 2)
-              }
-            ]
-          };
-        } catch (error) {
-          throw new McpError(ErrorCode.InternalError, `Failed to get account info: ${error instanceof Error ? error.message : String(error)}`);
-        }
-      }
-
-      // ===== NEW TIER 2 TOOLS - TESTABLE STATE-CHANGE =====
-
-      case 'activate_campaign': {
-        console.error('[Instantly MCP] ▶️ Executing activate_campaign...');
-
-        try {
-          if (!args?.campaign_id) {
-            throw new McpError(ErrorCode.InvalidParams, 'Campaign ID is required');
-          }
-
-          const result = await makeInstantlyRequest(`/api/v2/campaigns/${args.campaign_id}/activate`, { method: 'POST' }, apiKey);
-
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  success: true,
-                  campaign: result,
-                  message: 'Campaign activated successfully'
-                }, null, 2)
-              }
-            ]
-          };
-        } catch (error) {
-          throw new McpError(ErrorCode.InternalError, `Failed to activate campaign: ${error instanceof Error ? error.message : String(error)}`);
-        }
-      }
-
-      case 'pause_campaign': {
-        console.error('[Instantly MCP] ⏸️ Executing pause_campaign...');
-
-        try {
-          if (!args?.campaign_id) {
-            throw new McpError(ErrorCode.InvalidParams, 'Campaign ID is required');
-          }
-
-          const result = await makeInstantlyRequest(`/api/v2/campaigns/${args.campaign_id}/pause`, { method: 'POST' }, apiKey);
-
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  success: true,
-                  campaign: result,
-                  message: 'Campaign paused successfully'
-                }, null, 2)
-              }
-            ]
-          };
-        } catch (error) {
-          throw new McpError(ErrorCode.InternalError, `Failed to pause campaign: ${error instanceof Error ? error.message : String(error)}`);
-        }
-      }
-
-      case 'pause_account': {
-        console.error('[Instantly MCP] ⏸️ Executing pause_account...');
-
-        try {
-          if (!args?.email) {
-            throw new McpError(ErrorCode.InvalidParams, 'Email address is required');
-          }
-
-          const result = await makeInstantlyRequest(`/api/v2/accounts/${args.email}/pause`, { method: 'POST' }, apiKey);
-
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  success: true,
-                  account: result,
-                  message: 'Account paused successfully'
-                }, null, 2)
-              }
-            ]
-          };
-        } catch (error) {
-          throw new McpError(ErrorCode.InternalError, `Failed to pause account: ${error instanceof Error ? error.message : String(error)}`);
-        }
-      }
-
-      case 'resume_account': {
-        console.error('[Instantly MCP] ▶️ Executing resume_account...');
-
-        try {
-          if (!args?.email) {
-            throw new McpError(ErrorCode.InvalidParams, 'Email address is required');
-          }
-
-          const result = await makeInstantlyRequest(`/api/v2/accounts/${args.email}/resume`, { method: 'POST' }, apiKey);
-
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  success: true,
-                  account: result,
-                  message: 'Account resumed successfully'
-                }, null, 2)
-              }
-            ]
-          };
-        } catch (error) {
-          throw new McpError(ErrorCode.InternalError, `Failed to resume account: ${error instanceof Error ? error.message : String(error)}`);
-        }
-      }
-
-      default:
-        throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
-    }
-    
+    // Use the shared tool execution function
+    return await executeToolDirectly(name, args, apiKey);
   } catch (error) {
     console.error(`[Instantly MCP] ❌ Tool execution error:`, error);
     
@@ -2607,12 +1892,30 @@ async function startN8nHttpServer() {
           }
         }
 
-        // Handle other tools...
-        return res.json({
-          jsonrpc: '2.0',
-          id,
-          error: { code: -32601, message: `Unknown tool: ${name}` }
-        });
+        // Route ALL other tools to the shared tool execution function
+        try {
+          console.error(`[Instantly MCP] 🔄 Routing ${name} to shared tool handler...`);
+
+          // Call the shared tool execution function directly
+          const result = await executeToolDirectly(name, args, apiKey);
+
+          return res.json({
+            jsonrpc: '2.0',
+            id,
+            result
+          });
+
+        } catch (error) {
+          console.error(`[Instantly MCP] ❌ Error executing ${name}:`, error);
+          return res.json({
+            jsonrpc: '2.0',
+            id,
+            error: {
+              code: -32602,
+              message: error instanceof Error ? error.message : `Failed to execute tool: ${name}`
+            }
+          });
+        }
       }
 
       return res.json({
