@@ -2804,64 +2804,21 @@ async function main() {
   const { isN8nMode, transportMode, isHttpMode } = parseConfig();
 
   if (isHttpMode) {
-    console.error(`[Instantly MCP] 🌐 Starting ${transportMode} transport mode...`);
+    console.error(`[Instantly MCP] 🌐 Starting ${transportMode} transport mode with direct Express handler...`);
 
     if (process.env.NODE_ENV === 'production') {
       console.error('[Instantly MCP] 🏢 Production endpoints:');
-      console.error('[Instantly MCP] 🔐 Header auth: https://mcp.instantly.ai/mcp');
-      console.error('[Instantly MCP] 🔗 URL auth: https://mcp.instantly.ai/mcp/{API_KEY}');
+      console.error('[Instantly MCP] 🔗 URL auth: https://instantly-mcp-iyjln.ondigitalocean.app/mcp/{API_KEY}');
     }
 
-    // Use new streaming HTTP transport
-    const config: StreamingHttpConfig = {
-      port: parseInt(process.env.PORT || '3000'),
-      host: process.env.HOST || '0.0.0.0',
-      cors: {
-        origin: process.env.NODE_ENV === 'production'
-          ? ['https://claude.ai', 'https://cursor.sh', 'https://instantly.ai', 'https://mcp.instantly.ai']
-          : true,
-        credentials: true
-      }
-      // No auth config - using per-request API key passthrough
-    };
+    // DISABLED: StreamingHttpTransport was intercepting requests before our direct handler
+    // Use only the direct Express handler for better control and debugging
+    console.error('[Instantly MCP] 🚀 Using direct Express handler (StreamingHttpTransport disabled)');
 
-    const httpTransport = new StreamingHttpTransport(server, config);
+    // Start the direct Express handler
+    await startN8nHttpServer();
 
-    // Set up request handlers to integrate with existing server logic
-    httpTransport.setRequestHandlers({
-      toolsList: async (id: any) => {
-        const tools = await getToolsList();
-        return {
-          jsonrpc: '2.0',
-          id,
-          result: { tools }
-        };
-      },
-      toolCall: async (params: any, id: any) => {
-        // Call the existing handleToolCall function which will be enhanced with all tools
-        const { name, arguments: args } = params;
-
-        console.error(`[Instantly MCP] 🔧 HTTP Tool called: ${name}`);
-        console.error('[Instantly MCP] 🔍 Debug - toolCall params:', JSON.stringify(params, null, 2));
-
-        // The API key should already be in args.apiKey from the HTTP transport
-        const result = await handleToolCall(params);
-
-        // Wrap the tool response in proper JSON-RPC 2.0 format
-        return {
-          jsonrpc: '2.0',
-          id,
-          result
-        };
-      }
-    });
-
-    await httpTransport.start();
-
-    // Keep legacy n8n support
-    if (isN8nMode) {
-      console.error('[Instantly MCP] 🤖 Legacy n8n mode compatibility enabled');
-    }
+    console.error('[Instantly MCP] ✅ Direct Express handler started successfully');
 
   } else {
     console.error('[Instantly MCP] 🔌 Starting stdio mode (Claude Desktop, Cursor IDE)...');
