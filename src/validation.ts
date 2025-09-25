@@ -224,26 +224,50 @@ export const CreateCampaignSchema = z.object({
   stop_on_reply: z.boolean().optional()
 }).refine(
   (data) => {
-    // Validate sequence_bodies length matches sequence_steps
+    // Validate sequence_bodies length exactly matches sequence_steps when provided
     if (data.sequence_steps && data.sequence_bodies) {
-      return data.sequence_bodies.length >= data.sequence_steps;
+      return data.sequence_bodies.length === data.sequence_steps;
     }
     return true;
   },
   {
-    error: 'sequence_bodies array must contain at least as many items as sequence_steps',
+    error: 'sequence_bodies array must contain exactly the same number of items as sequence_steps',
     path: ['sequence_bodies']
   }
 ).refine(
   (data) => {
-    // Validate sequence_subjects length matches sequence_steps
+    // Validate sequence_subjects length exactly matches sequence_steps when provided
     if (data.sequence_steps && data.sequence_subjects) {
-      return data.sequence_subjects.length >= data.sequence_steps;
+      return data.sequence_subjects.length === data.sequence_steps;
     }
     return true;
   },
   {
-    error: 'sequence_subjects array must contain at least as many items as sequence_steps',
+    error: 'sequence_subjects array must contain exactly the same number of items as sequence_steps',
+    path: ['sequence_subjects']
+  }
+).refine(
+  (data) => {
+    // Validate all sequence_bodies items are non-empty strings when provided
+    if (data.sequence_bodies && Array.isArray(data.sequence_bodies)) {
+      return data.sequence_bodies.every(body => typeof body === 'string' && body.trim().length > 0);
+    }
+    return true;
+  },
+  {
+    error: 'All sequence_bodies items must be non-empty strings',
+    path: ['sequence_bodies']
+  }
+).refine(
+  (data) => {
+    // Validate all sequence_subjects items are non-empty strings when provided
+    if (data.sequence_subjects && Array.isArray(data.sequence_subjects)) {
+      return data.sequence_subjects.every(subject => typeof subject === 'string' && subject.trim().length > 0);
+    }
+    return true;
+  },
+  {
+    error: 'All sequence_subjects items must be non-empty strings',
     path: ['sequence_subjects']
   }
 );

@@ -710,6 +710,87 @@ function applySmartDefaults(args: any): any {
     defaultsApplied.push('days: Monday-Friday only (weekends excluded for business outreach)');
   }
 
+  // Apply sequence defaults
+  if (enhancedArgs.sequence_steps === undefined) {
+    enhancedArgs.sequence_steps = 1;
+    defaultsApplied.push('sequence_steps: 1 (single email campaign)');
+  }
+
+  if (enhancedArgs.step_delay_days === undefined) {
+    enhancedArgs.step_delay_days = 3;
+    defaultsApplied.push('step_delay_days: 3 (3-day delay between follow-ups)');
+  }
+
+  // Handle sequence arrays - ensure they match sequence_steps count
+  const sequenceSteps = enhancedArgs.sequence_steps || 1;
+
+  // If sequence_bodies is provided but incomplete, extend it
+  if (enhancedArgs.sequence_bodies !== undefined) {
+    if (!Array.isArray(enhancedArgs.sequence_bodies)) {
+      enhancedArgs.sequence_bodies = [];
+    }
+
+    // Extend array to match sequence_steps if needed
+    while (enhancedArgs.sequence_bodies.length < sequenceSteps) {
+      if (enhancedArgs.sequence_bodies.length === 0) {
+        // First item uses the main body
+        enhancedArgs.sequence_bodies.push(enhancedArgs.body || '');
+      } else {
+        // Additional items use follow-up template
+        const stepNumber = enhancedArgs.sequence_bodies.length + 1;
+        enhancedArgs.sequence_bodies.push(`Follow-up #${stepNumber}:\n\n${enhancedArgs.body || ''}`);
+      }
+    }
+
+    if (enhancedArgs.sequence_bodies.length > 0) {
+      defaultsApplied.push(`sequence_bodies: Extended to ${sequenceSteps} items to match sequence_steps`);
+    }
+  } else if (sequenceSteps > 1) {
+    // Auto-generate sequence bodies for multi-step campaigns
+    enhancedArgs.sequence_bodies = [];
+    for (let i = 0; i < sequenceSteps; i++) {
+      if (i === 0) {
+        enhancedArgs.sequence_bodies.push(enhancedArgs.body || '');
+      } else {
+        enhancedArgs.sequence_bodies.push(`Follow-up #${i + 1}:\n\n${enhancedArgs.body || ''}`);
+      }
+    }
+    defaultsApplied.push(`sequence_bodies: Auto-generated ${sequenceSteps} follow-up templates`);
+  }
+
+  // If sequence_subjects is provided but incomplete, extend it
+  if (enhancedArgs.sequence_subjects !== undefined) {
+    if (!Array.isArray(enhancedArgs.sequence_subjects)) {
+      enhancedArgs.sequence_subjects = [];
+    }
+
+    // Extend array to match sequence_steps if needed
+    while (enhancedArgs.sequence_subjects.length < sequenceSteps) {
+      if (enhancedArgs.sequence_subjects.length === 0) {
+        // First item uses the main subject
+        enhancedArgs.sequence_subjects.push(enhancedArgs.subject || '');
+      } else {
+        // Additional items use follow-up template
+        enhancedArgs.sequence_subjects.push(`Follow-up: ${enhancedArgs.subject || ''}`);
+      }
+    }
+
+    if (enhancedArgs.sequence_subjects.length > 0) {
+      defaultsApplied.push(`sequence_subjects: Extended to ${sequenceSteps} items to match sequence_steps`);
+    }
+  } else if (sequenceSteps > 1) {
+    // Auto-generate sequence subjects for multi-step campaigns
+    enhancedArgs.sequence_subjects = [];
+    for (let i = 0; i < sequenceSteps; i++) {
+      if (i === 0) {
+        enhancedArgs.sequence_subjects.push(enhancedArgs.subject || '');
+      } else {
+        enhancedArgs.sequence_subjects.push(`Follow-up: ${enhancedArgs.subject || ''}`);
+      }
+    }
+    defaultsApplied.push(`sequence_subjects: Auto-generated ${sequenceSteps} follow-up subjects`);
+  }
+
   return {
     enhanced_args: enhancedArgs,
     defaults_applied: defaultsApplied,
