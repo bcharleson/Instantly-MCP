@@ -2328,30 +2328,8 @@ async function startN8nHttpServer() {
     });
   });
 
-  // Main MCP endpoint for n8n (header-based authentication)
-  app.post('/mcp', async (req: any, res: any) => {
-    try {
-      console.error('[Instantly MCP] 🔍 /mcp endpoint called');
-      console.error('[Instantly MCP] 🔍 Request body:', JSON.stringify(req.body, null, 2));
-
-      const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => randomUUID(),
-        enableDnsRebindingProtection: false, // Simplified for n8n
-      });
-
-      // Use the same server instance for n8n requests
-      await server.connect(transport);
-      await transport.handleRequest(req, res, req.body);
-
-    } catch (error) {
-      console.error('[Instantly MCP n8n] Error:', error);
-      res.status(500).json({
-        jsonrpc: '2.0',
-        error: { code: -32603, message: 'Internal server error' },
-        id: null
-      });
-    }
-  });
+  // REMOVED: Old /mcp endpoint that was causing routing conflicts
+  // All requests now go through the direct handler at /mcp/:apiKey
 
   // URL-based authentication endpoint for n8n compatibility
   app.post('/mcp/:apiKey', async (req: any, res: any) => {
