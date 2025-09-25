@@ -2347,9 +2347,68 @@ async function startN8nHttpServer() {
       console.error(`[Instantly MCP] 🔗 URL-based auth request with API key: ${apiKey.substring(0, 8)}...`);
       console.error('[Instantly MCP] 🔍 Request body:', JSON.stringify(req.body, null, 2));
 
+      // Set required MCP protocol headers
+      res.setHeader('mcp-protocol-version', '2024-11-05');
+      res.setHeader('mcp-session-id', req.headers['mcp-session-id'] || `session-${Date.now()}`);
+
       const { jsonrpc, id, method, params } = req.body;
 
       // Handle different MCP methods directly (bypass StreamableHTTPServerTransport)
+
+      // MCP Protocol initialization - Required for MCP Inspector
+      if (method === 'initialize') {
+        console.error('[Instantly MCP] 🔧 Initialize request received from MCP Inspector');
+        return res.json({
+          jsonrpc: '2.0',
+          id,
+          result: {
+            protocolVersion: '2024-11-05',
+            capabilities: {
+              tools: {
+                listChanged: true,
+              },
+              resources: {
+                subscribe: false,
+                listChanged: false,
+              },
+              prompts: {
+                listChanged: false,
+              },
+              auth: {
+                required: false,
+              },
+            },
+            serverInfo: {
+              name: 'instantly-mcp',
+              version: '1.1.0',
+              description: 'Instantly.ai email automation and campaign management tools',
+            },
+            instructions: 'Use these tools to manage Instantly.ai email campaigns, accounts, and automation workflows.',
+          }
+        });
+      }
+
+      // MCP Protocol initialization complete notification
+      if (method === 'initialized' || method === 'notifications/initialized') {
+        console.error('[Instantly MCP] ✅ Initialized notification received from MCP Inspector');
+        // Notifications don't return responses
+        return res.status(204).end();
+      }
+
+      // Health/ping check
+      if (method === 'ping' || method === 'health') {
+        return res.json({
+          jsonrpc: '2.0',
+          id,
+          result: {
+            status: 'healthy',
+            timestamp: new Date().toISOString(),
+            server: 'instantly-mcp',
+            version: '1.1.0'
+          }
+        });
+      }
+
       if (method === 'tools/list') {
         return res.json({
           jsonrpc: '2.0',
