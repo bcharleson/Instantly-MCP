@@ -1430,22 +1430,36 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 // Call tool handler - now supports per-request API keys
 server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
   const { name, arguments: args } = request.params;
-  
-  console.error(`[Instantly MCP] 🔧 Tool called: ${name}`);
 
-  // Extract API key from params (for HTTP transport) or environment (for stdio)
+  console.error(`[Instantly MCP] 🔧 Tool called: ${name}`);
+  console.error(`[Instantly MCP] 🔍 Debug - Main handler params:`, JSON.stringify(request.params, null, 2));
+  console.error(`[Instantly MCP] 🔍 Debug - extracted name:`, name);
+  console.error(`[Instantly MCP] 🔍 Debug - extracted args:`, JSON.stringify(args, null, 2));
+
+  // Extract API key from multiple sources
   let apiKey: string | undefined;
-  
-  // Check if API key is provided in params (from HTTP transport)
+
+  // Method 1: Check if API key is provided in args (from HTTP transport)
   if (args && typeof args === 'object' && 'apiKey' in args) {
     apiKey = (args as any).apiKey;
     // Remove apiKey from args to avoid passing it to tool functions
     delete (args as any).apiKey;
+    console.error(`[Instantly MCP] 🔑 API key extracted from args`);
   }
-  
-  // Fall back to environment variable for stdio transport
+
+  // Method 2: Check if API key is in extra context (from HTTP transport headers)
+  if (!apiKey && extra && typeof extra === 'object') {
+    const extraObj = extra as any;
+    if (extraObj.headers && extraObj.headers['x-instantly-api-key']) {
+      apiKey = extraObj.headers['x-instantly-api-key'];
+      console.error(`[Instantly MCP] 🔑 API key extracted from headers`);
+    }
+  }
+
+  // Method 3: Fall back to environment variable for stdio transport
   if (!apiKey) {
     apiKey = INSTANTLY_API_KEY;
+    console.error(`[Instantly MCP] 🔑 API key from environment variable`);
   }
   
   if (!apiKey) {
