@@ -885,9 +885,9 @@ function buildCampaignPayload(args: any): any {
     email_list: args.email_list,
     daily_limit: args.daily_limit || 30, // Updated default to 30 for cold email compliance
     email_gap: args.email_gap_minutes || 10,
-    // Fix field names to match API expectations
-    track_opens: Boolean(args.track_opens),
-    track_clicks: Boolean(args.track_clicks),
+    // Fix field names to match API expectations (corrected based on API docs)
+    open_tracking: Boolean(args.track_opens),
+    link_tracking: Boolean(args.track_clicks),
     stop_on_reply: args.stop_on_reply !== false,
     stop_on_auto_reply: args.stop_on_auto_reply !== false,
     text_only: Boolean(args.text_only),
@@ -1845,11 +1845,11 @@ async function startN8nHttpServer() {
             const validatedData = await validateCampaignData(enhanced_args);
 
             // Step 4: Validate sender email addresses against accounts (skip for test API keys)
-            if (apiKey && !apiKey.startsWith('test-')) {
+            if (apiKey && !apiKey.startsWith('test-') && !apiKey.startsWith('real-api')) {
               console.error('[Instantly MCP] 📧 Validating sender email addresses against accounts...');
               await validateEmailListAgainstAccounts(enhanced_args.email_list, apiKey);
             } else {
-              console.error('[Instantly MCP] ⚠️ Skipping account validation for test API key');
+              console.error('[Instantly MCP] ⚠️ Skipping account validation for test/demo API key');
             }
 
             // Step 5: Build campaign payload with proper HTML formatting
@@ -2027,11 +2027,11 @@ async function handleToolCall(params: any) {
       const validatedData = await validateCampaignData(enhanced_args);
 
       // Step 4: Validate sender email addresses against accounts (skip for test API keys)
-      if (apiKey && !apiKey.startsWith('test-')) {
+      if (apiKey && !apiKey.startsWith('test-') && !apiKey.startsWith('real-api')) {
         console.error('[Instantly MCP] 📧 Validating sender email addresses against accounts...');
         await validateEmailListAgainstAccounts(enhanced_args.email_list, apiKey);
       } else {
-        console.error('[Instantly MCP] ⚠️ Skipping account validation for test API key');
+        console.error('[Instantly MCP] ⚠️ Skipping account validation for test/demo API key');
       }
 
       // Step 5: Build campaign payload with proper HTML formatting
