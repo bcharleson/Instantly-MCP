@@ -199,6 +199,8 @@ async function makeInstantlyRequest(endpoint: string, options: any = {}, apiKey?
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${useApiKey}`,
     },
+    // Add 30-second timeout for all API requests
+    signal: AbortSignal.timeout(30000),
   };
 
   if (method !== 'GET' && options.body) {
@@ -967,9 +969,9 @@ async function validateEmailListAgainstAccounts(emailList: string[], apiKey?: st
   try {
     console.error('[Instantly MCP] 🔍 Validating sender email addresses against accounts...');
 
-    // Add timeout protection to prevent hanging
+    // Add timeout protection to prevent hanging - increased to 45 seconds for large account lists
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Account validation timeout after 15 seconds')), 15000);
+      setTimeout(() => reject(new Error('Account validation timeout after 45 seconds. This may indicate a large number of accounts or slow API response.')), 45000);
     });
 
     const accountsPromise = getAllAccounts(apiKey);

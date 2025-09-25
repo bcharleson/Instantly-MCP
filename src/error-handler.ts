@@ -23,7 +23,17 @@ export class InstantlyError extends Error {
 
 export function handleInstantlyError(error: any, toolName: string): never {
   // Handle different error scenarios
-  
+
+  // Handle timeout errors specifically
+  if (error.name === 'AbortError' || error.message?.includes('timeout')) {
+    throw new McpError(
+      ErrorCode.InternalError,
+      `Request timeout: The ${toolName} operation took too long to complete. ` +
+      `This may be due to a large number of accounts, slow network connection, or API server issues. ` +
+      `Please try again in a few moments.`
+    );
+  }
+
   if (error instanceof InstantlyError) {
     // Map Instantly API errors to MCP errors with tool-specific guidance
     switch (error.status) {
