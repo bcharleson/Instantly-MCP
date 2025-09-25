@@ -880,10 +880,19 @@ function buildCampaignPayload(args: any): any {
   return campaignData;
 }
 
-// Helper function to validate email addresses against eligible accounts
+// Helper function to validate sender email addresses against eligible accounts
+// email_list contains SENDER email addresses that must be from verified Instantly accounts
 async function validateEmailListAgainstAccounts(emailList: string[], apiKey?: string): Promise<void> {
   try {
-    const accounts = await getAllAccounts(apiKey);
+    console.error('[Instantly MCP] 🔍 Validating sender email addresses against accounts...');
+
+    // Add timeout protection to prevent hanging
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Account validation timeout after 15 seconds')), 15000);
+    });
+
+    const accountsPromise = getAllAccounts(apiKey);
+    const accounts = await Promise.race([accountsPromise, timeoutPromise]) as any[];
 
     if (!accounts || accounts.length === 0) {
       throw new McpError(
@@ -911,22 +920,22 @@ async function validateEmailListAgainstAccounts(emailList: string[], apiKey?: st
 
       throw new McpError(
         ErrorCode.InvalidParams,
-        `No eligible accounts found for campaign creation. Account issues:\n${
+        `No eligible sender accounts found for campaign creation. Account issues:\n${
           accountIssues.map(acc => `• ${acc.email}: ${acc.issues.join(', ')}`).join('\n')
         }\n\nPlease ensure accounts are active, setup is complete, and warmup is finished before creating campaigns.`
       );
     }
 
-    // Create set of eligible email addresses
+    // Create set of eligible email addresses for validation
     const eligibleEmails = new Set<string>();
     const eligibleEmailsForDisplay: string[] = [];
 
     for (const account of eligibleAccounts) {
       eligibleEmails.add(account.email.toLowerCase());
-      eligibleEmailsForDisplay.push(`${account.email} (warmup: ${account.warmup_score})`);
+      eligibleEmailsForDisplay.push(`${account.email} (warmup: ${account.warmup_score || 'N/A'})`);
     }
 
-    // Validate each email in the provided list
+    // Validate each sender email in the provided list
     const invalidEmails: string[] = [];
     for (const email of emailList) {
       if (!eligibleEmails.has(email.toLowerCase())) {
@@ -937,11 +946,13 @@ async function validateEmailListAgainstAccounts(emailList: string[], apiKey?: st
     if (invalidEmails.length > 0) {
       throw new McpError(
         ErrorCode.InvalidParams,
-        `Invalid email addresses found in email_list: ${invalidEmails.join(', ')}\n\n` +
-        `Available eligible accounts:\n${eligibleEmailsForDisplay.map(email => `• ${email}`).join('\n')}\n\n` +
-        `Please use only email addresses from your eligible accounts. Call list_accounts to see all available accounts.`
+        `Invalid sender email addresses found in email_list: ${invalidEmails.join(', ')}\n\n` +
+        `Available eligible sender accounts:\n${eligibleEmailsForDisplay.map(email => `• ${email}`).join('\n')}\n\n` +
+        `Please use only verified sender email addresses from your Instantly workspace. Call list_accounts to see all available accounts.`
       );
     }
+
+    console.error(`[Instantly MCP] ✅ Validated ${emailList.length} sender email(s) against ${eligibleAccounts.length} eligible accounts`);
 
   } catch (error: any) {
     if (error instanceof McpError) {
@@ -1540,7 +1551,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
           // Step 3: Validate enhanced arguments
           const validatedData = validateCampaignData(enhanced_args);
 
-          // Step 4: Validate email addresses against accounts
+          // Step 4: Validate sender email addresses against accounts
           await validateEmailListAgainstAccounts(enhanced_args.email_list, apiKey);
 
           // Step 5: Build campaign payload with proper HTML formatting
@@ -2454,8 +2465,8 @@ async function handleToolCall(params: any) {
       console.error('[Instantly MCP] ✅ Validating enhanced campaign data...');
       const validatedData = await validateCampaignData(enhanced_args);
 
-      // Step 4: Validate email addresses against accounts
-      console.error('[Instantly MCP] 📧 Validating email addresses against accounts...');
+      // Step 4: Validate sender email addresses against accounts
+      console.error('[Instantly MCP] 📧 Validating sender email addresses against accounts...');
       await validateEmailListAgainstAccounts(enhanced_args.email_list, apiKey);
 
       // Step 5: Build campaign payload with proper HTML formatting
