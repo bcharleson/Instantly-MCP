@@ -199,8 +199,8 @@ async function makeInstantlyRequest(endpoint: string, options: any = {}, apiKey?
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${useApiKey}`,
     },
-    // Add 30-second timeout for all API requests
-    signal: AbortSignal.timeout(30000),
+    // Add 60-second timeout for all API requests (increased for campaign creation)
+    signal: AbortSignal.timeout(60000),
   };
 
   if (method !== 'GET' && options.body) {
@@ -975,9 +975,9 @@ async function validateEmailListAgainstAccounts(emailList: string[], apiKey?: st
   try {
     console.error('[Instantly MCP] 🔍 Validating sender email addresses against accounts...');
 
-    // Add timeout protection to prevent hanging - increased to 45 seconds for large account lists
+    // Add timeout protection to prevent hanging - increased to 90 seconds for large account lists
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Account validation timeout after 45 seconds. This may indicate a large number of accounts or slow API response.')), 45000);
+      setTimeout(() => reject(new Error('Account validation timeout after 90 seconds. This may indicate a large number of accounts or slow API response.')), 90000);
     });
 
     const accountsPromise = getAllAccounts(apiKey);
@@ -1844,12 +1844,26 @@ async function startN8nHttpServer() {
             console.error('[Instantly MCP] ✅ Validating enhanced campaign data...');
             const validatedData = await validateCampaignData(enhanced_args);
 
-            // Step 4: Validate sender email addresses against accounts (skip for test API keys)
-            if (apiKey && !apiKey.startsWith('test-') && !apiKey.startsWith('real-api')) {
+            // Step 4: Validate sender email addresses against accounts (skip for test API keys or if disabled)
+            const skipValidation = process.env.SKIP_ACCOUNT_VALIDATION === 'true';
+            if (apiKey && !apiKey.startsWith('test-') && !apiKey.startsWith('real-api') && !skipValidation) {
               console.error('[Instantly MCP] 📧 Validating sender email addresses against accounts...');
-              await validateEmailListAgainstAccounts(enhanced_args.email_list, apiKey);
+              const validationStart = Date.now();
+              try {
+                await validateEmailListAgainstAccounts(enhanced_args.email_list, apiKey);
+                const validationTime = Date.now() - validationStart;
+                console.error(`[Instantly MCP] ✅ Account validation completed in ${validationTime}ms`);
+              } catch (error) {
+                const validationTime = Date.now() - validationStart;
+                console.error(`[Instantly MCP] ❌ Account validation failed after ${validationTime}ms:`, error instanceof Error ? error.message : String(error));
+                throw error;
+              }
             } else {
-              console.error('[Instantly MCP] ⚠️ Skipping account validation for test/demo API key');
+              if (skipValidation) {
+                console.error('[Instantly MCP] ⚠️ Skipping account validation (SKIP_ACCOUNT_VALIDATION=true)');
+              } else {
+                console.error('[Instantly MCP] ⚠️ Skipping account validation for test/demo API key');
+              }
             }
 
             // Step 5: Build campaign payload with proper HTML formatting
@@ -1862,36 +1876,45 @@ async function startN8nHttpServer() {
 
             // Step 6: Create the campaign
             console.error('[Instantly MCP] 🚀 Creating campaign with validated data...');
-            const response = await makeInstantlyRequest('/api/v2/campaigns', {
-              method: 'POST',
-              body: campaignPayload
-            }, apiKey);
+            const campaignStart = Date.now();
+            const startTime = Date.now(); // Add startTime for performance tracking
+            let validationTime = 0; // Initialize validation time
+            try {
+              const response = await makeInstantlyRequest('/api/v2/campaigns', {
+                method: 'POST',
+                body: campaignPayload
+              }, apiKey);
+              const campaignTime = Date.now() - campaignStart;
+              console.error(`[Instantly MCP] ✅ Campaign created successfully in ${campaignTime}ms`);
 
-            return res.json({
-              jsonrpc: '2.0',
-              id,
-              result: {
-                content: [
-                  {
-                    type: 'text',
-                    text: JSON.stringify({
-                      success: true,
-                      campaign: response,
-                      message: 'Campaign created successfully with enhanced features',
-                      applied_defaults: smartDefaultsResult.defaults_applied || [],
-                      defaults_explanation: smartDefaultsResult.defaults_explanation,
-                      html_conversion: 'Line breaks automatically converted to HTML format',
-                      features_used: [
-                        'Smart defaults application',
-                        'HTML line break conversion',
-                        'Account validation',
-                        'Enhanced error handling'
-                      ]
-                    }, null, 2)
-                  }
-                ]
-              }
-            });
+              return res.json({
+                jsonrpc: '2.0',
+                id,
+                result: {
+                  content: [
+                    {
+                      type: 'text',
+                      text: JSON.stringify({
+                        success: true,
+                        message: 'Campaign created successfully',
+                        campaign: response,
+                        performance: {
+                          total_time_ms: Date.now() - startTime,
+                          validation_time_ms: validationTime,
+                          creation_time_ms: campaignTime
+                        }
+                      }, null, 2)
+                    }
+                  ]
+                }
+              });
+            } catch (error) {
+              const campaignTime = Date.now() - campaignStart;
+              console.error(`[Instantly MCP] ❌ Campaign creation failed after ${campaignTime}ms:`, error instanceof Error ? error.message : String(error));
+              throw error;
+            }
+
+            // This return statement is now handled in the try block above
 
           } catch (error) {
             console.error('[Instantly MCP] ❌ Error in direct create_campaign:', error);
@@ -1994,6 +2017,7 @@ async function handleToolCall(params: any) {
 
       // Call the main create_campaign logic (from the main switch statement)
       console.error('[Instantly MCP] 🚀 Executing enhanced create_campaign...');
+      const startTime = Date.now();
 
       // Step 1: Check if this is a minimal request that needs prerequisite gathering
       const hasMinimalInfo = !args?.name || !args?.subject || !args?.body || !args?.email_list;
@@ -2026,12 +2050,26 @@ async function handleToolCall(params: any) {
       console.error('[Instantly MCP] ✅ Validating enhanced campaign data...');
       const validatedData = await validateCampaignData(enhanced_args);
 
-      // Step 4: Validate sender email addresses against accounts (skip for test API keys)
-      if (apiKey && !apiKey.startsWith('test-') && !apiKey.startsWith('real-api')) {
+      // Step 4: Validate sender email addresses against accounts (skip for test API keys or if disabled)
+      const skipValidation = process.env.SKIP_ACCOUNT_VALIDATION === 'true';
+      if (apiKey && !apiKey.startsWith('test-') && !apiKey.startsWith('real-api') && !skipValidation) {
         console.error('[Instantly MCP] 📧 Validating sender email addresses against accounts...');
-        await validateEmailListAgainstAccounts(enhanced_args.email_list, apiKey);
+        const validationStart = Date.now();
+        try {
+          await validateEmailListAgainstAccounts(enhanced_args.email_list, apiKey);
+          const validationTime = Date.now() - validationStart;
+          console.error(`[Instantly MCP] ✅ Account validation completed in ${validationTime}ms`);
+        } catch (error) {
+          const validationTime = Date.now() - validationStart;
+          console.error(`[Instantly MCP] ❌ Account validation failed after ${validationTime}ms:`, error instanceof Error ? error.message : String(error));
+          throw error;
+        }
       } else {
-        console.error('[Instantly MCP] ⚠️ Skipping account validation for test/demo API key');
+        if (skipValidation) {
+          console.error('[Instantly MCP] ⚠️ Skipping account validation (SKIP_ACCOUNT_VALIDATION=true)');
+        } else {
+          console.error('[Instantly MCP] ⚠️ Skipping account validation for test/demo API key');
+        }
       }
 
       // Step 5: Build campaign payload with proper HTML formatting
@@ -2044,31 +2082,38 @@ async function handleToolCall(params: any) {
 
       // Step 6: Create the campaign
       console.error('[Instantly MCP] 🚀 Creating campaign with validated data...');
-      const response = await makeInstantlyRequest('/api/v2/campaigns', {
-        method: 'POST',
-        body: campaignPayload
-      }, apiKey);
+      const campaignStart = Date.now();
+      try {
+        const response = await makeInstantlyRequest('/api/v2/campaigns', {
+          method: 'POST',
+          body: campaignPayload
+        }, apiKey);
+        const campaignTime = Date.now() - campaignStart;
+        console.error(`[Instantly MCP] ✅ Campaign created successfully in ${campaignTime}ms`);
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              campaign: response,
-              message: 'Campaign created successfully with enhanced features',
-              applied_defaults: enhanced_args._applied_defaults || [],
-              html_conversion: 'Line breaks automatically converted to HTML format',
-              features_used: [
-                'Smart defaults application',
-                'HTML line break conversion',
-                'Account validation',
-                'Enhanced error handling'
-              ]
-            }, null, 2)
-          }
-        ]
-      };
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                success: true,
+                message: 'Campaign created successfully',
+                campaign: response,
+                performance: {
+                  total_time_ms: Date.now() - startTime,
+                  creation_time_ms: campaignTime
+                }
+              }, null, 2)
+            }
+          ]
+        };
+      } catch (error) {
+        const campaignTime = Date.now() - campaignStart;
+        console.error(`[Instantly MCP] ❌ Campaign creation failed after ${campaignTime}ms:`, error instanceof Error ? error.message : String(error));
+        throw error;
+      }
+
+      // Return statement is now handled in the try block above
     }
 
     case 'list_campaigns':
