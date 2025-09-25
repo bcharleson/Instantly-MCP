@@ -2435,6 +2435,32 @@ async function startN8nHttpServer() {
             // SUCCESS! Parameters are now extracted correctly
             console.error('[Instantly MCP] ✅ DIRECT HANDLER - Parameters extracted successfully!');
 
+            // TEMPORARY: Return debug info to confirm parameters are working
+            return res.json({
+              jsonrpc: '2.0',
+              id,
+              result: {
+                content: [
+                  {
+                    type: 'text',
+                    text: JSON.stringify({
+                      debug: 'DIRECT HANDLER PARAMETERS CONFIRMED',
+                      received_args: args,
+                      args_name: args?.name,
+                      args_subject: args?.subject,
+                      args_body: args?.body,
+                      args_email_list: args?.email_list,
+                      typeof_name: typeof args?.name,
+                      typeof_subject: typeof args?.subject,
+                      typeof_body: typeof args?.body,
+                      typeof_email_list: typeof args?.email_list,
+                      hasMinimalInfo: !args?.name || !args?.subject || !args?.body || !args?.email_list
+                    }, null, 2)
+                  }
+                ]
+              }
+            });
+
             // Step 1: Check if this is a minimal request that needs prerequisite gathering
             const hasMinimalInfo = !args?.name || !args?.subject || !args?.body || !args?.email_list;
 
