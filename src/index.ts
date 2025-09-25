@@ -2388,6 +2388,10 @@ async function getToolsList() {
 async function handleToolCall(params: any) {
   const { name, arguments: args } = params;
 
+  console.error('[Instantly MCP] 🔍 Debug - handleToolCall params:', JSON.stringify(params, null, 2));
+  console.error('[Instantly MCP] 🔍 Debug - extracted name:', name);
+  console.error('[Instantly MCP] 🔍 Debug - extracted args:', JSON.stringify(args, null, 2));
+
   // This integrates with your existing tool handling logic
   // Route create_campaign to the main handler, others handled here
   switch (name) {
@@ -2690,6 +2694,7 @@ async function main() {
         const { name, arguments: args } = params;
 
         console.error(`[Instantly MCP] 🔧 HTTP Tool called: ${name}`);
+        console.error('[Instantly MCP] 🔍 Debug - toolCall params:', JSON.stringify(params, null, 2));
 
         // The API key should already be in args.apiKey from the HTTP transport
         const result = await handleToolCall(params);
