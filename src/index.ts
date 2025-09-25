@@ -2366,20 +2366,129 @@ async function startN8nHttpServer() {
         });
       }
 
-      // Add API key to request headers for processing
-      req.headers['x-instantly-api-key'] = apiKey;
-
       console.error(`[Instantly MCP] 🔗 URL-based auth request with API key: ${apiKey.substring(0, 8)}...`);
       console.error('[Instantly MCP] 🔍 Request body:', JSON.stringify(req.body, null, 2));
 
-      const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => randomUUID(),
-        enableDnsRebindingProtection: false,
-      });
+      const { jsonrpc, id, method, params } = req.body;
 
-      // Use the same server instance for URL-based requests
-      await server.connect(transport);
-      await transport.handleRequest(req, res, req.body);
+      // Handle different MCP methods directly (bypass StreamableHTTPServerTransport)
+      if (method === 'tools/list') {
+        return res.json({
+          jsonrpc: '2.0',
+          id,
+          result: { tools: TOOLS_DEFINITION }
+        });
+      }
+
+      if (method === 'tools/call') {
+        const { name, arguments: args } = params;
+        console.error(`[Instantly MCP] 🔧 Direct tool call: ${name}`);
+        console.error(`[Instantly MCP] 🔍 Tool arguments:`, JSON.stringify(args, null, 2));
+
+        if (name === 'create_campaign') {
+          // Call the create_campaign logic directly with proper API key
+          try {
+            // Step 1: Check if this is a minimal request that needs prerequisite gathering
+            const hasMinimalInfo = !args?.name || !args?.subject || !args?.body || !args?.email_list;
+
+            if (hasMinimalInfo) {
+              console.error('[Instantly MCP] 🔍 Minimal information provided, gathering prerequisites...');
+              const prerequisiteResult = await gatherCampaignPrerequisites(args, apiKey);
+
+              return res.json({
+                jsonrpc: '2.0',
+                id,
+                result: {
+                  content: [
+                    {
+                      type: 'text',
+                      text: JSON.stringify({
+                        stage: 'prerequisite_check',
+                        ...prerequisiteResult,
+                        next_action: prerequisiteResult.ready_for_next_stage
+                          ? 'All requirements met. Call create_campaign again with the same parameters to proceed with creation.'
+                          : 'Please provide the missing information and call create_campaign again.'
+                      }, null, 2)
+                    }
+                  ]
+                }
+              });
+            }
+
+            // Step 2: Apply smart defaults and enhancements
+            console.error('[Instantly MCP] 🎯 Applying smart defaults and enhancements...');
+            const enhanced_args = applySmartDefaults(args);
+
+            // Step 3: Validate the enhanced arguments
+            console.error('[Instantly MCP] ✅ Validating enhanced campaign data...');
+            const validatedData = await validateCampaignData(enhanced_args);
+
+            // Step 4: Validate sender email addresses against accounts
+            console.error('[Instantly MCP] 📧 Validating sender email addresses against accounts...');
+            await validateEmailListAgainstAccounts(enhanced_args.email_list, apiKey);
+
+            // Step 5: Build campaign payload with proper HTML formatting
+            console.error('[Instantly MCP] 🔧 Building campaign payload with HTML formatting...');
+            const campaignPayload = buildCampaignPayload(enhanced_args);
+
+            // Step 6: Create the campaign
+            console.error('[Instantly MCP] 🚀 Creating campaign with validated data...');
+            const response = await makeInstantlyRequest('/api/v2/campaigns', {
+              method: 'POST',
+              body: campaignPayload
+            }, apiKey);
+
+            return res.json({
+              jsonrpc: '2.0',
+              id,
+              result: {
+                content: [
+                  {
+                    type: 'text',
+                    text: JSON.stringify({
+                      success: true,
+                      campaign: response,
+                      message: 'Campaign created successfully with enhanced features',
+                      applied_defaults: enhanced_args._applied_defaults || [],
+                      html_conversion: 'Line breaks automatically converted to HTML format',
+                      features_used: [
+                        'Smart defaults application',
+                        'HTML line break conversion',
+                        'Account validation',
+                        'Enhanced error handling'
+                      ]
+                    }, null, 2)
+                  }
+                ]
+              }
+            });
+
+          } catch (error) {
+            console.error('[Instantly MCP] ❌ Error in direct create_campaign:', error);
+            return res.json({
+              jsonrpc: '2.0',
+              id,
+              error: {
+                code: -32602,
+                message: error instanceof Error ? error.message : 'Unknown error occurred'
+              }
+            });
+          }
+        }
+
+        // Handle other tools...
+        return res.json({
+          jsonrpc: '2.0',
+          id,
+          error: { code: -32601, message: `Unknown tool: ${name}` }
+        });
+      }
+
+      return res.json({
+        jsonrpc: '2.0',
+        id,
+        error: { code: -32601, message: `Unknown method: ${method}` }
+      });
 
     } catch (error) {
       console.error('[Instantly MCP] ❌ Error handling URL-based MCP request:', error);
