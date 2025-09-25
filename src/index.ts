@@ -2389,8 +2389,90 @@ async function handleToolCall(params: any) {
   const { name, arguments: args } = params;
 
   // This integrates with your existing tool handling logic
-  // For now, return a placeholder that will be replaced with actual implementation
+  // Route create_campaign to the main handler, others handled here
   switch (name) {
+    case 'create_campaign': {
+      // Route to the main server's create_campaign handler
+      console.error('[Instantly MCP] 🔄 Routing create_campaign to main handler...');
+
+      // Extract API key from args if present
+      let apiKey: string | undefined;
+      if (args && typeof args === 'object' && 'apiKey' in args) {
+        apiKey = (args as any).apiKey;
+        delete (args as any).apiKey;
+      }
+
+      // Call the main create_campaign logic (from the main switch statement)
+      console.error('[Instantly MCP] 🚀 Executing enhanced create_campaign...');
+
+      // Step 1: Check if this is a minimal request that needs prerequisite gathering
+      const hasMinimalInfo = !args?.name || !args?.subject || !args?.body || !args?.email_list;
+
+      if (hasMinimalInfo) {
+        console.error('[Instantly MCP] 🔍 Minimal information provided, gathering prerequisites...');
+        const prerequisiteResult = await gatherCampaignPrerequisites(args, apiKey);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                stage: 'prerequisite_check',
+                ...prerequisiteResult,
+                next_action: prerequisiteResult.ready_for_next_stage
+                  ? 'All requirements met. Call create_campaign again with the same parameters to proceed with creation.'
+                  : 'Please provide the missing information and call create_campaign again.'
+              }, null, 2)
+            }
+          ]
+        };
+      }
+
+      // Step 2: Apply smart defaults and enhancements
+      console.error('[Instantly MCP] 🎯 Applying smart defaults and enhancements...');
+      const enhanced_args = applySmartDefaults(args);
+
+      // Step 3: Validate the enhanced arguments
+      console.error('[Instantly MCP] ✅ Validating enhanced campaign data...');
+      const validatedData = await validateCampaignData(enhanced_args);
+
+      // Step 4: Validate email addresses against accounts
+      console.error('[Instantly MCP] 📧 Validating email addresses against accounts...');
+      await validateEmailListAgainstAccounts(enhanced_args.email_list, apiKey);
+
+      // Step 5: Build campaign payload with proper HTML formatting
+      console.error('[Instantly MCP] 🔧 Building campaign payload with HTML formatting...');
+      const campaignPayload = buildCampaignPayload(enhanced_args);
+
+      // Step 6: Create the campaign
+      console.error('[Instantly MCP] 🚀 Creating campaign with validated data...');
+      const response = await makeInstantlyRequest('/api/v2/campaigns', {
+        method: 'POST',
+        body: campaignPayload
+      }, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              campaign: response,
+              message: 'Campaign created successfully with enhanced features',
+              applied_defaults: enhanced_args._applied_defaults || [],
+              html_conversion: 'Line breaks automatically converted to HTML format',
+              features_used: [
+                'Smart defaults application',
+                'HTML line break conversion',
+                'Account validation',
+                'Enhanced error handling'
+              ]
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
     case 'list_campaigns':
       const campaigns = await makeInstantlyRequest('/api/v2/campaigns', {}, args.apiKey);
       return {
