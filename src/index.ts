@@ -1722,6 +1722,126 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
       };
     }
 
+    case 'create_campaign': {
+      // This is a complex tool that requires special handling
+      // Route to the existing create_campaign implementation in the HTTP handler
+      throw new McpError(ErrorCode.InvalidRequest,
+        'create_campaign requires special workflow handling. Use the enhanced create_campaign tool with stage parameters for proper campaign creation.');
+    }
+
+    case 'update_campaign': {
+      if (!args?.campaign_id) {
+        throw new McpError(ErrorCode.InvalidParams, 'campaign_id is required');
+      }
+
+      const updateData: any = {};
+      if (args.name) updateData.name = args.name;
+      if (args.status) updateData.status = args.status;
+
+      const result = await makeInstantlyRequest(`/campaigns/${args.campaign_id}`, {
+        method: 'PUT',
+        body: updateData
+      }, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+
+    case 'activate_campaign': {
+      if (!args?.campaign_id) {
+        throw new McpError(ErrorCode.InvalidParams, 'campaign_id is required');
+      }
+
+      const result = await makeInstantlyRequest(`/campaigns/${args.campaign_id}/activate`, {
+        method: 'POST'
+      }, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+
+    case 'create_account': {
+      if (!args?.email) {
+        throw new McpError(ErrorCode.InvalidParams, 'email is required');
+      }
+
+      const accountData = {
+        email: args.email,
+        smtp_host: args.smtp_host,
+        smtp_port: args.smtp_port,
+        smtp_username: args.smtp_username,
+        smtp_password: args.smtp_password,
+        ...args
+      };
+
+      const result = await makeInstantlyRequest('/accounts', {
+        method: 'POST',
+        body: accountData
+      }, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+
+    case 'update_account': {
+      if (!args?.email) {
+        throw new McpError(ErrorCode.InvalidParams, 'email is required');
+      }
+
+      const result = await makeInstantlyRequest(`/accounts/${args.email}`, {
+        method: 'PUT',
+        body: args.settings || {}
+      }, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+
+    case 'get_warmup_analytics': {
+      if (!args?.emails || !Array.isArray(args.emails)) {
+        throw new McpError(ErrorCode.InvalidParams, 'emails array is required');
+      }
+
+      const queryParams = buildQueryParams(args, ['start_date', 'end_date']);
+      const emailsParam = args.emails.join(',');
+      const endpoint = `/accounts/warmup-analytics?emails=${emailsParam}${queryParams.toString() ? `&${queryParams}` : ''}`;
+
+      const result = await makeInstantlyRequest(endpoint, {}, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+
     // Add more tools as needed...
     default:
       throw new McpError(ErrorCode.InvalidRequest, `Unknown tool: ${name}`);
