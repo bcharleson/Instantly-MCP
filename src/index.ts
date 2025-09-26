@@ -1196,13 +1196,26 @@ const TOOLS_DEFINITION = [
       },
       {
         name: 'get_campaign_analytics',
-        description: 'Get detailed campaign performance analytics',
+        description: 'Get detailed campaign performance analytics with optional date range filtering. Supports filtering by specific campaign ID and/or date range (start_date, end_date). Call without parameters to get analytics for all campaigns.',
         inputSchema: {
           type: 'object',
           properties: {
-            campaign_id: { type: 'string', description: 'Campaign ID' }
+            campaign_id: {
+              type: 'string',
+              description: 'Campaign ID to filter analytics (optional). Omit to get analytics for all campaigns.'
+            },
+            start_date: {
+              type: 'string',
+              description: 'Start date for analytics range in YYYY-MM-DD format (optional). Example: 2024-01-01',
+              pattern: '^\\d{4}-\\d{2}-\\d{2}$'
+            },
+            end_date: {
+              type: 'string',
+              description: 'End date for analytics range in YYYY-MM-DD format (optional). Example: 2024-12-31',
+              pattern: '^\\d{4}-\\d{2}-\\d{2}$'
+            }
           },
-          required: ['campaign_id'],
+          required: [],
           additionalProperties: false
         }
       },
@@ -1371,13 +1384,22 @@ const TOOLS_DEFINITION = [
       },
       {
         name: 'get_campaign_analytics_overview',
-        description: 'Get analytics overview for all campaigns',
+        description: 'Get comprehensive analytics overview across all campaigns with optional date range filtering. Provides aggregated metrics and performance summaries. Both date parameters are optional - omit for all-time analytics.',
         inputSchema: {
           type: 'object',
           properties: {
-            start_date: { type: 'string', description: 'Start date (YYYY-MM-DD)' },
-            end_date: { type: 'string', description: 'End date (YYYY-MM-DD)' }
+            start_date: {
+              type: 'string',
+              description: 'Start date for analytics range in YYYY-MM-DD format (optional). Example: 2024-01-01',
+              pattern: '^\\d{4}-\\d{2}-\\d{2}$'
+            },
+            end_date: {
+              type: 'string',
+              description: 'End date for analytics range in YYYY-MM-DD format (optional). Example: 2024-12-31',
+              pattern: '^\\d{4}-\\d{2}-\\d{2}$'
+            }
           },
+          required: [],
           additionalProperties: false
         }
       },
