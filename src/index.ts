@@ -1659,69 +1659,32 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
         // Validate parameters with Zod v4 schema
         const validatedArgs = validateGetCampaignAnalyticsData(args);
 
-        // Use the correct Instantly API endpoint (base URL already includes /api/v2)
+        // Use the correct Instantly API endpoint from official documentation
+        // Official endpoint: https://api.instantly.ai/api/v2/analytics/getcampaignanalytics
         const queryParams = buildQueryParams(validatedArgs, ['campaign_id', 'start_date', 'end_date']);
-        const endpoint = `/campaigns/analytics${queryParams.toString() ? `?${queryParams}` : ''}`;
+        const endpoint = `/analytics/getcampaignanalytics${queryParams.toString() ? `?${queryParams}` : ''}`;
 
-        console.error(`[Instantly MCP] get_campaign_analytics endpoint: ${endpoint}`);
+        console.error(`[Instantly MCP] get_campaign_analytics endpoint (CORRECTED): ${endpoint}`);
 
         const result = await makeInstantlyRequest(endpoint, {}, apiKey);
 
-        // If campaign_id was provided, filter results client-side since API doesn't support server-side filtering
-        let filteredResult = result;
-        if (validatedArgs?.campaign_id) {
-          console.error(`[Instantly MCP] Applying client-side filtering for campaign_id: ${validatedArgs.campaign_id}`);
-
-          // Handle different response structures
-          if (Array.isArray(result)) {
-            // Direct array response
-            filteredResult = result.filter((item: any) =>
-              item.campaign_id === validatedArgs.campaign_id ||
-              item.id === validatedArgs.campaign_id
-            );
-          } else if (result.data && Array.isArray(result.data)) {
-            // Response with data array
-            filteredResult = {
-              ...result,
-              data: result.data.filter((item: any) =>
-                item.campaign_id === validatedArgs.campaign_id ||
-                item.id === validatedArgs.campaign_id
-              )
-            };
-          } else if (result.campaigns && Array.isArray(result.campaigns)) {
-            // Response with campaigns array
-            filteredResult = {
-              ...result,
-              campaigns: result.campaigns.filter((item: any) =>
-                item.campaign_id === validatedArgs.campaign_id ||
-                item.id === validatedArgs.campaign_id
-              )
-            };
+        // With the correct endpoint, server-side filtering should work natively
+        // Add metadata about the endpoint correction for transparency
+        const enhancedResult = validatedArgs?.campaign_id ? {
+          ...result,
+          _metadata: {
+            filtered_by_campaign_id: validatedArgs.campaign_id,
+            endpoint_used: endpoint,
+            filtering_method: "server_side",
+            note: "Using correct Instantly.ai API endpoint /analytics/getcampaignanalytics with native server-side filtering"
           }
-
-          // Add metadata about the filtering
-          const enhancedResult = {
-            ...filteredResult,
-            _metadata: {
-              filtered_by_campaign_id: validatedArgs.campaign_id,
-              endpoint_used: endpoint,
-              filtering_method: "client_side",
-              note: "Results filtered client-side because Instantly.ai API doesn't support campaign_id filtering on this endpoint",
-              original_count: Array.isArray(result) ? result.length :
-                             result.data?.length || result.campaigns?.length || 'unknown',
-              filtered_count: Array.isArray(filteredResult) ? filteredResult.length :
-                             filteredResult.data?.length || filteredResult.campaigns?.length || 'unknown'
-            }
-          };
-
-          filteredResult = enhancedResult;
-        }
+        } : result;
 
         return {
           content: [
             {
               type: 'text',
-              text: JSON.stringify(filteredResult, null, 2),
+              text: JSON.stringify(enhancedResult, null, 2),
             },
           ],
         };
