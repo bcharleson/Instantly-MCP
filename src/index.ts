@@ -1842,6 +1842,25 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
       };
     }
 
+    case 'verify_email': {
+      // Validate parameters with Zod schema
+      const validatedArgs = validateEmailVerificationData(args);
+
+      const result = await makeInstantlyRequest('/email-verification', {
+        method: 'POST',
+        body: { email: validatedArgs.email }
+      }, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+
     // Add more tools as needed...
     default:
       throw new McpError(ErrorCode.InvalidRequest, `Unknown tool: ${name}`);
