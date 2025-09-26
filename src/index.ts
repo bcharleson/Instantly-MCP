@@ -71,7 +71,7 @@ import {
   isValidEmail
 } from './validation.js';
 
-const INSTANTLY_API_URL = 'https://api.instantly.ai';
+const INSTANTLY_API_URL = 'https://api.instantly.ai/api/v2';
 
 // Instantly.ai custom icons (optimized for MCP protocol compliance)
 const INSTANTLY_ICONS = [
@@ -256,7 +256,7 @@ async function getAllAccounts(apiKey?: string): Promise<any[]> {
       makeInstantlyRequest(endpoint, options, apiKey);
 
     // Use direct API call with pagination
-    const result = await paginateInstantlyAPI('/api/v2/accounts', makeRequestWithKey);
+    const result = await paginateInstantlyAPI('/accounts', makeRequestWithKey);
 
     console.error(`[Instantly MCP] ✅ Successfully retrieved ${result.length} accounts`);
     return result;
@@ -1620,7 +1620,7 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
 
       const makeRequestWithKey = (endpoint: string, options: any = {}) =>
         makeInstantlyRequest(endpoint, options, apiKey);
-      const campaigns = await paginateInstantlyAPI('/api/v2/campaigns', makeRequestWithKey);
+      const campaigns = await paginateInstantlyAPI('/campaigns', makeRequestWithKey);
 
       return {
         content: [
@@ -1659,7 +1659,7 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
         // Validate parameters with Zod v4 schema
         const validatedArgs = validateGetCampaignAnalyticsData(args);
 
-        // Use query parameter approach (like list_emails) - this is the correct Instantly API pattern
+        // Use the correct Instantly API endpoint (base URL already includes /api/v2)
         const queryParams = buildQueryParams(validatedArgs, ['campaign_id', 'start_date', 'end_date']);
         const endpoint = `/campaigns/analytics${queryParams.toString() ? `?${queryParams}` : ''}`;
 
@@ -1739,7 +1739,7 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
       if (args.status) updateData.status = args.status;
 
       const result = await makeInstantlyRequest(`/campaigns/${args.campaign_id}`, {
-        method: 'PUT',
+        method: 'PATCH',
         body: updateData
       }, apiKey);
 
@@ -1807,7 +1807,7 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
       }
 
       const result = await makeInstantlyRequest(`/accounts/${args.email}`, {
-        method: 'PUT',
+        method: 'PATCH',
         body: args.settings || {}
       }, apiKey);
 
@@ -2107,7 +2107,7 @@ async function startN8nHttpServer() {
             const startTime = Date.now(); // Add startTime for performance tracking
             let validationTime = 0; // Initialize validation time
             try {
-              const response = await makeInstantlyRequest('/api/v2/campaigns', {
+              const response = await makeInstantlyRequest('/campaigns', {
                 method: 'POST',
                 body: campaignPayload
               }, apiKey);
@@ -2311,7 +2311,7 @@ async function handleToolCall(params: any) {
       console.error('[Instantly MCP] 🚀 Creating campaign with validated data...');
       const campaignStart = Date.now();
       try {
-        const response = await makeInstantlyRequest('/api/v2/campaigns', {
+        const response = await makeInstantlyRequest('/campaigns', {
           method: 'POST',
           body: campaignPayload
         }, apiKey);
@@ -2344,7 +2344,7 @@ async function handleToolCall(params: any) {
     }
 
     case 'list_campaigns':
-      const campaigns = await makeInstantlyRequest('/api/v2/campaigns', {}, args.apiKey);
+      const campaigns = await makeInstantlyRequest('/campaigns', {}, args.apiKey);
       return {
         content: [
           {
@@ -2377,7 +2377,7 @@ async function handleToolCall(params: any) {
 
     // ===== NEW TIER 1 TOOLS - PRODUCTION VERIFIED =====
     case 'count_unread_emails':
-      const unreadResult = await makeInstantlyRequest('/api/v2/emails/unread/count', {}, args.apiKey);
+      const unreadResult = await makeInstantlyRequest('/emails/unread/count', {}, args.apiKey);
       return {
         content: [
           {
@@ -2398,7 +2398,7 @@ async function handleToolCall(params: any) {
       if (args.end_date) analyticsParams.end_date = args.end_date;
       if (args.campaign_status !== undefined) analyticsParams.campaign_status = args.campaign_status;
 
-      const analyticsResult = await makeInstantlyRequest('/api/v2/campaigns/analytics/daily', { params: analyticsParams }, args.apiKey);
+      const analyticsResult = await makeInstantlyRequest('/campaigns/analytics/daily', { params: analyticsParams }, args.apiKey);
       return {
         content: [
           {
@@ -2414,7 +2414,7 @@ async function handleToolCall(params: any) {
       };
 
     case 'get_account_info':
-      const accountInfoResult = await makeInstantlyRequest('/api/v2/account', {}, args.apiKey);
+      const accountInfoResult = await makeInstantlyRequest('/account', {}, args.apiKey);
       return {
         content: [
           {
@@ -2429,7 +2429,7 @@ async function handleToolCall(params: any) {
       };
 
     case 'check_feature_availability':
-      const featuresResult = await makeInstantlyRequest('/api/v2/account/features', {}, args.apiKey);
+      const featuresResult = await makeInstantlyRequest('/account/features', {}, args.apiKey);
       return {
         content: [
           {
@@ -2446,7 +2446,7 @@ async function handleToolCall(params: any) {
     // ===== NEW TIER 2 TOOLS - TESTABLE STATE-CHANGE =====
     case 'activate_campaign':
       if (!args.campaign_id) throw new Error('Campaign ID is required');
-      const activateResult = await makeInstantlyRequest(`/api/v2/campaigns/${args.campaign_id}/activate`, { method: 'POST' }, args.apiKey);
+      const activateResult = await makeInstantlyRequest(`/campaigns/${args.campaign_id}/activate`, { method: 'POST' }, args.apiKey);
       return {
         content: [
           {
@@ -2462,7 +2462,7 @@ async function handleToolCall(params: any) {
 
     case 'pause_campaign':
       if (!args.campaign_id) throw new Error('Campaign ID is required');
-      const pauseCampaignResult = await makeInstantlyRequest(`/api/v2/campaigns/${args.campaign_id}/pause`, { method: 'POST' }, args.apiKey);
+      const pauseCampaignResult = await makeInstantlyRequest(`/campaigns/${args.campaign_id}/pause`, { method: 'POST' }, args.apiKey);
       return {
         content: [
           {
@@ -2478,7 +2478,7 @@ async function handleToolCall(params: any) {
 
     case 'pause_account':
       if (!args.email) throw new Error('Email address is required');
-      const pauseAccountResult = await makeInstantlyRequest(`/api/v2/accounts/${args.email}/pause`, { method: 'POST' }, args.apiKey);
+      const pauseAccountResult = await makeInstantlyRequest(`/accounts/${args.email}/pause`, { method: 'POST' }, args.apiKey);
       return {
         content: [
           {
@@ -2494,7 +2494,7 @@ async function handleToolCall(params: any) {
 
     case 'resume_account':
       if (!args.email) throw new Error('Email address is required');
-      const resumeAccountResult = await makeInstantlyRequest(`/api/v2/accounts/${args.email}/resume`, { method: 'POST' }, args.apiKey);
+      const resumeAccountResult = await makeInstantlyRequest(`/accounts/${args.email}/resume`, { method: 'POST' }, args.apiKey);
       return {
         content: [
           {
