@@ -1660,23 +1660,34 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
         const validatedArgs = validateGetCampaignAnalyticsData(args);
 
         // Use the correct Instantly API endpoint from official documentation
-        // Official endpoint: https://api.instantly.ai/api/v2/analytics/getcampaignanalytics
-        const queryParams = buildQueryParams(validatedArgs, ['campaign_id', 'start_date', 'end_date']);
-        const endpoint = `/analytics/getcampaignanalytics${queryParams.toString() ? `?${queryParams}` : ''}`;
+        // Official endpoint: https://api.instantly.ai/api/v2/campaigns/analytics
+        // IMPORTANT: API uses 'id' parameter, not 'campaign_id'
+        const apiParams: any = { ...validatedArgs };
+        if (apiParams.campaign_id) {
+          apiParams.id = apiParams.campaign_id;
+          delete apiParams.campaign_id;
+        }
 
-        console.error(`[Instantly MCP] get_campaign_analytics endpoint (CORRECTED): ${endpoint}`);
+        const queryParams = buildQueryParams(apiParams, ['id', 'start_date', 'end_date']);
+        const endpoint = `/campaigns/analytics${queryParams.toString() ? `?${queryParams}` : ''}`;
+
+        console.error(`[Instantly MCP] get_campaign_analytics endpoint (PARAMETER FIX): ${endpoint}`);
+        console.error(`[Instantly MCP] Full URL will be: ${INSTANTLY_API_URL}${endpoint}`);
+        console.error(`[Instantly MCP] Original parameters: ${JSON.stringify(validatedArgs, null, 2)}`);
+        console.error(`[Instantly MCP] API parameters (campaign_id->id): ${JSON.stringify(apiParams, null, 2)}`);
 
         const result = await makeInstantlyRequest(endpoint, {}, apiKey);
 
-        // With the correct endpoint, server-side filtering should work natively
-        // Add metadata about the endpoint correction for transparency
+        // With the correct parameter names, server-side filtering should work natively
+        // Add metadata about the parameter fix for transparency
         const enhancedResult = validatedArgs?.campaign_id ? {
           ...result,
           _metadata: {
             filtered_by_campaign_id: validatedArgs.campaign_id,
             endpoint_used: endpoint,
             filtering_method: "server_side",
-            note: "Using correct Instantly.ai API endpoint /analytics/getcampaignanalytics with native server-side filtering"
+            parameter_mapping: "campaign_id -> id",
+            note: "Using correct Instantly.ai API endpoint /campaigns/analytics with proper parameter names (campaign_id mapped to id)"
           }
         } : result;
 
@@ -1689,19 +1700,30 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
           ],
         };
       } catch (error: any) {
-        // Enhanced error handling for campaign analytics
+        // Enhanced error handling for campaign analytics with detailed debugging
+        console.error(`[Instantly MCP] get_campaign_analytics ERROR:`, error);
+        console.error(`[Instantly MCP] Error details:`, {
+          message: error.message,
+          status: error.status,
+          statusCode: error.statusCode,
+          response: error.response?.data || error.response,
+          endpoint: '/campaigns/analytics'
+        });
+
         if (error.message?.includes('404') && args?.campaign_id) {
           // If specific campaign not found, try to provide helpful guidance
           throw new McpError(
             ErrorCode.InvalidParams,
             `Campaign analytics not found for campaign_id: ${args.campaign_id}. ` +
             `This could mean: 1) Campaign ID is invalid, 2) Campaign has no analytics data yet, ` +
-            `or 3) You don't have access to this campaign. Try calling without campaign_id to see all available campaigns.`
+            `or 3) You don't have access to this campaign. Try calling without campaign_id to see all available campaigns. ` +
+            `DEBUG: Endpoint used was /campaigns/analytics with parameter mapping campaign_id->id`
           );
         } else if (error.message?.includes('404')) {
           throw new McpError(
             ErrorCode.InvalidRequest,
-            `Campaign analytics endpoint not available. The Instantly API may not support analytics for your account type.`
+            `Campaign analytics endpoint not available. The Instantly API may not support analytics for your account type. ` +
+            `DEBUG: Endpoint used was /campaigns/analytics. This should be the correct endpoint per official API docs.`
           );
         }
         // Re-throw other errors as-is

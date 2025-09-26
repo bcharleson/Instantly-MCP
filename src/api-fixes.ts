@@ -12,8 +12,8 @@ export const API_ENDPOINTS = {
   leadLists: '/lead-lists',
   emailVerification: '/email-verification',
 
-  // Analytics endpoints (corrected from official API documentation)
-  campaignAnalytics: '/analytics/getcampaignanalytics',
+  // Analytics endpoints (corrected parameter names from official API documentation)
+  campaignAnalytics: '/campaigns/analytics',
   campaignAnalyticsOverview: '/campaigns/analytics/overview',
   accountWarmup: '/accounts/warmup-analytics',
 
