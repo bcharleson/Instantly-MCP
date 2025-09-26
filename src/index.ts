@@ -1615,6 +1615,91 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
       };
     }
 
+    case 'get_campaign': {
+      if (!args?.campaign_id) {
+        throw new McpError(ErrorCode.InvalidParams, 'campaign_id is required');
+      }
+
+      const result = await makeInstantlyRequest(`/campaigns/${args.campaign_id}`, {}, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+
+    case 'get_campaign_analytics': {
+      try {
+        // Validate parameters with Zod v4 schema
+        const validatedArgs = validateGetCampaignAnalyticsData(args);
+
+        // Use query parameter approach (like list_emails) - this is the correct Instantly API pattern
+        const queryParams = buildQueryParams(validatedArgs, ['campaign_id', 'start_date', 'end_date']);
+        const endpoint = `/campaigns/analytics${queryParams.toString() ? `?${queryParams}` : ''}`;
+
+        console.error(`[Instantly MCP] get_campaign_analytics endpoint: ${endpoint}`);
+
+        const result = await makeInstantlyRequest(endpoint, {}, apiKey);
+
+        // If campaign_id was provided, add context about the filtering
+        const enhancedResult = validatedArgs?.campaign_id ? {
+          ...result,
+          _metadata: {
+            filtered_by_campaign_id: validatedArgs.campaign_id,
+            endpoint_used: endpoint,
+            note: "Analytics filtered for specific campaign"
+          }
+        } : result;
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(enhancedResult, null, 2),
+            },
+          ],
+        };
+      } catch (error: any) {
+        // Enhanced error handling for campaign analytics
+        if (error.message?.includes('404') && args?.campaign_id) {
+          // If specific campaign not found, try to provide helpful guidance
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `Campaign analytics not found for campaign_id: ${args.campaign_id}. ` +
+            `This could mean: 1) Campaign ID is invalid, 2) Campaign has no analytics data yet, ` +
+            `or 3) You don't have access to this campaign. Try calling without campaign_id to see all available campaigns.`
+          );
+        } else if (error.message?.includes('404')) {
+          throw new McpError(
+            ErrorCode.InvalidRequest,
+            `Campaign analytics endpoint not available. The Instantly API may not support analytics for your account type.`
+          );
+        }
+        // Re-throw other errors as-is
+        throw error;
+      }
+    }
+
+    case 'get_campaign_analytics_overview': {
+      const queryParams = buildQueryParams(args, ['start_date', 'end_date']);
+
+      const endpoint = `/campaigns/analytics/overview${queryParams.toString() ? `?${queryParams}` : ''}`;
+      const result = await makeInstantlyRequest(endpoint, {}, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+
     // Add more tools as needed...
     default:
       throw new McpError(ErrorCode.InvalidRequest, `Unknown tool: ${name}`);
