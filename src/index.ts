@@ -1259,13 +1259,31 @@ const TOOLS_DEFINITION = [
       },
       {
         name: 'get_warmup_analytics',
-        description: 'Get email warmup analytics',
+        description: 'Get email warmup analytics for one or more email accounts. Supports both single email and multiple emails.',
         inputSchema: {
           type: 'object',
           properties: {
-            email: { type: 'string', description: 'Email address' }
+            emails: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Array of email addresses to get warmup analytics for (e.g., ["user@example.com"])'
+            },
+            email: {
+              type: 'string',
+              description: 'Single email address (will be converted to array internally for API compatibility)'
+            },
+            start_date: {
+              type: 'string',
+              description: 'Start date for analytics range in YYYY-MM-DD format (optional)',
+              pattern: '^\\d{4}-\\d{2}-\\d{2}$'
+            },
+            end_date: {
+              type: 'string',
+              description: 'End date for analytics range in YYYY-MM-DD format (optional)',
+              pattern: '^\\d{4}-\\d{2}-\\d{2}$'
+            }
           },
-          required: ['email'],
+          required: [],
           additionalProperties: false
         }
       },
@@ -1847,15 +1865,37 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
     }
 
     case 'get_warmup_analytics': {
-      if (!args?.emails || !Array.isArray(args.emails)) {
-        throw new McpError(ErrorCode.InvalidParams, 'emails array is required');
+      // Handle both single email and emails array for user convenience
+      let emailsArray: string[] = [];
+
+      if (args?.emails && Array.isArray(args.emails)) {
+        emailsArray = args.emails;
+      } else if (args?.email && typeof args.email === 'string') {
+        emailsArray = [args.email];
+      } else {
+        throw new McpError(ErrorCode.InvalidParams, 'Either "email" (string) or "emails" (array) is required');
       }
 
-      const queryParams = buildQueryParams(args, ['start_date', 'end_date']);
-      const emailsParam = args.emails.join(',');
-      const endpoint = `/accounts/warmup-analytics?emails=${emailsParam}${queryParams.toString() ? `&${queryParams}` : ''}`;
+      // Validate email array
+      if (emailsArray.length === 0) {
+        throw new McpError(ErrorCode.InvalidParams, 'At least one email address is required');
+      }
 
-      const result = await makeInstantlyRequest(endpoint, {}, apiKey);
+      console.error(`[Instantly MCP] get_warmup_analytics for emails: ${JSON.stringify(emailsArray)}`);
+
+      // Use POST method with JSON body as per official API documentation
+      const requestBody: any = { emails: emailsArray };
+
+      // Add optional date parameters to the body if provided
+      if (args?.start_date) requestBody.start_date = args.start_date;
+      if (args?.end_date) requestBody.end_date = args.end_date;
+
+      console.error(`[Instantly MCP] POST body: ${JSON.stringify(requestBody, null, 2)}`);
+
+      const result = await makeInstantlyRequest('/accounts/warmup-analytics', {
+        method: 'POST',
+        body: requestBody
+      }, apiKey);
 
       return {
         content: [
