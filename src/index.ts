@@ -1289,13 +1289,29 @@ const TOOLS_DEFINITION = [
       },
       {
         name: 'list_leads',
-        description: 'List leads with filtering and pagination',
+        description: 'List multiple leads with filtering and pagination using POST /leads/list endpoint',
         inputSchema: {
           type: 'object',
           properties: {
-            campaign_id: { type: 'string', description: 'Filter by campaign ID' },
-            get_all: { type: 'boolean', description: 'Retrieve all leads', default: true }
+            campaign_id: { type: 'string', description: 'Filter by campaign ID (optional)' },
+            list_id: { type: 'string', description: 'Filter by list ID (optional)' },
+            status: { type: 'string', description: 'Filter by lead status (optional)' },
+            limit: { type: 'number', description: 'Number of leads to return (1-100, default: 20)', minimum: 1, maximum: 100 },
+            skip: { type: 'number', description: 'Number of leads to skip for pagination (default: 0)', minimum: 0 },
+            get_all: { type: 'boolean', description: 'Retrieve all leads using pagination', default: false }
           },
+          additionalProperties: false
+        }
+      },
+      {
+        name: 'get_lead',
+        description: 'Get details of a specific lead by ID using GET /leads/{id} endpoint',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            lead_id: { type: 'string', description: 'ID of the lead to retrieve' }
+          },
+          required: ['lead_id'],
           additionalProperties: false
         }
       },
@@ -1915,6 +1931,57 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
         method: 'POST',
         body: { email: validatedArgs.email }
       }, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+
+    case 'list_leads': {
+      console.error('[Instantly MCP] 📋 Executing list_leads...');
+
+      // Build request body for POST /leads/list
+      const requestBody: any = {};
+
+      // Add optional filter parameters
+      if (args?.campaign_id) requestBody.campaign_id = args.campaign_id;
+      if (args?.list_id) requestBody.list_id = args.list_id;
+      if (args?.status) requestBody.status = args.status;
+      if (args?.limit) requestBody.limit = args.limit;
+      if (args?.skip !== undefined) requestBody.skip = args.skip; // Include skip even if 0
+
+      console.error(`[Instantly MCP] list_leads POST body: ${JSON.stringify(requestBody, null, 2)}`);
+
+      const result = await makeInstantlyRequest('/leads/list', {
+        method: 'POST',
+        body: requestBody
+      }, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+
+    case 'get_lead': {
+      console.error('[Instantly MCP] 🔍 Executing get_lead...');
+
+      if (!args?.lead_id) {
+        throw new McpError(ErrorCode.InvalidParams, 'lead_id is required');
+      }
+
+      console.error(`[Instantly MCP] get_lead for ID: ${args.lead_id}`);
+
+      const result = await makeInstantlyRequest(`/leads/${args.lead_id}`, {}, apiKey);
 
       return {
         content: [
