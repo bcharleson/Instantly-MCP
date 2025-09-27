@@ -1291,16 +1291,86 @@ const TOOLS_DEFINITION = [
       },
       {
         name: 'list_leads',
-        description: 'List multiple leads with filtering and pagination using POST /leads/list endpoint. **ULTRA-CONSERVATIVE**: get_all=true limited to 3 pages by default to prevent MCP timeouts. For large datasets, use filtered single-page requests instead of get_all=true.',
+        description: 'List multiple leads with comprehensive filtering and pagination using POST /leads/list endpoint. **ULTRA-CONSERVATIVE**: get_all=true limited to 3 pages by default to prevent MCP timeouts. For large datasets, use filtered single-page requests instead of get_all=true.',
         inputSchema: {
           type: 'object',
           properties: {
+            // Basic filtering parameters
             campaign_id: { type: 'string', description: 'Filter by campaign ID (optional)' },
             list_id: { type: 'string', description: 'Filter by list ID (optional)' },
+            list_ids: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Filter by multiple list IDs (optional). Example: ["list1", "list2"]'
+            },
             status: { type: 'string', description: 'Filter by lead status (optional)' },
-            limit: { type: 'number', description: 'Number of leads per page (1-100, default: 20). When get_all=true, this is automatically set to 100 for efficiency.', minimum: 1, maximum: 100 },
-            skip: { type: 'number', description: 'Number of leads to skip for pagination (default: 0). Only used when get_all=false.', minimum: 0 },
-            starting_after: { type: 'string', description: 'Lead ID to start pagination after (from previous response next_starting_after field). Only used when get_all=false.' },
+
+            // Search and filtering
+            search: {
+              type: 'string',
+              description: 'Search string to search leads by First Name, Last Name, or Email. Example: "John Doe"'
+            },
+            filter: {
+              type: 'string',
+              description: 'Filter criteria for leads. Available values: FILTER_VAL_CONTACTED, FILTER_VAL_NOT_CONTACTED, FILTER_VAL_COMPLETED, FILTER_VAL_UNSUBSCRIBED, FILTER_VAL_ACTIVE, FILTER_LEAD_INTERESTED, FILTER_LEAD_NOT_INTERESTED, FILTER_LEAD_MEETING_BOOKED, FILTER_LEAD_MEETING_COMPLETED, FILTER_LEAD_CLOSED. Example: "FILTER_VAL_CONTACTED"'
+            },
+
+            // Advanced filtering
+            included_ids: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Array of specific lead IDs to include. Example: ["01997ba3-0106-7bf4-8584-6344cb1ce5a"]'
+            },
+            excluded_ids: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Array of lead IDs to exclude. Example: ["01997ba3-0106-7bf4-8584-6344cb1ce5a"]'
+            },
+            contacts: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Array of emails the leads need to have. Example: ["test@test.com"]'
+            },
+            organization_user_ids: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Array of organization user IDs to filter leads. Example: ["01997ba3-0434-7c3e-ae15-161ee2bf2b82"]'
+            },
+            smart_view_id: {
+              type: 'string',
+              description: 'Smart view ID to filter leads. Example: "01997ba3-0434-7c3e-ae15-161fc88bf890"'
+            },
+            is_website_visitor: {
+              type: 'boolean',
+              description: 'Filter for leads that are website visitors. Example: true'
+            },
+            distinct_contacts: {
+              type: 'boolean',
+              description: 'Whether to return distinct contacts only'
+            },
+            in_campaign: {
+              type: 'boolean',
+              description: 'Filter leads that are in campaigns'
+            },
+
+            // Pagination parameters
+            limit: {
+              type: 'number',
+              description: 'Number of leads per page (1-100, default: 20). When get_all=true, this is automatically set to 100 for efficiency.',
+              minimum: 1,
+              maximum: 100
+            },
+            skip: {
+              type: 'number',
+              description: 'Number of leads to skip for pagination (default: 0). Only used when get_all=false.',
+              minimum: 0
+            },
+            starting_after: {
+              type: 'string',
+              description: 'Lead ID or email to start pagination after (from previous response next_starting_after field). Only used when get_all=false. Use email if distinct_contacts is true.'
+            },
+
+            // MCP-specific pagination controls
             get_all: {
               type: 'boolean',
               description: 'When true: Automatically retrieves leads across multiple pages with timeout protection. When false: Returns single page only. Default: false',
@@ -1978,11 +2048,28 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
 
         console.error(`[Instantly MCP] ⚙️ ULTRA-CONSERVATIVE pagination: max_pages=${maxPages}, page_timeout=${pageTimeout}ms, total_timeout=${requestTimeout}ms`);
 
-        // Build base request body for pagination
+        // Build base request body for pagination with all supported parameters
         const baseRequestBody: any = {};
+
+        // Basic filtering parameters
         if (args?.campaign_id) baseRequestBody.campaign_id = args.campaign_id;
         if (args?.list_id) baseRequestBody.list_id = args.list_id;
+        if (args?.list_ids) baseRequestBody.list_ids = args.list_ids;
         if (args?.status) baseRequestBody.status = args.status;
+
+        // Search and filtering
+        if (args?.search) baseRequestBody.search = args.search;
+        if (args?.filter) baseRequestBody.filter = args.filter;
+
+        // Advanced filtering
+        if (args?.included_ids) baseRequestBody.included_ids = args.included_ids;
+        if (args?.excluded_ids) baseRequestBody.excluded_ids = args.excluded_ids;
+        if (args?.contacts) baseRequestBody.contacts = args.contacts;
+        if (args?.organization_user_ids) baseRequestBody.organization_user_ids = args.organization_user_ids;
+        if (args?.smart_view_id) baseRequestBody.smart_view_id = args.smart_view_id;
+        if (args?.is_website_visitor !== undefined) baseRequestBody.is_website_visitor = args.is_website_visitor;
+        if (args?.distinct_contacts !== undefined) baseRequestBody.distinct_contacts = args.distinct_contacts;
+        if (args?.in_campaign !== undefined) baseRequestBody.in_campaign = args.in_campaign;
 
         // Use larger page size for efficiency (max 100)
         baseRequestBody.limit = 100;
@@ -2133,10 +2220,27 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
 
         const requestBody: any = {};
 
-        // Add optional filter parameters
+        // Basic filtering parameters
         if (args?.campaign_id) requestBody.campaign_id = args.campaign_id;
         if (args?.list_id) requestBody.list_id = args.list_id;
+        if (args?.list_ids) requestBody.list_ids = args.list_ids;
         if (args?.status) requestBody.status = args.status;
+
+        // Search and filtering
+        if (args?.search) requestBody.search = args.search;
+        if (args?.filter) requestBody.filter = args.filter;
+
+        // Advanced filtering
+        if (args?.included_ids) requestBody.included_ids = args.included_ids;
+        if (args?.excluded_ids) requestBody.excluded_ids = args.excluded_ids;
+        if (args?.contacts) requestBody.contacts = args.contacts;
+        if (args?.organization_user_ids) requestBody.organization_user_ids = args.organization_user_ids;
+        if (args?.smart_view_id) requestBody.smart_view_id = args.smart_view_id;
+        if (args?.is_website_visitor !== undefined) requestBody.is_website_visitor = args.is_website_visitor;
+        if (args?.distinct_contacts !== undefined) requestBody.distinct_contacts = args.distinct_contacts;
+        if (args?.in_campaign !== undefined) requestBody.in_campaign = args.in_campaign;
+
+        // Pagination parameters
         if (args?.limit) requestBody.limit = args.limit;
         if (args?.skip !== undefined) requestBody.skip = args.skip;
         if (args?.starting_after) requestBody.starting_after = args.starting_after;
