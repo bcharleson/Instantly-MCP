@@ -2046,14 +2046,14 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
         const slowDomains = ['creatorbuzz.com', 'techrecruiterpro.net', 'gmail.com', 'outlook.com', 'yahoo.com'];
         const isSlowDomain = slowDomains.includes(emailDomain);
 
-        // Ultra-conservative polling configuration for MCP timeout constraints
-        const baseMaxPollingTime = 15000; // 15 seconds base maximum
-        const slowDomainReduction = 5000; // Reduce by 5 seconds for slow domains
-        const maxPollingTime = isSlowDomain ? (baseMaxPollingTime - slowDomainReduction) : baseMaxPollingTime; // 10s for slow domains, 15s for others
-        const pollingInterval = 2000; // 2 seconds between polls (very responsive)
+        // Ultra-fast polling configuration for MCP timeout constraints
+        const baseMaxPollingTime = 8000; // 8 seconds base maximum (ultra-fast)
+        const slowDomainReduction = 3000; // Reduce by 3 seconds for slow domains
+        const maxPollingTime = isSlowDomain ? (baseMaxPollingTime - slowDomainReduction) : baseMaxPollingTime; // 5s for slow domains, 8s for others
+        const pollingInterval = 1500; // 1.5 seconds between polls (ultra-responsive)
         const startTime = Date.now();
         let attempts = 0;
-        const maxAttempts = Math.floor(maxPollingTime / pollingInterval);
+        const maxAttempts = Math.floor(maxPollingTime / pollingInterval); // ~3-5 attempts
 
         console.error(`[Instantly MCP] 🎯 Domain-specific config: ${emailDomain} (slow: ${isSlowDomain}) - max time: ${maxPollingTime}ms, max attempts: ${maxAttempts}`);
 
