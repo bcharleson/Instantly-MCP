@@ -1289,7 +1289,7 @@ const TOOLS_DEFINITION = [
       },
       {
         name: 'list_leads',
-        description: 'List multiple leads with filtering and pagination using POST /leads/list endpoint. **TIMEOUT PROTECTION**: Includes timeout handling to prevent MCP protocol timeouts. Use max_pages to control scope.',
+        description: 'List multiple leads with filtering and pagination using POST /leads/list endpoint. **ULTRA-CONSERVATIVE**: get_all=true limited to 3 pages by default to prevent MCP timeouts. For large datasets, use filtered single-page requests instead of get_all=true.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -1306,10 +1306,10 @@ const TOOLS_DEFINITION = [
             },
             max_pages: {
               type: 'number',
-              description: 'Maximum number of pages to fetch when get_all=true (1-500, default: 50). Use smaller values to avoid timeouts with large datasets.',
+              description: 'Maximum number of pages to fetch when get_all=true (1-20, default: 3). Ultra-conservative default to prevent MCP timeouts. For large datasets, use filtered single-page requests instead.',
               minimum: 1,
-              maximum: 500,
-              default: 50
+              maximum: 20,
+              default: 3
             }
           },
           additionalProperties: false
@@ -1958,8 +1958,8 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
       console.error('[Instantly MCP] 📋 Executing list_leads...');
       console.error(`[Instantly MCP] 🔍 Request args: ${JSON.stringify(args, null, 2)}`);
 
-      // Add timeout handling for list_leads requests
-      const requestTimeout = 45000; // 45 seconds timeout
+      // Add aggressive timeout handling for MCP protocol compliance
+      const requestTimeout = 30000; // 30 seconds total timeout (more conservative)
       const startTime = Date.now();
 
       // Check if user wants all leads with automatic pagination
@@ -1970,11 +1970,11 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
       if (getAllLeads) {
         console.error('[Instantly MCP] 🔄 get_all=true: Starting automatic pagination with timeout protection...');
 
-        // Add max_pages parameter for user control
-        const maxPages = Math.min(args?.max_pages || 50, 500); // Default 50, max 500 for safety
-        const pageTimeout = 15000; // 15 seconds per page
+        // Ultra-conservative pagination settings based on theoretical analysis
+        const maxPages = Math.min(args?.max_pages || 3, 20); // Default 3, max 20 (ultra-conservative)
+        const pageTimeout = 6000; // 6 seconds per page (very aggressive)
 
-        console.error(`[Instantly MCP] ⚙️ Pagination settings: max_pages=${maxPages}, page_timeout=${pageTimeout}ms, total_timeout=${requestTimeout}ms`);
+        console.error(`[Instantly MCP] ⚙️ ULTRA-CONSERVATIVE pagination: max_pages=${maxPages}, page_timeout=${pageTimeout}ms, total_timeout=${requestTimeout}ms`);
 
         // Build base request body for pagination
         const baseRequestBody: any = {};
@@ -1997,9 +1997,9 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
             const pageStartTime = Date.now();
             const elapsedTotal = pageStartTime - startTime;
 
-            // Check if we're approaching total timeout
-            if (elapsedTotal > requestTimeout - 5000) { // Leave 5s buffer
-              console.error(`[Instantly MCP] ⏰ Approaching total timeout (${elapsedTotal}ms/${requestTimeout}ms). Stopping pagination.`);
+            // Ultra-aggressive timeout detection with large buffer for MCP protocol
+            if (elapsedTotal > requestTimeout - 10000) { // Leave 10s buffer (ultra-conservative)
+              console.error(`[Instantly MCP] ⏰ ULTRA-EARLY TIMEOUT DETECTION: Stopping pagination at ${elapsedTotal}ms/${requestTimeout}ms to prevent MCP timeout.`);
               timeoutReached = true;
               break;
             }
@@ -2080,10 +2080,15 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
                   success: true,
                   _metadata: {
                     note: timeoutReached ?
-                      "Partial results due to timeout. Use smaller max_pages or add filters to get complete results." :
+                      "Partial results due to MCP timeout protection. RECOMMENDATION: Use filtered requests (campaign_id, list_id) instead of get_all=true for large datasets." :
                       currentPage > maxPages ?
-                      "Reached max_pages limit. Increase max_pages parameter to get more results." :
-                      "Complete pagination successful."
+                      "Reached max_pages limit. For large datasets, use filtered requests rather than increasing max_pages to avoid timeouts." :
+                      "Complete pagination successful.",
+                    usage_guidance: {
+                      for_large_datasets: "Use campaign_id or list_id filters instead of get_all=true",
+                      recommended_approach: "Single page requests with filters are more reliable than get_all=true",
+                      max_safe_pages: "10 pages (default) is the recommended maximum for get_all=true"
+                    }
                   }
                 }, null, 2),
               },
