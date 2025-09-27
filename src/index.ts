@@ -2041,12 +2041,12 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
       if (initialResult.verification_status === 'pending' || initialResult.status === 'pending') {
         console.error('[Instantly MCP] ⏳ Verification pending, starting polling process...');
 
-        // Polling configuration
-        const maxPollingTime = 60000; // 60 seconds maximum
-        const pollingInterval = 5000; // 5 seconds between polls
+        // Polling configuration - optimized for MCP timeout constraints
+        const maxPollingTime = 25000; // 25 seconds maximum (well under MCP timeout)
+        const pollingInterval = 3000; // 3 seconds between polls (faster polling)
         const startTime = Date.now();
         let attempts = 0;
-        const maxAttempts = Math.floor(maxPollingTime / pollingInterval);
+        const maxAttempts = Math.floor(maxPollingTime / pollingInterval); // ~8 attempts
 
         while (Date.now() - startTime < maxPollingTime && attempts < maxAttempts) {
           attempts++;
@@ -2107,10 +2107,12 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
                 success: false,
                 email: email,
                 verification_status: 'timeout',
-                message: `Verification timed out after ${Math.round((Date.now() - startTime) / 1000)} seconds and ${attempts} polling attempts`,
+                message: `Verification timed out after ${Math.round((Date.now() - startTime) / 1000)} seconds and ${attempts} polling attempts (optimized for MCP timeout constraints)`,
                 initial_result: initialResult,
                 polling_attempts: attempts,
-                note: 'Verification may still be processing. Try checking status manually later.'
+                max_polling_time_seconds: Math.round(maxPollingTime / 1000),
+                polling_interval_seconds: Math.round(pollingInterval / 1000),
+                note: 'Verification may still be processing. Try checking status manually later or use a longer timeout tool.'
               }, null, 2)
             }
           ]
