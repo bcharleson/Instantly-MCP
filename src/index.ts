@@ -2030,8 +2030,8 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
       console.error('[Instantly MCP] 📋 Executing list_leads...');
       console.error(`[Instantly MCP] 🔍 Request args: ${JSON.stringify(args, null, 2)}`);
 
-      // Add aggressive timeout handling for MCP protocol compliance
-      const requestTimeout = 30000; // 30 seconds total timeout (more conservative)
+      // TEMPORARY: Generous timeout for pagination testing
+      const requestTimeout = 300000; // 5 minutes total timeout (for testing complete pagination)
       const startTime = Date.now();
 
       // Check if user wants all leads with automatic pagination
@@ -2042,11 +2042,11 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
       if (getAllLeads) {
         console.error('[Instantly MCP] 🔄 get_all=true: Starting automatic pagination with timeout protection...');
 
-        // Ultra-conservative pagination settings based on theoretical analysis
-        const maxPages = Math.min(args?.max_pages || 3, 20); // Default 3, max 20 (ultra-conservative)
-        const pageTimeout = 6000; // 6 seconds per page (very aggressive)
+        // TEMPORARY: Generous pagination settings for testing complete results
+        const maxPages = Math.min(args?.max_pages || 50, 100); // Default 50, max 100 (for testing)
+        const pageTimeout = 30000; // 30 seconds per page (generous for testing)
 
-        console.error(`[Instantly MCP] ⚙️ ULTRA-CONSERVATIVE pagination: max_pages=${maxPages}, page_timeout=${pageTimeout}ms, total_timeout=${requestTimeout}ms`);
+        console.error(`[Instantly MCP] ⚙️ TESTING MODE - GENEROUS pagination: max_pages=${maxPages}, page_timeout=${pageTimeout}ms, total_timeout=${requestTimeout}ms`);
 
         // Build base request body for pagination with all supported parameters
         const baseRequestBody: any = {};
@@ -2086,9 +2086,9 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
             const pageStartTime = Date.now();
             const elapsedTotal = pageStartTime - startTime;
 
-            // Ultra-aggressive timeout detection with large buffer for MCP protocol
-            if (elapsedTotal > requestTimeout - 10000) { // Leave 10s buffer (ultra-conservative)
-              console.error(`[Instantly MCP] ⏰ ULTRA-EARLY TIMEOUT DETECTION: Stopping pagination at ${elapsedTotal}ms/${requestTimeout}ms to prevent MCP timeout.`);
+            // TESTING MODE: Generous timeout detection for complete pagination testing
+            if (elapsedTotal > requestTimeout - 30000) { // Leave 30s buffer (generous for testing)
+              console.error(`[Instantly MCP] ⏰ TESTING MODE TIMEOUT: Stopping pagination at ${elapsedTotal}ms/${requestTimeout}ms to prevent timeout.`);
               timeoutReached = true;
               break;
             }
