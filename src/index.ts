@@ -2043,19 +2043,19 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
 
         // Domain-specific timeout handling for known slow-verifying domains
         const emailDomain = email.split('@')[1]?.toLowerCase();
-        const slowDomains = ['creatorbuzz.com', 'techrecruiterpro.net', 'gmail.com', 'outlook.com', 'yahoo.com'];
+        const slowDomains = ['creatorbuzz.com', 'techrecruiterpro.net', 'topoffunnel.com', 'gmail.com', 'outlook.com', 'yahoo.com', 'lead411.io'];
         const isSlowDomain = slowDomains.includes(emailDomain);
 
-        // Ultra-fast polling configuration for MCP timeout constraints
-        const baseMaxPollingTime = 8000; // 8 seconds base maximum (ultra-fast)
-        const slowDomainReduction = 3000; // Reduce by 3 seconds for slow domains
-        const maxPollingTime = isSlowDomain ? (baseMaxPollingTime - slowDomainReduction) : baseMaxPollingTime; // 5s for slow domains, 8s for others
-        const pollingInterval = 1500; // 1.5 seconds between polls (ultra-responsive)
+        // EXTREME timeout safety for MCP constraints - addresses intermittent delays
+        const baseMaxPollingTime = 5000; // 5 seconds base maximum (extreme safety)
+        const slowDomainReduction = 2000; // Reduce by 2 seconds for slow domains
+        const maxPollingTime = isSlowDomain ? (baseMaxPollingTime - slowDomainReduction) : baseMaxPollingTime; // 3s for slow domains, 5s for others
+        const pollingInterval = 1000; // 1 second between polls (maximum responsiveness)
         const startTime = Date.now();
         let attempts = 0;
         const maxAttempts = Math.floor(maxPollingTime / pollingInterval); // ~3-5 attempts
 
-        console.error(`[Instantly MCP] 🎯 Domain-specific config: ${emailDomain} (slow: ${isSlowDomain}) - max time: ${maxPollingTime}ms, max attempts: ${maxAttempts}`);
+        console.error(`[Instantly MCP] 🎯 EXTREME SAFETY config: ${emailDomain} (slow: ${isSlowDomain}) - max time: ${maxPollingTime}ms, max attempts: ${maxAttempts}, interval: ${pollingInterval}ms`);
 
         while (Date.now() - startTime < maxPollingTime && attempts < maxAttempts) {
           attempts++;
