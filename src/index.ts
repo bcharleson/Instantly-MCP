@@ -2052,7 +2052,7 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
         const baseRequestBody: any = {};
 
         // Basic filtering parameters
-        if (args?.campaign_id) baseRequestBody.campaign_id = args.campaign_id;
+        if (args?.campaign_id) baseRequestBody.campaign = args.campaign_id;
         if (args?.list_id) baseRequestBody.list_id = args.list_id;
         if (args?.list_ids && args.list_ids.length > 0) baseRequestBody.list_ids = args.list_ids;
         if (args?.status) baseRequestBody.status = args.status;
@@ -2222,7 +2222,7 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
         const requestBody: any = {};
 
         // Basic filtering parameters
-        if (args?.campaign_id) requestBody.campaign_id = args.campaign_id;
+        if (args?.campaign_id) requestBody.campaign = args.campaign_id;
         if (args?.list_id) requestBody.list_id = args.list_id;
         if (args?.list_ids && args.list_ids.length > 0) requestBody.list_ids = args.list_ids;
         if (args?.status) requestBody.status = args.status;
