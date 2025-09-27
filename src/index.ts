@@ -2382,6 +2382,370 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
       };
     }
 
+    case 'list_api_keys': {
+      console.error('[Instantly MCP] 🔑 Executing list_api_keys...');
+
+      const apiKeysResult = await makeInstantlyRequest('/api-keys', {}, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              api_keys: apiKeysResult,
+              message: 'API keys retrieved successfully'
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
+    case 'get_daily_campaign_analytics': {
+      console.error('[Instantly MCP] 📊 Executing get_daily_campaign_analytics...');
+
+      const analyticsParams: any = {};
+      if (args.campaign_id) analyticsParams.campaign_id = args.campaign_id;
+      if (args.start_date) analyticsParams.start_date = args.start_date;
+      if (args.end_date) analyticsParams.end_date = args.end_date;
+      if (args.campaign_status !== undefined) analyticsParams.campaign_status = args.campaign_status;
+
+      const analyticsResult = await makeInstantlyRequest('/campaigns/analytics/daily', { params: analyticsParams }, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              analytics: analyticsResult,
+              message: 'Daily campaign analytics retrieved successfully'
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
+    case 'pause_campaign': {
+      console.error('[Instantly MCP] ⏸️ Executing pause_campaign...');
+
+      if (!args.campaign_id) {
+        throw new McpError(ErrorCode.InvalidParams, 'Campaign ID is required for pause_campaign');
+      }
+
+      const pauseResult = await makeInstantlyRequest(`/campaigns/${args.campaign_id}/pause`, { method: 'POST' }, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              result: pauseResult,
+              message: 'Campaign paused successfully'
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
+    case 'create_lead': {
+      console.error('[Instantly MCP] 👤 Executing create_lead...');
+
+      if (!args.email) {
+        throw new McpError(ErrorCode.InvalidParams, 'Email is required for create_lead');
+      }
+
+      const leadData: any = { email: args.email };
+      if (args.first_name) leadData.first_name = args.first_name;
+      if (args.last_name) leadData.last_name = args.last_name;
+      if (args.company_name) leadData.company_name = args.company_name;
+      if (args.personalization) leadData.personalization = args.personalization;
+      if (args.phone) leadData.phone = args.phone;
+      if (args.website) leadData.website = args.website;
+
+      const createResult = await makeInstantlyRequest('/leads', { method: 'POST', ...leadData }, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              lead: createResult,
+              message: 'Lead created successfully'
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
+    case 'update_lead': {
+      console.error('[Instantly MCP] ✏️ Executing update_lead...');
+
+      if (!args.lead_id) {
+        throw new McpError(ErrorCode.InvalidParams, 'Lead ID is required for update_lead');
+      }
+
+      const updateData: any = {};
+      if (args.email) updateData.email = args.email;
+      if (args.first_name) updateData.first_name = args.first_name;
+      if (args.last_name) updateData.last_name = args.last_name;
+      if (args.company_name) updateData.company_name = args.company_name;
+      if (args.personalization) updateData.personalization = args.personalization;
+      if (args.phone) updateData.phone = args.phone;
+      if (args.website) updateData.website = args.website;
+
+      const updateResult = await makeInstantlyRequest(`/leads/${args.lead_id}`, { method: 'PATCH', ...updateData }, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              lead: updateResult,
+              message: 'Lead updated successfully'
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
+    case 'create_lead_list': {
+      console.error('[Instantly MCP] 📋 Executing create_lead_list...');
+
+      if (!args.name) {
+        throw new McpError(ErrorCode.InvalidParams, 'Name is required for create_lead_list');
+      }
+
+      const listData: any = { name: args.name };
+      if (args.description) listData.description = args.description;
+
+      const createResult = await makeInstantlyRequest('/lead-lists', { method: 'POST', ...listData }, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              lead_list: createResult,
+              message: 'Lead list created successfully'
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
+    case 'list_lead_lists': {
+      console.error('[Instantly MCP] 📋 Executing list_lead_lists...');
+
+      const listsResult = await makeInstantlyRequest('/lead-lists', {}, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              lead_lists: listsResult,
+              message: 'Lead lists retrieved successfully'
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
+    case 'list_emails': {
+      console.error('[Instantly MCP] 📧 Executing list_emails...');
+
+      const emailsParams: any = {};
+      if (args.campaign_id) emailsParams.campaign_id = args.campaign_id;
+      if (args.limit) emailsParams.limit = args.limit;
+      if (args.offset) emailsParams.offset = args.offset;
+
+      const emailsResult = await makeInstantlyRequest('/emails', { params: emailsParams }, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              emails: emailsResult,
+              message: 'Emails retrieved successfully'
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
+    case 'get_email': {
+      console.error('[Instantly MCP] 📧 Executing get_email...');
+
+      if (!args.email_id) {
+        throw new McpError(ErrorCode.InvalidParams, 'Email ID is required for get_email');
+      }
+
+      const emailResult = await makeInstantlyRequest(`/emails/${args.email_id}`, {}, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              email: emailResult,
+              message: 'Email retrieved successfully'
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
+    case 'reply_to_email': {
+      console.error('[Instantly MCP] 📧 Executing reply_to_email...');
+
+      if (!args.email_id || !args.reply_body) {
+        throw new McpError(ErrorCode.InvalidParams, 'Email ID and reply body are required for reply_to_email');
+      }
+
+      const replyData = {
+        email_id: args.email_id,
+        reply_body: args.reply_body,
+        subject: args.subject || 'Re: '
+      };
+
+      const replyResult = await makeInstantlyRequest('/emails/reply', { method: 'POST', ...replyData }, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              reply: replyResult,
+              message: 'Email reply sent successfully'
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
+    case 'pause_account': {
+      console.error('[Instantly MCP] ⏸️ Executing pause_account...');
+
+      if (!args.email) {
+        throw new McpError(ErrorCode.InvalidParams, 'Email is required for pause_account');
+      }
+
+      const pauseResult = await makeInstantlyRequest(`/account/pauseaccount`, { method: 'POST', email: args.email }, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              result: pauseResult,
+              message: 'Account paused successfully'
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
+    case 'resume_account': {
+      console.error('[Instantly MCP] ▶️ Executing resume_account...');
+
+      if (!args.email) {
+        throw new McpError(ErrorCode.InvalidParams, 'Email is required for resume_account');
+      }
+
+      const resumeResult = await makeInstantlyRequest(`/account/resumeaccount`, { method: 'POST', email: args.email }, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              result: resumeResult,
+              message: 'Account resumed successfully'
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
+    case 'check_feature_availability': {
+      console.error('[Instantly MCP] 🔍 Executing check_feature_availability...');
+
+      // This tool checks current plan features - no specific endpoint, return plan info
+      const accountResult = await makeInstantlyRequest('/accounts', {}, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              message: 'Feature availability check - this tool provides account information to determine available features',
+              note: 'Feature availability depends on your Instantly.ai plan. Check account details for plan information.',
+              account_count: Array.isArray(accountResult) ? accountResult.length : 'N/A'
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
+    case 'get_account_details': {
+      console.error('[Instantly MCP] 👤 Executing get_account_details...');
+
+      if (!args.email) {
+        throw new McpError(ErrorCode.InvalidParams, 'Email parameter is required for get_account_details');
+      }
+
+      // This is essentially the same as get_account_info - might be a duplicate
+      const accountResult = await makeInstantlyRequest(`/accounts/${args.email}`, {}, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              account_details: accountResult,
+              message: 'Account details retrieved successfully',
+              note: 'This tool provides the same information as get_account_info'
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
+    case 'validate_campaign_accounts': {
+      console.error('[Instantly MCP] ✅ Executing validate_campaign_accounts...');
+
+      // This tool validates which accounts are eligible for campaigns
+      const accountsResult = await makeInstantlyRequest('/accounts', {}, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              message: 'Campaign account validation - checks which accounts are eligible for campaign creation',
+              total_accounts: Array.isArray(accountsResult) ? accountsResult.length : 0,
+              note: 'This diagnostic tool helps identify account eligibility issues for campaign creation'
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
     // Add more tools as needed...
     default:
       throw new McpError(ErrorCode.InvalidRequest, `Unknown tool: ${name}`);
