@@ -2340,6 +2340,25 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
       };
     }
 
+    case 'count_unread_emails': {
+      console.error('[Instantly MCP] 📧 Executing count_unread_emails...');
+
+      const unreadResult = await makeInstantlyRequest('/emails/unread/count', {}, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              unread_count: unreadResult.count || unreadResult.unread_count || 0,
+              message: 'Unread emails count retrieved successfully'
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
     // Add more tools as needed...
     default:
       throw new McpError(ErrorCode.InvalidRequest, `Unknown tool: ${name}`);
