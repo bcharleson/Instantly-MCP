@@ -2030,8 +2030,8 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
       console.error('[Instantly MCP] 📋 Executing list_leads...');
       console.error(`[Instantly MCP] 🔍 Request args: ${JSON.stringify(args, null, 2)}`);
 
-      // TEMPORARY: Generous timeout for pagination testing
-      const requestTimeout = 300000; // 5 minutes total timeout (for testing complete pagination)
+      // Balanced timeout settings based on performance testing
+      const requestTimeout = 120000; // 2 minutes total timeout (34x safety margin based on testing)
       const startTime = Date.now();
 
       // Check if user wants all leads with automatic pagination
@@ -2042,11 +2042,11 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
       if (getAllLeads) {
         console.error('[Instantly MCP] 🔄 get_all=true: Starting automatic pagination with timeout protection...');
 
-        // TEMPORARY: Generous pagination settings for testing complete results
-        const maxPages = Math.min(args?.max_pages || 50, 100); // Default 50, max 100 (for testing)
-        const pageTimeout = 30000; // 30 seconds per page (generous for testing)
+        // Balanced pagination settings based on performance testing (3.5s for 167 leads across 2 pages)
+        const maxPages = Math.min(args?.max_pages || 10, 50); // Default 10, max 50 (balanced)
+        const pageTimeout = 15000; // 15 seconds per page (4x safety margin based on testing)
 
-        console.error(`[Instantly MCP] ⚙️ TESTING MODE - GENEROUS pagination: max_pages=${maxPages}, page_timeout=${pageTimeout}ms, total_timeout=${requestTimeout}ms`);
+        console.error(`[Instantly MCP] ⚙️ BALANCED pagination: max_pages=${maxPages}, page_timeout=${pageTimeout}ms, total_timeout=${requestTimeout}ms`);
 
         // Build base request body for pagination with all supported parameters
         const baseRequestBody: any = {};
@@ -2098,7 +2098,6 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
               requestBody.starting_after = startingAfter;
             }
 
-            console.error(`[Instantly MCP] 🔍 DEBUG: Page ${currentPage} request body: ${JSON.stringify(requestBody, null, 2)}`);
             console.error(`[Instantly MCP] 📄 Fetching page ${currentPage}/${maxPages} (starting_after: ${startingAfter || 'none'})...`);
 
             try {
