@@ -1315,16 +1315,16 @@ const TOOLS_DEFINITION = [
               description: 'Filter criteria for leads. Available values: FILTER_VAL_CONTACTED, FILTER_VAL_NOT_CONTACTED, FILTER_VAL_COMPLETED, FILTER_VAL_UNSUBSCRIBED, FILTER_VAL_ACTIVE, FILTER_LEAD_INTERESTED, FILTER_LEAD_NOT_INTERESTED, FILTER_LEAD_MEETING_BOOKED, FILTER_LEAD_MEETING_COMPLETED, FILTER_LEAD_CLOSED. Example: "FILTER_VAL_CONTACTED"'
             },
 
-            // Advanced filtering
+            // ID-based filtering (corrected parameter names per API docs)
             included_ids: {
               type: 'array',
               items: { type: 'string' },
-              description: 'Array of specific lead IDs to include. Example: ["01997ba3-0106-7bf4-8584-6344cb1ce5a"]'
+              description: 'Array of specific lead IDs to include (maps to API "ids" parameter). Example: ["01997ba3-0106-7bf4-8584-634349eecf07"]'
             },
             excluded_ids: {
               type: 'array',
               items: { type: 'string' },
-              description: 'Array of lead IDs to exclude. Example: ["01997ba3-0106-7bf4-8584-6344cb1ce5a"]'
+              description: 'Array of lead IDs to exclude. Example: ["01997ba3-0106-7bf4-8584-6344c6b1ce5a"]'
             },
             contacts: {
               type: 'array',
@@ -1350,7 +1350,20 @@ const TOOLS_DEFINITION = [
             },
             in_campaign: {
               type: 'boolean',
-              description: 'Filter leads that are in campaigns'
+              description: 'Whether the lead is in a campaign. Example: true'
+            },
+            in_list: {
+              type: 'boolean',
+              description: 'Whether the lead is in a list. Example: true'
+            },
+            enrichment_status: {
+              type: 'number',
+              description: 'Enrichment status enum: 1=successfully enriched, 11=pending enrichment, -1=not available, -2=error occurred. Example: 1'
+            },
+            queries: {
+              type: 'array',
+              items: { type: 'object' },
+              description: 'Advanced query objects for complex filtering. Example: [{"actionType":"email-open","values":{"occurrence-days":1}}]'
             },
 
             // Pagination parameters
@@ -2051,18 +2064,17 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
         // Build base request body for pagination with all supported parameters
         const baseRequestBody: any = {};
 
-        // Basic filtering parameters
+        // Basic filtering parameters (corrected API parameter names)
         if (args?.campaign_id) baseRequestBody.campaign = args.campaign_id;
         if (args?.list_id) baseRequestBody.list_id = args.list_id;
         if (args?.list_ids && args.list_ids.length > 0) baseRequestBody.list_ids = args.list_ids;
-        if (args?.status) baseRequestBody.status = args.status;
 
         // Search and filtering
         if (args?.search) baseRequestBody.search = args.search;
         if (args?.filter) baseRequestBody.filter = args.filter;
 
-        // Advanced filtering
-        if (args?.included_ids && args.included_ids.length > 0) baseRequestBody.included_ids = args.included_ids;
+        // ID-based filtering (corrected API parameter names)
+        if (args?.included_ids && args.included_ids.length > 0) baseRequestBody.ids = args.included_ids;
         if (args?.excluded_ids && args.excluded_ids.length > 0) baseRequestBody.excluded_ids = args.excluded_ids;
         if (args?.contacts && args.contacts.length > 0) baseRequestBody.contacts = args.contacts;
         if (args?.organization_user_ids && args.organization_user_ids.length > 0) baseRequestBody.organization_user_ids = args.organization_user_ids;
@@ -2070,6 +2082,9 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
         if (args?.is_website_visitor !== undefined) baseRequestBody.is_website_visitor = args.is_website_visitor;
         if (args?.distinct_contacts !== undefined) baseRequestBody.distinct_contacts = args.distinct_contacts;
         if (args?.in_campaign !== undefined) baseRequestBody.in_campaign = args.in_campaign;
+        if (args?.in_list !== undefined) baseRequestBody.in_list = args.in_list;
+        if (args?.enrichment_status !== undefined) baseRequestBody.enrichment_status = args.enrichment_status;
+        if (args?.queries && args.queries.length > 0) baseRequestBody.queries = args.queries;
 
         // Use larger page size for efficiency (max 100)
         baseRequestBody.limit = 100;
@@ -2220,18 +2235,17 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
 
         const requestBody: any = {};
 
-        // Basic filtering parameters
+        // Basic filtering parameters (corrected API parameter names)
         if (args?.campaign_id) requestBody.campaign = args.campaign_id;
         if (args?.list_id) requestBody.list_id = args.list_id;
         if (args?.list_ids && args.list_ids.length > 0) requestBody.list_ids = args.list_ids;
-        if (args?.status) requestBody.status = args.status;
 
         // Search and filtering
         if (args?.search) requestBody.search = args.search;
         if (args?.filter) requestBody.filter = args.filter;
 
-        // Advanced filtering
-        if (args?.included_ids && args.included_ids.length > 0) requestBody.included_ids = args.included_ids;
+        // ID-based filtering (corrected API parameter names)
+        if (args?.included_ids && args.included_ids.length > 0) requestBody.ids = args.included_ids;
         if (args?.excluded_ids && args.excluded_ids.length > 0) requestBody.excluded_ids = args.excluded_ids;
         if (args?.contacts && args.contacts.length > 0) requestBody.contacts = args.contacts;
         if (args?.organization_user_ids && args.organization_user_ids.length > 0) requestBody.organization_user_ids = args.organization_user_ids;
@@ -2239,6 +2253,9 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
         if (args?.is_website_visitor !== undefined) requestBody.is_website_visitor = args.is_website_visitor;
         if (args?.distinct_contacts !== undefined) requestBody.distinct_contacts = args.distinct_contacts;
         if (args?.in_campaign !== undefined) requestBody.in_campaign = args.in_campaign;
+        if (args?.in_list !== undefined) requestBody.in_list = args.in_list;
+        if (args?.enrichment_status !== undefined) requestBody.enrichment_status = args.enrichment_status;
+        if (args?.queries && args.queries.length > 0) requestBody.queries = args.queries;
 
         // Pagination parameters
         if (args?.limit) requestBody.limit = args.limit;
