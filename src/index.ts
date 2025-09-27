@@ -2098,6 +2098,7 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
               requestBody.starting_after = startingAfter;
             }
 
+            console.error(`[Instantly MCP] 🔍 DEBUG: Page ${currentPage} request body: ${JSON.stringify(requestBody, null, 2)}`);
             console.error(`[Instantly MCP] 📄 Fetching page ${currentPage}/${maxPages} (starting_after: ${startingAfter || 'none'})...`);
 
             try {
