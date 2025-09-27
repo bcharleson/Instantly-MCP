@@ -2359,6 +2359,29 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
       };
     }
 
+    case 'get_account_info': {
+      console.error('[Instantly MCP] 👤 Executing get_account_info...');
+
+      if (!args.email) {
+        throw new McpError(ErrorCode.InvalidParams, 'Email parameter is required for get_account_info');
+      }
+
+      const accountResult = await makeInstantlyRequest(`/accounts/${args.email}`, {}, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              account: accountResult,
+              message: 'Account information retrieved successfully'
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
     // Add more tools as needed...
     default:
       throw new McpError(ErrorCode.InvalidRequest, `Unknown tool: ${name}`);
