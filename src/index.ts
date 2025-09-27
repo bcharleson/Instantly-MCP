@@ -1289,7 +1289,7 @@ const TOOLS_DEFINITION = [
       },
       {
         name: 'list_leads',
-        description: 'List multiple leads with filtering and pagination using POST /leads/list endpoint. **WARNING**: When get_all=true, this may take 30-60+ seconds for large datasets as it automatically paginates through ALL pages.',
+        description: 'List multiple leads with filtering and pagination using POST /leads/list endpoint. **TIMEOUT PROTECTION**: Includes timeout handling to prevent MCP protocol timeouts. Use max_pages to control scope.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -1301,8 +1301,15 @@ const TOOLS_DEFINITION = [
             starting_after: { type: 'string', description: 'Lead ID to start pagination after (from previous response next_starting_after field). Only used when get_all=false.' },
             get_all: {
               type: 'boolean',
-              description: 'When true: Automatically retrieves ALL leads across ALL pages (may take 30-60+ seconds for large datasets). When false: Returns single page only. Default: false',
+              description: 'When true: Automatically retrieves leads across multiple pages with timeout protection. When false: Returns single page only. Default: false',
               default: false
+            },
+            max_pages: {
+              type: 'number',
+              description: 'Maximum number of pages to fetch when get_all=true (1-500, default: 50). Use smaller values to avoid timeouts with large datasets.',
+              minimum: 1,
+              maximum: 500,
+              default: 50
             }
           },
           additionalProperties: false
@@ -1949,12 +1956,25 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
 
     case 'list_leads': {
       console.error('[Instantly MCP] 📋 Executing list_leads...');
+      console.error(`[Instantly MCP] 🔍 Request args: ${JSON.stringify(args, null, 2)}`);
+
+      // Add timeout handling for list_leads requests
+      const requestTimeout = 45000; // 45 seconds timeout
+      const startTime = Date.now();
 
       // Check if user wants all leads with automatic pagination
       const getAllLeads = args?.get_all === true;
 
+      console.error(`[Instantly MCP] ⏱️ Starting list_leads with ${getAllLeads ? 'automatic pagination' : 'single page'} (timeout: ${requestTimeout}ms)`);
+
       if (getAllLeads) {
-        console.error('[Instantly MCP] 🔄 get_all=true: Starting automatic pagination for all leads...');
+        console.error('[Instantly MCP] 🔄 get_all=true: Starting automatic pagination with timeout protection...');
+
+        // Add max_pages parameter for user control
+        const maxPages = Math.min(args?.max_pages || 50, 500); // Default 50, max 500 for safety
+        const pageTimeout = 15000; // 15 seconds per page
+
+        console.error(`[Instantly MCP] ⚙️ Pagination settings: max_pages=${maxPages}, page_timeout=${pageTimeout}ms, total_timeout=${requestTimeout}ms`);
 
         // Build base request body for pagination
         const baseRequestBody: any = {};
@@ -1968,70 +1988,140 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
         let allLeads: any[] = [];
         let currentPage = 1;
         let startingAfter: string | undefined = undefined;
-        const maxPages = 500; // Safety limit to prevent infinite loops
+        let timeoutReached = false;
 
         console.error(`[Instantly MCP] 📊 Starting pagination with filters: ${JSON.stringify(baseRequestBody, null, 2)}`);
 
-        while (currentPage <= maxPages) {
-          const requestBody = { ...baseRequestBody };
-          if (startingAfter) {
-            requestBody.starting_after = startingAfter;
-          }
+        try {
+          while (currentPage <= maxPages && !timeoutReached) {
+            const pageStartTime = Date.now();
+            const elapsedTotal = pageStartTime - startTime;
 
-          console.error(`[Instantly MCP] 📄 Fetching page ${currentPage} (starting_after: ${startingAfter || 'none'})...`);
-
-          try {
-            const pageResult = await makeInstantlyRequest('/leads/list', {
-              method: 'POST',
-              body: requestBody
-            }, apiKey);
-
-            // Add leads from this page
-            if (pageResult.items && Array.isArray(pageResult.items)) {
-              allLeads.push(...pageResult.items);
-              console.error(`[Instantly MCP] ✅ Page ${currentPage}: Retrieved ${pageResult.items.length} leads. Total so far: ${allLeads.length}`);
-            } else {
-              console.error(`[Instantly MCP] ⚠️ Page ${currentPage}: No items array found in response`);
-            }
-
-            // Check if there are more pages
-            if (pageResult.next_starting_after) {
-              startingAfter = pageResult.next_starting_after;
-              currentPage++;
-
-              // Add small delay to avoid rate limiting
-              await new Promise(resolve => setTimeout(resolve, 100));
-            } else {
-              console.error(`[Instantly MCP] 🏁 Pagination complete! No more pages. Total leads retrieved: ${allLeads.length}`);
+            // Check if we're approaching total timeout
+            if (elapsedTotal > requestTimeout - 5000) { // Leave 5s buffer
+              console.error(`[Instantly MCP] ⏰ Approaching total timeout (${elapsedTotal}ms/${requestTimeout}ms). Stopping pagination.`);
+              timeoutReached = true;
               break;
             }
-          } catch (error) {
-            console.error(`[Instantly MCP] ❌ Error on page ${currentPage}:`, error);
-            throw error;
+
+            const requestBody = { ...baseRequestBody };
+            if (startingAfter) {
+              requestBody.starting_after = startingAfter;
+            }
+
+            console.error(`[Instantly MCP] 📄 Fetching page ${currentPage}/${maxPages} (starting_after: ${startingAfter || 'none'})...`);
+
+            try {
+              // Add timeout for individual page request
+              const pagePromise = makeInstantlyRequest('/leads/list', {
+                method: 'POST',
+                body: requestBody
+              }, apiKey);
+
+              const pageTimeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error(`Page ${currentPage} timeout after ${pageTimeout}ms`)), pageTimeout);
+              });
+
+              const pageResult = await Promise.race([pagePromise, pageTimeoutPromise]);
+              const pageElapsed = Date.now() - pageStartTime;
+
+              // Add leads from this page
+              if (pageResult.items && Array.isArray(pageResult.items)) {
+                allLeads.push(...pageResult.items);
+                console.error(`[Instantly MCP] ✅ Page ${currentPage}: Retrieved ${pageResult.items.length} leads in ${pageElapsed}ms. Total: ${allLeads.length}`);
+              } else {
+                console.error(`[Instantly MCP] ⚠️ Page ${currentPage}: No items array found in response`);
+              }
+
+              // Check if there are more pages
+              if (pageResult.next_starting_after) {
+                startingAfter = pageResult.next_starting_after;
+                currentPage++;
+
+                // Add small delay to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, 200));
+              } else {
+                console.error(`[Instantly MCP] 🏁 Pagination complete! No more pages. Total leads retrieved: ${allLeads.length}`);
+                break;
+              }
+            } catch (error: any) {
+              console.error(`[Instantly MCP] ❌ Error on page ${currentPage}:`, error.message);
+
+              if (error.message.includes('timeout')) {
+                console.error(`[Instantly MCP] ⏰ Page ${currentPage} timed out. Returning partial results.`);
+                timeoutReached = true;
+                break;
+              }
+
+              throw error;
+            }
           }
-        }
 
-        if (currentPage > maxPages) {
-          console.error(`[Instantly MCP] ⚠️ Reached maximum page limit (${maxPages}). Total leads retrieved: ${allLeads.length}`);
-        }
+          const totalElapsed = Date.now() - startTime;
+          const status = timeoutReached ? 'partial_timeout' :
+                        currentPage > maxPages ? 'max_pages_reached' : 'complete';
 
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                items: allLeads,
-                total_retrieved: allLeads.length,
-                pages_fetched: currentPage - 1,
-                pagination_method: "automatic_complete",
-                get_all: true,
-                success: true
-              }, null, 2),
-            },
-          ],
-        };
+          console.error(`[Instantly MCP] 📊 Pagination finished: ${status}, ${allLeads.length} leads, ${currentPage - 1} pages, ${totalElapsed}ms`);
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  items: allLeads,
+                  total_retrieved: allLeads.length,
+                  pages_fetched: currentPage - 1,
+                  pagination_status: status,
+                  pagination_method: "automatic_with_timeout_protection",
+                  get_all: true,
+                  timeout_reached: timeoutReached,
+                  max_pages_limit: maxPages,
+                  total_time_ms: totalElapsed,
+                  success: true,
+                  _metadata: {
+                    note: timeoutReached ?
+                      "Partial results due to timeout. Use smaller max_pages or add filters to get complete results." :
+                      currentPage > maxPages ?
+                      "Reached max_pages limit. Increase max_pages parameter to get more results." :
+                      "Complete pagination successful."
+                  }
+                }, null, 2),
+              },
+            ],
+          };
+        } catch (error: any) {
+          const totalElapsed = Date.now() - startTime;
+          console.error(`[Instantly MCP] ❌ Pagination failed after ${totalElapsed}ms:`, error.message);
+
+          // Return partial results if we got some data
+          if (allLeads.length > 0) {
+            console.error(`[Instantly MCP] 🔄 Returning partial results: ${allLeads.length} leads from ${currentPage - 1} pages`);
+
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify({
+                    items: allLeads,
+                    total_retrieved: allLeads.length,
+                    pages_fetched: currentPage - 1,
+                    pagination_status: 'error_partial',
+                    error: error.message,
+                    total_time_ms: totalElapsed,
+                    success: false,
+                    _metadata: {
+                      note: `Pagination failed but returning ${allLeads.length} leads from ${currentPage - 1} completed pages. Error: ${error.message}`
+                    }
+                  }, null, 2),
+                },
+              ],
+            };
+          }
+
+          throw error;
+        }
       } else {
-        // Single page request (original behavior)
+        // Single page request with timeout handling
         console.error('[Instantly MCP] 📄 Single page request...');
 
         const requestBody: any = {};
@@ -2044,21 +2134,60 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
         if (args?.skip !== undefined) requestBody.skip = args.skip;
         if (args?.starting_after) requestBody.starting_after = args.starting_after;
 
-        console.error(`[Instantly MCP] list_leads POST body: ${JSON.stringify(requestBody, null, 2)}`);
+        console.error(`[Instantly MCP] 📤 Single page POST body: ${JSON.stringify(requestBody, null, 2)}`);
+        console.error(`[Instantly MCP] 🌐 Making request to: POST /leads/list`);
 
-        const result = await makeInstantlyRequest('/leads/list', {
-          method: 'POST',
-          body: requestBody
-        }, apiKey);
+        try {
+          // Add timeout wrapper for single request
+          const requestPromise = makeInstantlyRequest('/leads/list', {
+            method: 'POST',
+            body: requestBody
+          }, apiKey);
 
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        };
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error(`Request timeout after ${requestTimeout}ms`)), requestTimeout);
+          });
+
+          console.error(`[Instantly MCP] ⏳ Waiting for API response (timeout: ${requestTimeout}ms)...`);
+          const result = await Promise.race([requestPromise, timeoutPromise]);
+
+          const elapsed = Date.now() - startTime;
+          console.error(`[Instantly MCP] ✅ Single page request completed in ${elapsed}ms`);
+
+          // Add timing metadata to response
+          const enhancedResult = {
+            ...result,
+            _metadata: {
+              request_time_ms: elapsed,
+              request_type: 'single_page',
+              timeout_limit_ms: requestTimeout,
+              success: true
+            }
+          };
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(enhancedResult, null, 2),
+              },
+            ],
+          };
+        } catch (error: any) {
+          const elapsed = Date.now() - startTime;
+          console.error(`[Instantly MCP] ❌ Single page request failed after ${elapsed}ms:`, error.message);
+
+          // Provide helpful error message with suggestions
+          if (error.message.includes('timeout')) {
+            throw new McpError(ErrorCode.InternalError,
+              `list_leads request timed out after ${elapsed}ms. The Instantly.ai API may be slow or unresponsive. ` +
+              `Try: 1) Reduce limit parameter (e.g., limit: 20), 2) Add filters (campaign_id, list_id), ` +
+              `3) Check API status, or 4) Try again later. Current request: ${JSON.stringify(requestBody)}`
+            );
+          }
+
+          throw error;
+        }
       }
     }
 
