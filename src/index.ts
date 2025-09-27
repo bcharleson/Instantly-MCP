@@ -1587,7 +1587,7 @@ const TOOLS_DEFINITION = [
       // ===== NEW TIER 1 TOOLS - PRODUCTION VERIFIED =====
       {
         name: 'count_unread_emails',
-        description: 'Count unread emails in inbox - Safe read-only monitoring tool',
+        description: 'Count unread emails in inbox - Safe read-only monitoring tool for production testing',
         inputSchema: {
           type: 'object',
           properties: {},
