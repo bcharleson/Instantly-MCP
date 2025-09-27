@@ -39,12 +39,17 @@ export class TransportManager {
    */
   static detectTransportMode(): TransportMode {
     const mode = process.env.TRANSPORT_MODE?.toLowerCase();
-    
+
     // Auto-detect based on environment
     if (mode === 'http' || mode === 'https') {
       return 'http';
     }
-    
+
+    // Auto-detect production environment (DigitalOcean App Platform)
+    if (process.env.NODE_ENV === 'production' || process.env.PORT) {
+      return 'http';
+    }
+
     // Default to stdio for local usage
     return 'stdio';
   }

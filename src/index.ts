@@ -112,6 +112,8 @@ if (!INSTANTLY_API_KEY) {
 // Check if we need an API key at startup
 const { transportMode } = parseConfig();
 
+// Only require API key for stdio mode (local usage)
+// HTTP mode handles API keys per-request via URL path: /mcp/{API_KEY}
 if (!INSTANTLY_API_KEY && transportMode === 'stdio') {
   console.error('Error: API key must be provided via INSTANTLY_API_KEY environment variable or --api-key argument for stdio mode');
   console.error('For security, using the environment variable is recommended:');
