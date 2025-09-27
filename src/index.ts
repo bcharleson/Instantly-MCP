@@ -2054,7 +2054,7 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
         // Basic filtering parameters
         if (args?.campaign_id) baseRequestBody.campaign_id = args.campaign_id;
         if (args?.list_id) baseRequestBody.list_id = args.list_id;
-        if (args?.list_ids) baseRequestBody.list_ids = args.list_ids;
+        if (args?.list_ids && args.list_ids.length > 0) baseRequestBody.list_ids = args.list_ids;
         if (args?.status) baseRequestBody.status = args.status;
 
         // Search and filtering
@@ -2062,10 +2062,10 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
         if (args?.filter) baseRequestBody.filter = args.filter;
 
         // Advanced filtering
-        if (args?.included_ids) baseRequestBody.included_ids = args.included_ids;
-        if (args?.excluded_ids) baseRequestBody.excluded_ids = args.excluded_ids;
-        if (args?.contacts) baseRequestBody.contacts = args.contacts;
-        if (args?.organization_user_ids) baseRequestBody.organization_user_ids = args.organization_user_ids;
+        if (args?.included_ids && args.included_ids.length > 0) baseRequestBody.included_ids = args.included_ids;
+        if (args?.excluded_ids && args.excluded_ids.length > 0) baseRequestBody.excluded_ids = args.excluded_ids;
+        if (args?.contacts && args.contacts.length > 0) baseRequestBody.contacts = args.contacts;
+        if (args?.organization_user_ids && args.organization_user_ids.length > 0) baseRequestBody.organization_user_ids = args.organization_user_ids;
         if (args?.smart_view_id) baseRequestBody.smart_view_id = args.smart_view_id;
         if (args?.is_website_visitor !== undefined) baseRequestBody.is_website_visitor = args.is_website_visitor;
         if (args?.distinct_contacts !== undefined) baseRequestBody.distinct_contacts = args.distinct_contacts;
@@ -2223,7 +2223,7 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
         // Basic filtering parameters
         if (args?.campaign_id) requestBody.campaign_id = args.campaign_id;
         if (args?.list_id) requestBody.list_id = args.list_id;
-        if (args?.list_ids) requestBody.list_ids = args.list_ids;
+        if (args?.list_ids && args.list_ids.length > 0) requestBody.list_ids = args.list_ids;
         if (args?.status) requestBody.status = args.status;
 
         // Search and filtering
@@ -2231,10 +2231,10 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
         if (args?.filter) requestBody.filter = args.filter;
 
         // Advanced filtering
-        if (args?.included_ids) requestBody.included_ids = args.included_ids;
-        if (args?.excluded_ids) requestBody.excluded_ids = args.excluded_ids;
-        if (args?.contacts) requestBody.contacts = args.contacts;
-        if (args?.organization_user_ids) requestBody.organization_user_ids = args.organization_user_ids;
+        if (args?.included_ids && args.included_ids.length > 0) requestBody.included_ids = args.included_ids;
+        if (args?.excluded_ids && args.excluded_ids.length > 0) requestBody.excluded_ids = args.excluded_ids;
+        if (args?.contacts && args.contacts.length > 0) requestBody.contacts = args.contacts;
+        if (args?.organization_user_ids && args.organization_user_ids.length > 0) requestBody.organization_user_ids = args.organization_user_ids;
         if (args?.smart_view_id) requestBody.smart_view_id = args.smart_view_id;
         if (args?.is_website_visitor !== undefined) requestBody.is_website_visitor = args.is_website_visitor;
         if (args?.distinct_contacts !== undefined) requestBody.distinct_contacts = args.distinct_contacts;
