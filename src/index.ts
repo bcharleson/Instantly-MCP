@@ -1289,16 +1289,21 @@ const TOOLS_DEFINITION = [
       },
       {
         name: 'list_leads',
-        description: 'List multiple leads with filtering and pagination using POST /leads/list endpoint',
+        description: 'List multiple leads with filtering and pagination using POST /leads/list endpoint. **WARNING**: When get_all=true, this may take 30-60+ seconds for large datasets as it automatically paginates through ALL pages.',
         inputSchema: {
           type: 'object',
           properties: {
             campaign_id: { type: 'string', description: 'Filter by campaign ID (optional)' },
             list_id: { type: 'string', description: 'Filter by list ID (optional)' },
             status: { type: 'string', description: 'Filter by lead status (optional)' },
-            limit: { type: 'number', description: 'Number of leads to return (1-100, default: 20)', minimum: 1, maximum: 100 },
-            skip: { type: 'number', description: 'Number of leads to skip for pagination (default: 0)', minimum: 0 },
-            get_all: { type: 'boolean', description: 'Retrieve all leads using pagination', default: false }
+            limit: { type: 'number', description: 'Number of leads per page (1-100, default: 20). When get_all=true, this is automatically set to 100 for efficiency.', minimum: 1, maximum: 100 },
+            skip: { type: 'number', description: 'Number of leads to skip for pagination (default: 0). Only used when get_all=false.', minimum: 0 },
+            starting_after: { type: 'string', description: 'Lead ID to start pagination after (from previous response next_starting_after field). Only used when get_all=false.' },
+            get_all: {
+              type: 'boolean',
+              description: 'When true: Automatically retrieves ALL leads across ALL pages (may take 30-60+ seconds for large datasets). When false: Returns single page only. Default: false',
+              default: false
+            }
           },
           additionalProperties: false
         }
@@ -1945,31 +1950,116 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
     case 'list_leads': {
       console.error('[Instantly MCP] 📋 Executing list_leads...');
 
-      // Build request body for POST /leads/list
-      const requestBody: any = {};
+      // Check if user wants all leads with automatic pagination
+      const getAllLeads = args?.get_all === true;
 
-      // Add optional filter parameters
-      if (args?.campaign_id) requestBody.campaign_id = args.campaign_id;
-      if (args?.list_id) requestBody.list_id = args.list_id;
-      if (args?.status) requestBody.status = args.status;
-      if (args?.limit) requestBody.limit = args.limit;
-      if (args?.skip !== undefined) requestBody.skip = args.skip; // Include skip even if 0
+      if (getAllLeads) {
+        console.error('[Instantly MCP] 🔄 get_all=true: Starting automatic pagination for all leads...');
 
-      console.error(`[Instantly MCP] list_leads POST body: ${JSON.stringify(requestBody, null, 2)}`);
+        // Build base request body for pagination
+        const baseRequestBody: any = {};
+        if (args?.campaign_id) baseRequestBody.campaign_id = args.campaign_id;
+        if (args?.list_id) baseRequestBody.list_id = args.list_id;
+        if (args?.status) baseRequestBody.status = args.status;
 
-      const result = await makeInstantlyRequest('/leads/list', {
-        method: 'POST',
-        body: requestBody
-      }, apiKey);
+        // Use larger page size for efficiency (max 100)
+        baseRequestBody.limit = 100;
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
+        let allLeads: any[] = [];
+        let currentPage = 1;
+        let startingAfter: string | undefined = undefined;
+        const maxPages = 500; // Safety limit to prevent infinite loops
+
+        console.error(`[Instantly MCP] 📊 Starting pagination with filters: ${JSON.stringify(baseRequestBody, null, 2)}`);
+
+        while (currentPage <= maxPages) {
+          const requestBody = { ...baseRequestBody };
+          if (startingAfter) {
+            requestBody.starting_after = startingAfter;
+          }
+
+          console.error(`[Instantly MCP] 📄 Fetching page ${currentPage} (starting_after: ${startingAfter || 'none'})...`);
+
+          try {
+            const pageResult = await makeInstantlyRequest('/leads/list', {
+              method: 'POST',
+              body: requestBody
+            }, apiKey);
+
+            // Add leads from this page
+            if (pageResult.items && Array.isArray(pageResult.items)) {
+              allLeads.push(...pageResult.items);
+              console.error(`[Instantly MCP] ✅ Page ${currentPage}: Retrieved ${pageResult.items.length} leads. Total so far: ${allLeads.length}`);
+            } else {
+              console.error(`[Instantly MCP] ⚠️ Page ${currentPage}: No items array found in response`);
+            }
+
+            // Check if there are more pages
+            if (pageResult.next_starting_after) {
+              startingAfter = pageResult.next_starting_after;
+              currentPage++;
+
+              // Add small delay to avoid rate limiting
+              await new Promise(resolve => setTimeout(resolve, 100));
+            } else {
+              console.error(`[Instantly MCP] 🏁 Pagination complete! No more pages. Total leads retrieved: ${allLeads.length}`);
+              break;
+            }
+          } catch (error) {
+            console.error(`[Instantly MCP] ❌ Error on page ${currentPage}:`, error);
+            throw error;
+          }
+        }
+
+        if (currentPage > maxPages) {
+          console.error(`[Instantly MCP] ⚠️ Reached maximum page limit (${maxPages}). Total leads retrieved: ${allLeads.length}`);
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                items: allLeads,
+                total_retrieved: allLeads.length,
+                pages_fetched: currentPage - 1,
+                pagination_method: "automatic_complete",
+                get_all: true,
+                success: true
+              }, null, 2),
+            },
+          ],
+        };
+      } else {
+        // Single page request (original behavior)
+        console.error('[Instantly MCP] 📄 Single page request...');
+
+        const requestBody: any = {};
+
+        // Add optional filter parameters
+        if (args?.campaign_id) requestBody.campaign_id = args.campaign_id;
+        if (args?.list_id) requestBody.list_id = args.list_id;
+        if (args?.status) requestBody.status = args.status;
+        if (args?.limit) requestBody.limit = args.limit;
+        if (args?.skip !== undefined) requestBody.skip = args.skip;
+        if (args?.starting_after) requestBody.starting_after = args.starting_after;
+
+        console.error(`[Instantly MCP] list_leads POST body: ${JSON.stringify(requestBody, null, 2)}`);
+
+        const result = await makeInstantlyRequest('/leads/list', {
+          method: 'POST',
+          body: requestBody
+        }, apiKey);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
     }
 
     case 'get_lead': {
