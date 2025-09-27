@@ -2021,22 +2021,124 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
     }
 
     case 'verify_email': {
+      console.error('[Instantly MCP] 📧 Executing verify_email with complete workflow...');
+
       // Validate parameters with Zod schema
       const validatedArgs = validateEmailVerificationData(args);
+      const email = validatedArgs.email;
 
-      const result = await makeInstantlyRequest('/email-verification', {
+      console.error(`[Instantly MCP] 🔍 Initiating verification for: ${email}`);
+
+      // Step 1: Initiate email verification
+      const initialResult = await makeInstantlyRequest('/email-verification', {
         method: 'POST',
-        body: { email: validatedArgs.email }
+        body: { email: email }
       }, apiKey);
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
+      console.error(`[Instantly MCP] 📊 Initial verification result: ${JSON.stringify(initialResult, null, 2)}`);
+
+      // Step 2: Check if verification is complete or needs polling
+      if (initialResult.verification_status === 'pending' || initialResult.status === 'pending') {
+        console.error('[Instantly MCP] ⏳ Verification pending, starting polling process...');
+
+        // Polling configuration
+        const maxPollingTime = 60000; // 60 seconds maximum
+        const pollingInterval = 5000; // 5 seconds between polls
+        const startTime = Date.now();
+        let attempts = 0;
+        const maxAttempts = Math.floor(maxPollingTime / pollingInterval);
+
+        while (Date.now() - startTime < maxPollingTime && attempts < maxAttempts) {
+          attempts++;
+          console.error(`[Instantly MCP] 🔄 Polling attempt ${attempts}/${maxAttempts}...`);
+
+          // Wait before polling
+          await new Promise(resolve => setTimeout(resolve, pollingInterval));
+
+          try {
+            // Step 3: Check verification status
+            const statusResult = await makeInstantlyRequest('/email-verification/check-verification-status', {
+              params: { email: email }
+            }, apiKey);
+
+            console.error(`[Instantly MCP] 📋 Status check result: ${JSON.stringify(statusResult, null, 2)}`);
+
+            // Check if verification is complete
+            if (statusResult.verification_status && statusResult.verification_status !== 'pending') {
+              console.error(`[Instantly MCP] ✅ Verification complete after ${attempts} attempts`);
+
+              return {
+                content: [
+                  {
+                    type: 'text',
+                    text: JSON.stringify({
+                      success: true,
+                      email: email,
+                      verification_status: statusResult.verification_status,
+                      deliverability: statusResult.deliverability || statusResult.verification_status,
+                      catch_all: statusResult.catch_all,
+                      credits: statusResult.credits || initialResult.credits,
+                      credits_used: statusResult.credits_used || initialResult.credits_used,
+                      polling_attempts: attempts,
+                      total_time_seconds: Math.round((Date.now() - startTime) / 1000),
+                      message: 'Email verification completed successfully'
+                    }, null, 2)
+                  }
+                ]
+              };
+            }
+          } catch (pollError) {
+            console.error(`[Instantly MCP] ⚠️ Polling attempt ${attempts} failed:`, pollError);
+            // Continue polling unless it's the last attempt
+            if (attempts >= maxAttempts) {
+              throw pollError;
+            }
+          }
+        }
+
+        // Step 4: Handle timeout scenario
+        console.error('[Instantly MCP] ⏰ Verification polling timed out');
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                success: false,
+                email: email,
+                verification_status: 'timeout',
+                message: `Verification timed out after ${Math.round((Date.now() - startTime) / 1000)} seconds and ${attempts} polling attempts`,
+                initial_result: initialResult,
+                polling_attempts: attempts,
+                note: 'Verification may still be processing. Try checking status manually later.'
+              }, null, 2)
+            }
+          ]
+        };
+      } else {
+        // Step 5: Verification completed immediately
+        console.error('[Instantly MCP] ⚡ Verification completed immediately');
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                success: true,
+                email: email,
+                verification_status: initialResult.verification_status,
+                deliverability: initialResult.deliverability || initialResult.verification_status,
+                catch_all: initialResult.catch_all,
+                credits: initialResult.credits,
+                credits_used: initialResult.credits_used,
+                polling_attempts: 0,
+                total_time_seconds: 0,
+                message: 'Email verification completed immediately'
+              }, null, 2)
+            }
+          ]
+        };
+      }
     }
 
     case 'list_leads': {
