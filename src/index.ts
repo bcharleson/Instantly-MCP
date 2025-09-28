@@ -1695,15 +1695,6 @@ const TOOLS_DEFINITION = [
           additionalProperties: false
         }
       },
-      {
-        name: 'check_feature_availability',
-        description: 'Check which premium features are available with your current Instantly plan and API key permissions',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-          additionalProperties: false
-        }
-      },
       // ===== NEW TIER 1 TOOLS - PRODUCTION VERIFIED =====
       {
         name: 'count_unread_emails',
@@ -3737,21 +3728,7 @@ async function handleToolCall(params: any) {
         ]
       };
 
-    case 'check_feature_availability': {
-      const featuresResult = await makeInstantlyRequest('/account/features', {}, apiKey);
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              features: featuresResult,
-              message: 'Feature availability checked successfully'
-            }, null, 2)
-          }
-        ]
-      };
-    }
+
 
     // Duplicate implementations removed - using the main implementations above
 
