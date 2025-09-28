@@ -34,6 +34,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 // Ensure fetch is available (Node.js 18+ has it built-in)
+// Version: 1.1.0 - Parameter validation fixes deployed
 if (typeof fetch === 'undefined') {
   console.error('[Instantly MCP] ❌ fetch is not available. Please use Node.js 18+ or install a fetch polyfill.');
   process.exit(1);
