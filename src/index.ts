@@ -1557,11 +1557,13 @@ const TOOLS_DEFINITION = [
       },
       {
         name: 'create_lead_list',
-        description: 'Create a new lead list',
+        description: 'Create a new lead list with official Instantly.ai API v2 parameters',
         inputSchema: {
           type: 'object',
           properties: {
-            name: { type: 'string', description: 'Lead list name' }
+            name: { type: 'string', description: 'Name of the lead list (required)' },
+            has_enrichment_task: { type: 'boolean', description: 'Whether this list runs the enrichment process on every added lead or not', default: false },
+            owned_by: { type: 'string', description: 'User ID (UUID) of the owner of this lead list. Defaults to the user that created the list.' }
           },
           required: ['name'],
           additionalProperties: false
@@ -2861,8 +2863,12 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
         throw new McpError(ErrorCode.InvalidParams, 'Name is required for create_lead_list');
       }
 
+      // Build list data with official API v2 parameters
       const listData: any = { name: args.name };
-      if (args.description) listData.description = args.description;
+      if (args.has_enrichment_task !== undefined) listData.has_enrichment_task = args.has_enrichment_task;
+      if (args.owned_by) listData.owned_by = args.owned_by;
+
+      console.error(`[Instantly MCP] 📤 Creating lead list with data: ${JSON.stringify(listData, null, 2)}`);
 
       const createResult = await makeInstantlyRequest('/lead-lists', { method: 'POST', body: listData }, apiKey);
 

@@ -419,11 +419,12 @@ export const ListLeadsSchema = z.object({
 });
 
 /**
- * Create lead list validation schema
+ * Create lead list validation schema - Updated to match Instantly.ai API v2 specification
  */
 export const CreateLeadListSchema = z.object({
   name: z.string().min(1, { error: 'Lead list name cannot be empty' }),
-  description: z.string().optional()
+  has_enrichment_task: z.boolean().optional(),
+  owned_by: z.string().optional()
 });
 
 /**
