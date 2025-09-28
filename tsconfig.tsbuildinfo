@@ -1,1 +1,0 @@
-{"root":["./src/api-fixes.ts","./src/endpoint-analysis.ts","./src/enhanced-tools.ts","./src/error-handler.ts","./src/index.ts","./src/pagination-config.ts","./src/pagination.ts","./src/performance-monitor.ts","./src/rate-limiter.ts","./src/validation.ts"],"errors":true,"version":"5.8.3"}
