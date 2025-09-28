@@ -26,12 +26,7 @@
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { TransportManager, TransportConfig } from './transport-manager.js';
-import { StreamingHttpTransport, StreamingHttpConfig } from './streaming-http-transport.js';
-import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { TransportManager } from './transport-manager.js';
 
 // Ensure fetch is available (Node.js 18+ has it built-in)
 // Version: 1.1.0 - Parameter validation fixes deployed
@@ -3149,7 +3144,7 @@ async function startN8nHttpServer() {
 
       const { jsonrpc, id, method, params } = req.body;
 
-      // Handle different MCP methods directly (bypass StreamableHTTPServerTransport)
+      // Handle different MCP methods directly via Express.js
 
       // MCP Protocol initialization - Required for MCP Inspector
       if (method === 'initialize') {
@@ -3734,9 +3729,8 @@ async function main() {
       console.error('[Instantly MCP] 🔗 URL auth: https://instantly-mcp-iyjln.ondigitalocean.app/mcp/{API_KEY}');
     }
 
-    // DISABLED: StreamingHttpTransport was intercepting requests before our direct handler
-    // Use only the direct Express handler for better control and debugging
-    console.error('[Instantly MCP] 🚀 Using direct Express handler (StreamingHttpTransport disabled)');
+    // Using direct Express handler for optimal control and debugging
+    console.error('[Instantly MCP] 🚀 Using direct Express handler for HTTP transport');
 
     // Start the direct Express handler
     await startN8nHttpServer();
