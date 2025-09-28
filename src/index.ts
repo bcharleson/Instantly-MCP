@@ -2864,7 +2864,7 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
       const listData: any = { name: args.name };
       if (args.description) listData.description = args.description;
 
-      const createResult = await makeInstantlyRequest('/lead-lists', { method: 'POST', ...listData }, apiKey);
+      const createResult = await makeInstantlyRequest('/lead-lists', { method: 'POST', body: listData }, apiKey);
 
       return {
         content: [
