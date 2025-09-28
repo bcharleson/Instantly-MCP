@@ -3762,7 +3762,7 @@ async function handleToolCall(params: any) {
       }
 
       console.error(`[Instantly MCP] 🔧 Using endpoint: /accounts/${args.email}/pause`);
-      const pauseAccountResult = await makeInstantlyRequest(`/accounts/${args.email}/pause`, { method: 'POST' }, args.apiKey);
+      const pauseAccountResult = await makeInstantlyRequest(`/accounts/${args.email}/pause`, { method: 'POST' }, apiKey);
 
       return {
         content: [
@@ -3786,7 +3786,7 @@ async function handleToolCall(params: any) {
       }
 
       console.error(`[Instantly MCP] 🔧 Using endpoint: /accounts/${args.email}/resume`);
-      const resumeAccountResult = await makeInstantlyRequest(`/accounts/${args.email}/resume`, { method: 'POST' }, args.apiKey);
+      const resumeAccountResult = await makeInstantlyRequest(`/accounts/${args.email}/resume`, { method: 'POST' }, apiKey);
 
       return {
         content: [
