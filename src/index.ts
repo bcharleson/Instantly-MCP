@@ -2168,7 +2168,7 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
 
       console.error(`[Instantly MCP] 📤 Updating account with data: ${JSON.stringify(updateData, null, 2)}`);
 
-      const result = await makeInstantlyRequest(`/account/patchaccount?email=${encodeURIComponent(args.email)}`, {
+      const result = await makeInstantlyRequest(`/accounts/${encodeURIComponent(args.email)}`, {
         method: 'PATCH',
         body: updateData
       }, apiKey);
