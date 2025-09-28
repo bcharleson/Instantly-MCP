@@ -665,8 +665,10 @@ function cleanupAndValidateParameters(args: any): { cleanedArgs: any; warnings: 
   // CRITICAL: List of parameters that DO NOT EXIST in Instantly.ai API v2
   // These MUST be removed to prevent API errors
   const unsupportedParams = [
-    'sequence_steps', 'step_delay_days', 'sequence_bodies', 'sequence_subjects', 'continue_thread',
+    'continue_thread',  // Not supported in API v2
     'email_gap_minutes' // This parameter does NOT exist in API v2 - only email_gap exists
+    // NOTE: sequence_steps, step_delay_days, sequence_bodies, sequence_subjects are internal parameters
+    // used to build multi-step sequences and should NOT be removed
   ];
 
   // Remove unsupported parameters and warn user
@@ -982,16 +984,13 @@ function buildCampaignPayload(args: any): any {
   }
 
   // Add sequences if email content is provided
+  // CRITICAL FIX: Use correct Instantly API v2 structure
   if (normalizedSubject || normalizedBody) {
     campaignData.sequences = [{
       steps: [{
-        type: 'email',
-        delay: 0,
-        variants: [{
-          subject: normalizedSubject,
-          body: normalizedBody,
-          v_disabled: false
-        }]
+        subject: normalizedSubject,
+        body: normalizedBody
+        // delay is optional, defaults to 0 for first email
       }]
     }];
   }
@@ -1009,8 +1008,9 @@ function buildCampaignPayload(args: any): any {
       const firstStepBody = hasCustomBodies ? convertLineBreaksToHTML(String(args.sequence_bodies[0])) : normalizedBody;
       const firstStepSubject = hasCustomSubjects ? String(args.sequence_subjects[0]) : normalizedSubject;
 
-      campaignData.sequences[0].steps[0].variants[0].body = firstStepBody;
-      campaignData.sequences[0].steps[0].variants[0].subject = firstStepSubject;
+      // CRITICAL FIX: Direct properties, not nested in variants
+      campaignData.sequences[0].steps[0].body = firstStepBody;
+      campaignData.sequences[0].steps[0].subject = firstStepSubject;
     }
 
     // Add follow-up steps
@@ -1034,14 +1034,11 @@ function buildCampaignPayload(args: any): any {
         followUpBody = `This is follow-up #${i}.<br /><br />${normalizedBody}`.trim();
       }
 
+      // CRITICAL FIX: Use correct Instantly API v2 structure
       campaignData.sequences[0].steps.push({
-        type: 'email',
-        delay: stepDelayDays,
-        variants: [{
-          subject: followUpSubject,
-          body: followUpBody,
-          v_disabled: false
-        }]
+        subject: followUpSubject,
+        body: followUpBody,
+        delay: stepDelayDays  // delay in days between steps
       });
     }
   }

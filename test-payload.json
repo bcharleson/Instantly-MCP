@@ -1,0 +1,34 @@
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "create_campaign",
+    "arguments": {
+      "name": "Test Complex Campaign - 2 Steps BUILD FIX",
+      "email_list": ["brandon@topoffunnel.co"],
+      "campaign_schedule": {
+        "schedules": [{
+          "days": {"0": true, "1": true, "2": true, "3": true, "4": true, "5": false, "6": false},
+          "from": "09:00",
+          "to": "17:00",
+          "timezone": "America/Chicago"
+        }]
+      },
+      "sequences": [{
+        "steps": [
+          {
+            "subject": "Introduction - Partnership Opportunity",
+            "body": "Hello {{firstName}},<br /><br />I hope this email finds you well.<br /><br />Best regards,<br />Brandon",
+            "delay": 0
+          },
+          {
+            "subject": "",
+            "body": "Hi {{firstName}},<br /><br />Following up on my previous email about the partnership opportunity.<br /><br />Best regards,<br />Brandon",
+            "delay": 3
+          }
+        ]
+      }]
+    }
+  }
+}
