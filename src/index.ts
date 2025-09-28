@@ -1524,14 +1524,21 @@ const TOOLS_DEFINITION = [
       },
       {
         name: 'update_lead',
-        description: 'Update an existing lead',
+        description: 'Update an existing lead with comprehensive parameter support matching Instantly.ai API v2 specification',
         inputSchema: {
           type: 'object',
           properties: {
-            lead_id: { type: 'string', description: 'Lead ID' },
-            email: { type: 'string', description: 'Lead email address' },
-            first_name: { type: 'string', description: 'First name' },
-            last_name: { type: 'string', description: 'Last name' }
+            lead_id: { type: 'string', description: 'Lead ID (UUID) - required path parameter' },
+            personalization: { type: 'string', description: 'Personalization message for the lead' },
+            website: { type: 'string', description: 'Website URL of the lead' },
+            last_name: { type: 'string', description: 'Last name of the lead' },
+            first_name: { type: 'string', description: 'First name of the lead' },
+            company_name: { type: 'string', description: 'Company name of the lead' },
+            phone: { type: 'string', description: 'Phone number of the lead' },
+            lt_interest_status: { type: 'number', description: 'Lead interest status enum (-3 to 4)', minimum: -3, maximum: 4 },
+            pl_value_lead: { type: 'string', description: 'Potential value of the lead' },
+            assigned_to: { type: 'string', description: 'ID (UUID) of the user assigned to the lead' },
+            custom_variables: { type: 'object', description: 'Custom metadata for the lead', additionalProperties: true }
           },
           required: ['lead_id'],
           additionalProperties: false
@@ -2810,16 +2817,28 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
         throw new McpError(ErrorCode.InvalidParams, 'Lead ID is required for update_lead');
       }
 
+      // Build update data with all supported parameters from Instantly.ai API v2
       const updateData: any = {};
-      if (args.email) updateData.email = args.email;
-      if (args.first_name) updateData.first_name = args.first_name;
-      if (args.last_name) updateData.last_name = args.last_name;
-      if (args.company_name) updateData.company_name = args.company_name;
-      if (args.personalization) updateData.personalization = args.personalization;
-      if (args.phone) updateData.phone = args.phone;
-      if (args.website) updateData.website = args.website;
 
-      const updateResult = await makeInstantlyRequest(`/leads/${args.lead_id}`, { method: 'PATCH', ...updateData }, apiKey);
+      // Core lead information
+      if (args.personalization !== undefined) updateData.personalization = args.personalization;
+      if (args.website !== undefined) updateData.website = args.website;
+      if (args.last_name !== undefined) updateData.last_name = args.last_name;
+      if (args.first_name !== undefined) updateData.first_name = args.first_name;
+      if (args.company_name !== undefined) updateData.company_name = args.company_name;
+      if (args.phone !== undefined) updateData.phone = args.phone;
+
+      // Advanced parameters
+      if (args.lt_interest_status !== undefined) updateData.lt_interest_status = args.lt_interest_status;
+      if (args.pl_value_lead !== undefined) updateData.pl_value_lead = args.pl_value_lead;
+      if (args.assigned_to !== undefined) updateData.assigned_to = args.assigned_to;
+
+      // Custom variables
+      if (args.custom_variables !== undefined) updateData.custom_variables = args.custom_variables;
+
+      console.error(`[Instantly MCP] 📤 Updating lead ${args.lead_id} with data: ${JSON.stringify(updateData, null, 2)}`);
+
+      const updateResult = await makeInstantlyRequest(`/leads/${args.lead_id}`, { method: 'PATCH', body: updateData }, apiKey);
 
       return {
         content: [

@@ -391,14 +391,20 @@ export const CreateLeadSchema = z.object({
 });
 
 /**
- * Update lead validation schema
+ * Update lead validation schema - Updated to match Instantly.ai API v2 specification
  */
 export const UpdateLeadSchema = z.object({
   lead_id: z.string().min(1, { error: 'Lead ID cannot be empty' }),
-  first_name: z.string().optional(),
+  personalization: z.string().optional(),
+  website: z.string().url().optional(),
   last_name: z.string().optional(),
+  first_name: z.string().optional(),
   company_name: z.string().optional(),
-  personalization: z.record(z.string(), z.string()).optional()
+  phone: z.string().optional(),
+  lt_interest_status: z.number().int().min(-3).max(4).optional(),
+  pl_value_lead: z.string().optional(),
+  assigned_to: z.string().optional(),
+  custom_variables: z.record(z.string(), z.any()).optional()
 });
 
 /**
