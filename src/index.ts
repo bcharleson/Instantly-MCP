@@ -825,18 +825,14 @@ function convertLineBreaksToHTML(text: string): string {
         return '';
       }
 
-      // For Instantly.ai editor consistency, convert each line to a separate <div>
-      // This prevents the editor from switching between HTML/visual modes
-      const lines = paragraph.trim().split('\n');
+      // Convert single line breaks within paragraphs to <br /> tags
+      const withBreaks = paragraph.trim().replace(/\n/g, '<br />');
 
-      return lines
-        .map(line => line.trim())
-        .filter(line => line) // Remove empty lines
-        .map(line => `<div>${line}</div>`)
-        .join('');
+      // Wrap in paragraph tags for proper HTML structure (this is what worked!)
+      return `<p>${withBreaks}</p>`;
     })
     .filter(p => p) // Remove empty paragraphs
-    .join('<div><br></div>'); // Add spacing between paragraphs using empty div with br
+    .join('');
 }
 
 // Build campaign payload with proper HTML formatting for Instantly.ai
