@@ -3019,6 +3019,7 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
 
       console.error(`[Instantly MCP] ⚠️ SENDING EMAIL REPLY with data: ${JSON.stringify(replyData, null, 2)}`);
       console.error(`[Instantly MCP] ⚠️ This will send a real email to real people!`);
+      console.error(`[Instantly MCP] 🔧 Using endpoint: /emails/reply`);
 
       const replyResult = await makeInstantlyRequest('/emails/reply', {
         method: 'POST',
