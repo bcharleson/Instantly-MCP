@@ -12,7 +12,7 @@
  * - Improved error message formatting and consistency
  */
 
-import * as z from 'zod/v4';
+import { z } from 'zod';
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 
 // ============================================================================
@@ -235,6 +235,24 @@ export const CreateCampaignSchema = z.object({
   
 
   
+  // Complex campaign structure
+  campaign_schedule: z.object({
+    schedules: z.array(z.object({
+      days: z.record(z.string(), z.boolean()),
+      from: z.string(),
+      to: z.string(),
+      timezone: TimezoneSchema
+    }))
+  }).optional(),
+
+  sequences: z.array(z.object({
+    steps: z.array(z.object({
+      subject: z.string(),
+      body: z.string().min(1, 'Email body cannot be empty for any step'),
+      delay: z.number().int().min(0)
+    })).min(1, 'At least one step is required in sequence')
+  })).optional(),
+
   // Tracking settings
   open_tracking: z.boolean().optional(),
   link_tracking: z.boolean().optional(),
