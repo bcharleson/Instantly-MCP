@@ -815,30 +815,22 @@ function convertLineBreaksToHTML(text: string): string {
   // Normalize line endings to \n
   const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
-  // Split by double line breaks to create paragraphs
-  const paragraphs = normalized.split('\n\n');
-
-  return paragraphs
-    .map(paragraph => {
-      // Skip empty paragraphs
-      if (!paragraph.trim()) {
-        return '';
-      }
-
-      // Convert single line breaks within paragraphs to <br /> tags
-      const withBreaks = paragraph.trim().replace(/\n/g, '<br />');
-
-      // Wrap in paragraph tags for proper HTML structure
-      return `<p>${withBreaks}</p>`;
-    })
-    .filter(p => p) // Remove empty paragraphs
-    .join('');
+  // Convert all line breaks to <br /> tags (no paragraph wrapping)
+  // Double line breaks (\n\n) become <br /><br /> for spacing
+  return normalized
+    .replace(/\n\n/g, '<br /><br />')  // Double line breaks for paragraph spacing
+    .replace(/\n/g, '<br />');        // Single line breaks
 }
 
 // Build campaign payload with proper HTML formatting for Instantly.ai
 function buildCampaignPayload(args: any): any {
   if (!args) {
     throw new McpError(ErrorCode.InvalidParams, 'Campaign arguments are required');
+  }
+
+  // Validate required fields
+  if (!args.name) {
+    throw new McpError(ErrorCode.InvalidParams, 'Campaign name is required');
   }
 
   // Process message shortcut if provided
@@ -855,8 +847,10 @@ function buildCampaignPayload(args: any): any {
   }
 
   // Apply timezone and days configuration
-  const timezone = args?.timezone || 'America/New_York';
+  const timezone = args?.timezone || 'Etc/GMT+12'; // Use API default timezone
   const userDays = (args?.days as any) || {};
+
+  // CRITICAL: days object must be non-empty according to API spec
   const daysConfig = {
     0: userDays.sunday === true,
     1: userDays.monday !== false,
@@ -868,34 +862,25 @@ function buildCampaignPayload(args: any): any {
   };
 
   // Normalize and convert body content for HTML email rendering
-  let normalizedBody = String(args.body).trim();
-  let normalizedSubject = String(args.subject).trim();
+  let normalizedBody = args.body ? String(args.body).trim() : '';
+  let normalizedSubject = args.subject ? String(args.subject).trim() : '';
 
   // CRITICAL: Convert \n line breaks to <br /> tags for Instantly.ai HTML rendering
-  normalizedBody = convertLineBreaksToHTML(normalizedBody);
+  if (normalizedBody) {
+    normalizedBody = convertLineBreaksToHTML(normalizedBody);
+  }
 
   // Subjects should not have line breaks
-  normalizedSubject = normalizedSubject.replace(/\r\n/g, ' ').replace(/\n/g, ' ').replace(/\r/g, ' ');
+  if (normalizedSubject) {
+    normalizedSubject = normalizedSubject.replace(/\r\n/g, ' ').replace(/\n/g, ' ').replace(/\r/g, ' ');
+  }
 
+  // CRITICAL: Build payload according to exact API v2 specification
   const campaignData: any = {
     name: args.name,
-    // CRITICAL: Add required fields that were missing
-    subject: normalizedSubject,
-    body: normalizedBody,
-    from_email: args.email_list[0], // Use first email as sender
-    from_name: args.from_name || 'Campaign Sender',
-    email_list: args.email_list,
-    daily_limit: args.daily_limit || 30, // Updated default to 30 for cold email compliance
-    email_gap: args.email_gap_minutes || 10,
-    // Fix field names to match API expectations (corrected based on API docs)
-    open_tracking: Boolean(args.track_opens),
-    link_tracking: Boolean(args.track_clicks),
-    stop_on_reply: args.stop_on_reply !== false,
-    stop_on_auto_reply: args.stop_on_auto_reply !== false,
-    text_only: Boolean(args.text_only),
     campaign_schedule: {
       schedules: [{
-        name: args.schedule_name || 'Default Schedule',
+        name: args.schedule_name || 'My Schedule',
         timing: {
           from: args.timing_from || '09:00',
           to: args.timing_to || '17:00'
@@ -903,8 +888,39 @@ function buildCampaignPayload(args: any): any {
         days: daysConfig,
         timezone: timezone
       }]
-    },
-    sequences: [{
+    }
+  };
+
+  // Add optional fields only if provided
+  if (args.email_list && Array.isArray(args.email_list) && args.email_list.length > 0) {
+    campaignData.email_list = args.email_list;
+  }
+
+  if (args.daily_limit !== undefined) {
+    campaignData.daily_limit = Number(args.daily_limit);
+  } else {
+    campaignData.daily_limit = 30; // Default for cold email compliance
+  }
+
+  if (args.text_only !== undefined) {
+    campaignData.text_only = Boolean(args.text_only);
+  }
+
+  if (args.track_opens !== undefined) {
+    campaignData.open_tracking = Boolean(args.track_opens);
+  }
+
+  if (args.track_clicks !== undefined) {
+    campaignData.link_tracking = Boolean(args.track_clicks);
+  }
+
+  if (args.stop_on_reply !== undefined) {
+    campaignData.stop_on_reply = Boolean(args.stop_on_reply);
+  }
+
+  // Add sequences if email content is provided
+  if (normalizedSubject || normalizedBody) {
+    campaignData.sequences = [{
       steps: [{
         type: 'email',
         delay: 0,
@@ -914,14 +930,14 @@ function buildCampaignPayload(args: any): any {
           v_disabled: false
         }]
       }]
-    }]
-  };
+    }];
+  }
 
   // Handle multi-step sequences if specified
   const sequenceSteps = args?.sequence_steps || 1;
   const stepDelayDays = args?.step_delay_days || 3;
 
-  if (sequenceSteps > 1) {
+  if (sequenceSteps > 1 && campaignData.sequences) {
     const hasCustomBodies = args?.sequence_bodies && Array.isArray(args.sequence_bodies);
     const hasCustomSubjects = args?.sequence_subjects && Array.isArray(args.sequence_subjects);
 
@@ -940,20 +956,19 @@ function buildCampaignPayload(args: any): any {
       let followUpBody: string;
 
       // Determine subject for this step
-      if (hasCustomSubjects) {
+      if (hasCustomSubjects && args.sequence_subjects[i]) {
         followUpSubject = String(args.sequence_subjects[i]);
       } else {
         followUpSubject = `Follow-up: ${normalizedSubject}`;
       }
 
       // Determine body for this step
-      if (hasCustomBodies) {
+      if (hasCustomBodies && args.sequence_bodies[i]) {
         // Use provided custom body with HTML conversion
         followUpBody = convertLineBreaksToHTML(String(args.sequence_bodies[i]));
       } else {
         // Default behavior: add follow-up prefix to original body
-        followUpBody = `This is follow-up #${i}.\n\n${args.body}`.trim();
-        followUpBody = convertLineBreaksToHTML(followUpBody);
+        followUpBody = `This is follow-up #${i}.<br /><br />${normalizedBody}`.trim();
       }
 
       campaignData.sequences[0].steps.push({
@@ -1879,10 +1894,74 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
     }
 
     case 'create_campaign': {
-      // This is a complex tool that requires special handling
-      // Route to the existing create_campaign implementation in the HTTP handler
-      throw new McpError(ErrorCode.InvalidRequest,
-        'create_campaign requires special workflow handling. Use the enhanced create_campaign tool with stage parameters for proper campaign creation.');
+      console.error('[Instantly MCP] 🚀 Executing create_campaign with fixed API v2 payload...');
+
+      try {
+        // Step 1: Apply smart defaults and enhancements
+        console.error('[Instantly MCP] 🔧 Applying smart defaults...');
+        const smartDefaultsResult = await applySmartDefaults(args);
+        const enhanced_args = smartDefaultsResult.enhanced_args;
+
+        // Step 2: Validate the enhanced arguments
+        console.error('[Instantly MCP] ✅ Validating enhanced campaign data...');
+        const validatedData = await validateCampaignData(enhanced_args);
+
+        // Step 3: Validate sender email addresses against accounts (skip for test API keys or if disabled)
+        const skipValidation = process.env.SKIP_ACCOUNT_VALIDATION === 'true';
+        const isTestKey = apiKey?.includes('test') || apiKey?.includes('demo');
+
+        if (!skipValidation && !isTestKey && enhanced_args.email_list && enhanced_args.email_list.length > 0) {
+          console.error('[Instantly MCP] 🔍 Validating sender email addresses...');
+          await validateEmailListAgainstAccounts(enhanced_args.email_list, apiKey);
+        } else {
+          console.error('[Instantly MCP] ⏭️ Skipping account validation (test key or disabled)');
+        }
+
+        // Step 4: Build the API v2 compliant payload
+        console.error('[Instantly MCP] 🏗️ Building API v2 compliant payload...');
+        const campaignPayload = buildCampaignPayload(enhanced_args);
+        console.error('[Instantly MCP] 📦 Generated payload:', JSON.stringify(campaignPayload, null, 2));
+
+        // Step 5: Make the API request
+        console.error('[Instantly MCP] 🌐 Making API request to create campaign...');
+        const response = await fetch('https://api.instantly.ai/api/v2/campaigns', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify(campaignPayload)
+        });
+
+        const responseText = await response.text();
+        console.error(`[Instantly MCP] 📡 API Response Status: ${response.status}`);
+        console.error(`[Instantly MCP] 📡 API Response Body: ${responseText}`);
+
+        if (!response.ok) {
+          throw new McpError(ErrorCode.InternalError,
+            `Campaign creation failed (${response.status}): ${responseText}`);
+        }
+
+        const result = JSON.parse(responseText);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                success: true,
+                campaign: result,
+                message: 'Campaign created successfully with API v2 compliant payload',
+                payload_used: campaignPayload
+              }, null, 2)
+            }
+          ]
+        };
+
+      } catch (error: any) {
+        console.error('[Instantly MCP] ❌ create_campaign error:', error);
+        throw error;
+      }
     }
 
     case 'update_campaign': {
