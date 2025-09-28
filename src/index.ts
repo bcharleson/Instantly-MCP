@@ -1494,16 +1494,31 @@ const TOOLS_DEFINITION = [
       },
       {
         name: 'create_lead',
-        description: 'Create a new lead',
+        description: 'Create a new lead with comprehensive parameter support matching Instantly.ai API v2 specification',
         inputSchema: {
           type: 'object',
           properties: {
+            campaign: { type: 'string', description: 'Campaign ID (UUID) to associate the lead with' },
             email: { type: 'string', description: 'Lead email address' },
-            first_name: { type: 'string', description: 'First name' },
-            last_name: { type: 'string', description: 'Last name' },
-            company_name: { type: 'string', description: 'Company name' }
+            first_name: { type: 'string', description: 'Lead first name' },
+            last_name: { type: 'string', description: 'Lead last name' },
+            company_name: { type: 'string', description: 'Lead company name' },
+            phone: { type: 'string', description: 'Lead phone number' },
+            website: { type: 'string', description: 'Lead website URL' },
+            personalization: { type: 'string', description: 'Personalization message for the lead' },
+            lt_interest_status: { type: 'number', description: 'Interest status enum (-3 to 4)', minimum: -3, maximum: 4 },
+            pl_value_lead: { type: 'string', description: 'Potential lead value' },
+            list_id: { type: 'string', description: 'List ID (UUID) to associate lead with' },
+            assigned_to: { type: 'string', description: 'User ID (UUID) to assign lead to' },
+            skip_if_in_workspace: { type: 'boolean', description: 'Skip if lead exists in workspace', default: false },
+            skip_if_in_campaign: { type: 'boolean', description: 'Skip if lead exists in campaign', default: false },
+            skip_if_in_list: { type: 'boolean', description: 'Skip if lead exists in list', default: false },
+            blocklist_id: { type: 'string', description: 'Blocklist ID (UUID) to check against' },
+            verify_leads_for_lead_finder: { type: 'boolean', description: 'Enable lead finder verification', default: false },
+            verify_leads_on_import: { type: 'boolean', description: 'Enable import verification', default: false },
+            custom_variables: { type: 'object', description: 'Custom metadata for the lead', additionalProperties: true }
           },
-          required: ['email'],
+          required: [],
           additionalProperties: false
         }
       },
@@ -2738,19 +2753,41 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
     case 'create_lead': {
       console.error('[Instantly MCP] 👤 Executing create_lead...');
 
-      if (!args.email) {
-        throw new McpError(ErrorCode.InvalidParams, 'Email is required for create_lead');
-      }
+      // Build lead data with all supported parameters from Instantly.ai API v2
+      const leadData: any = {};
 
-      const leadData: any = { email: args.email };
+      // Core lead information
+      if (args.campaign) leadData.campaign = args.campaign;
+      if (args.email) leadData.email = args.email;
       if (args.first_name) leadData.first_name = args.first_name;
       if (args.last_name) leadData.last_name = args.last_name;
       if (args.company_name) leadData.company_name = args.company_name;
-      if (args.personalization) leadData.personalization = args.personalization;
       if (args.phone) leadData.phone = args.phone;
       if (args.website) leadData.website = args.website;
+      if (args.personalization) leadData.personalization = args.personalization;
 
-      const createResult = await makeInstantlyRequest('/leads', { method: 'POST', ...leadData }, apiKey);
+      // Advanced parameters
+      if (args.lt_interest_status !== undefined) leadData.lt_interest_status = args.lt_interest_status;
+      if (args.pl_value_lead) leadData.pl_value_lead = args.pl_value_lead;
+      if (args.list_id) leadData.list_id = args.list_id;
+      if (args.assigned_to) leadData.assigned_to = args.assigned_to;
+
+      // Skip conditions
+      if (args.skip_if_in_workspace !== undefined) leadData.skip_if_in_workspace = args.skip_if_in_workspace;
+      if (args.skip_if_in_campaign !== undefined) leadData.skip_if_in_campaign = args.skip_if_in_campaign;
+      if (args.skip_if_in_list !== undefined) leadData.skip_if_in_list = args.skip_if_in_list;
+
+      // Verification and blocklist
+      if (args.blocklist_id) leadData.blocklist_id = args.blocklist_id;
+      if (args.verify_leads_for_lead_finder !== undefined) leadData.verify_leads_for_lead_finder = args.verify_leads_for_lead_finder;
+      if (args.verify_leads_on_import !== undefined) leadData.verify_leads_on_import = args.verify_leads_on_import;
+
+      // Custom variables
+      if (args.custom_variables) leadData.custom_variables = args.custom_variables;
+
+      console.error(`[Instantly MCP] 📤 Creating lead with data: ${JSON.stringify(leadData, null, 2)}`);
+
+      const createResult = await makeInstantlyRequest('/leads', { method: 'POST', body: leadData }, apiKey);
 
       return {
         content: [

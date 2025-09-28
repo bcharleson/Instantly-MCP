@@ -357,14 +357,37 @@ export const UpdateAccountSchema = z.object({
 });
 
 /**
- * Lead creation validation schema
+ * Lead creation validation schema - Updated to match Instantly.ai API v2 specification
  */
 export const CreateLeadSchema = z.object({
-  email: EmailSchema,
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
-  companyName: z.string().optional(),
-  personalization: z.record(z.string(), z.string()).optional()
+  // Core lead information
+  campaign: z.string().optional(),
+  email: z.string().email().optional(),
+  first_name: z.string().optional(),
+  last_name: z.string().optional(),
+  company_name: z.string().optional(),
+  phone: z.string().optional(),
+  website: z.string().url().optional(),
+  personalization: z.string().optional(),
+
+  // Advanced parameters
+  lt_interest_status: z.number().int().min(-3).max(4).optional(),
+  pl_value_lead: z.string().optional(),
+  list_id: z.string().optional(),
+  assigned_to: z.string().optional(),
+
+  // Skip conditions
+  skip_if_in_workspace: z.boolean().optional(),
+  skip_if_in_campaign: z.boolean().optional(),
+  skip_if_in_list: z.boolean().optional(),
+
+  // Verification and blocklist
+  blocklist_id: z.string().optional(),
+  verify_leads_for_lead_finder: z.boolean().optional(),
+  verify_leads_on_import: z.boolean().optional(),
+
+  // Custom variables
+  custom_variables: z.record(z.string(), z.any()).optional()
 });
 
 /**
