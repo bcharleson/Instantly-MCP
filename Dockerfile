@@ -6,9 +6,12 @@ WORKDIR /app
 
 # Copy package files first for better caching
 COPY package*.json ./
+# Also copy yarn.lock if it exists (for compatibility)
+COPY yarn.lock* ./
 
 # Install ALL dependencies (including dev dependencies for building)
-RUN npm ci --silent
+# Use npm install instead of ci to be more forgiving with lock file issues
+RUN npm install --silent
 
 # Copy source code
 COPY src/ ./src/
@@ -23,7 +26,7 @@ COPY manifest.json ./
 
 # Install curl for health checks and remove dev dependencies after build
 RUN apk add --no-cache curl && \
-    npm ci --only=production --silent && \
+    npm prune --production --silent && \
     npm cache clean --force
 
 # Create non-root user for security

@@ -9,10 +9,12 @@ WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
-COPY yarn.lock ./
+# Copy yarn.lock if it exists (for compatibility)
+COPY yarn.lock* ./
 
 # Install dependencies (including dev dependencies for build)
-RUN npm ci --silent
+# Use npm install instead of ci to be more forgiving with lock file issues
+RUN npm install --silent
 
 # Copy source code
 COPY src/ ./src/
@@ -33,9 +35,11 @@ WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
+COPY yarn.lock* ./
 
 # Install only production dependencies
-RUN npm ci --only=production --silent && \
+# Use npm install instead of ci to be more forgiving with lock file issues
+RUN npm install --only=production --silent && \
     npm cache clean --force
 
 # Copy built application from builder stage
