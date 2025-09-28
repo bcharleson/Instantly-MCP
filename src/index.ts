@@ -3679,38 +3679,7 @@ async function handleToolCall(params: any) {
         ]
       };
 
-    // ===== NEW TIER 2 TOOLS - TESTABLE STATE-CHANGE =====
-    case 'activate_campaign':
-      if (!args.campaign_id) throw new Error('Campaign ID is required');
-      const activateResult = await makeInstantlyRequest(`/campaigns/${args.campaign_id}/activate`, { method: 'POST' }, args.apiKey);
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              campaign: activateResult,
-              message: 'Campaign activated successfully'
-            }, null, 2)
-          }
-        ]
-      };
-
-    case 'pause_campaign':
-      if (!args.campaign_id) throw new Error('Campaign ID is required');
-      const pauseCampaignResult = await makeInstantlyRequest(`/campaigns/${args.campaign_id}/pause`, { method: 'POST' }, args.apiKey);
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              campaign: pauseCampaignResult,
-              message: 'Campaign paused successfully'
-            }, null, 2)
-          }
-        ]
-      };
+    // Duplicate implementations removed - using the main implementations above
 
     case 'pause_account':
       if (!args.email) throw new Error('Email address is required');
