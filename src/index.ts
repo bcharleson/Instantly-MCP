@@ -347,10 +347,17 @@ async function gatherCampaignPrerequisites(args: any, apiKey?: string): Promise<
     name: args?.name || null,
     subject: args?.subject || null,
     body: args?.body || null,
-    email_list: args?.email_list || null
+    email_list: args?.email_list || null,
+    campaign_schedule: args?.campaign_schedule || null,
+    sequences: args?.sequences || null
   };
 
-  const requiredFields = ['name', 'subject', 'body', 'email_list'];
+  // Determine required fields based on campaign type
+  const hasComplexStructure = args?.campaign_schedule && args?.sequences;
+  const requiredFields = hasComplexStructure
+    ? ['name', 'email_list']  // Complex campaigns only need name and email_list
+    : ['name', 'subject', 'body', 'email_list'];  // Simple campaigns need all fields
+
   const missingFields = requiredFields.filter(field => !providedFields[field]);
   const hasAllRequired = missingFields.length === 0;
 
