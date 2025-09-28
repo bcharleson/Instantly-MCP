@@ -3216,15 +3216,24 @@ async function startN8nHttpServer() {
               });
             }
 
-            // Step 2: Apply smart defaults and enhancements
+            // Step 2: CRITICAL - Clean up and validate parameters for API compatibility
+            console.error('[Instantly MCP] 🧹 CRITICAL: Cleaning up parameters for API v2 compatibility...');
+            const { cleanedArgs, warnings } = cleanupAndValidateParameters(args);
+
+            if (warnings.length > 0) {
+              console.error('[Instantly MCP] ⚠️ Parameter cleanup warnings:');
+              warnings.forEach(warning => console.error(`  ${warning}`));
+            }
+
+            // Step 3: Apply smart defaults and enhancements
             console.error('[Instantly MCP] 🎯 Applying smart defaults and enhancements...');
-            const smartDefaultsResult = applySmartDefaults(args);
+            const smartDefaultsResult = await applySmartDefaults(cleanedArgs);
             const enhanced_args = smartDefaultsResult.enhanced_args;
-            // Step 3: Validate the enhanced arguments
+            // Step 4: Validate the enhanced arguments
             console.error('[Instantly MCP] ✅ Validating enhanced campaign data...');
             const validatedData = await validateCampaignData(enhanced_args);
 
-            // Step 4: Validate sender email addresses against accounts (skip for test API keys or if disabled)
+            // Step 5: Validate sender email addresses against accounts (skip for test API keys or if disabled)
             const skipValidation = process.env.SKIP_ACCOUNT_VALIDATION === 'true';
             if (apiKey && !apiKey.startsWith('test-') && !apiKey.startsWith('real-api') && !skipValidation) {
               console.error('[Instantly MCP] 📧 Validating sender email addresses against accounts...');
@@ -3246,7 +3255,7 @@ async function startN8nHttpServer() {
               }
             }
 
-            // Step 5: Build campaign payload with proper HTML formatting
+            // Step 6: Build campaign payload with proper HTML formatting
             console.error('[Instantly MCP] 🔧 Building campaign payload with HTML formatting...');
             const campaignPayload = buildCampaignPayload(enhanced_args);
 
@@ -3254,7 +3263,7 @@ async function startN8nHttpServer() {
             console.error('[Instantly MCP] 🔍 DEBUG: Exact payload being sent to Instantly.ai API:');
             console.error(JSON.stringify(campaignPayload, null, 2));
 
-            // Step 6: Create the campaign
+            // Step 7: Create the campaign
             console.error('[Instantly MCP] 🚀 Creating campaign with validated data...');
             const campaignStart = Date.now();
             const startTime = Date.now(); // Add startTime for performance tracking
