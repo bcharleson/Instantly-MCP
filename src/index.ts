@@ -3197,7 +3197,9 @@ async function startN8nHttpServer() {
             console.error('[Instantly MCP] ✅ DIRECT HANDLER - Parameters extracted successfully!');
 
             // Step 1: Check if this is a minimal request that needs prerequisite gathering
-            const hasMinimalInfo = !args?.name || !args?.subject || !args?.body || !args?.email_list;
+            const hasComplexStructure = args?.campaign_schedule && args?.sequences;
+            const hasSimpleParams = args?.subject && args?.body;
+            const hasMinimalInfo = !args?.name || !args?.email_list || (!hasSimpleParams && !hasComplexStructure);
 
             if (hasMinimalInfo) {
               console.error('[Instantly MCP] 🔍 Minimal information provided, gathering prerequisites...');
@@ -3416,7 +3418,9 @@ async function handleToolCall(params: any) {
       const startTime = Date.now();
 
       // Step 1: Check if this is a minimal request that needs prerequisite gathering
-      const hasMinimalInfo = !args?.name || !args?.subject || !args?.body || !args?.email_list;
+      const hasComplexStructure = args?.campaign_schedule && args?.sequences;
+      const hasSimpleParams = args?.subject && args?.body;
+      const hasMinimalInfo = !args?.name || !args?.email_list || (!hasSimpleParams && !hasComplexStructure);
 
       if (hasMinimalInfo) {
         console.error('[Instantly MCP] 🔍 Minimal information provided, gathering prerequisites...');
