@@ -577,7 +577,7 @@ function generateCampaignGuidance(): any {
       },
       limits: {
         daily_limit: 'Maximum emails per day per account (default: 30 for cold email compliance)',
-        email_gap_minutes: 'Minutes between emails from same account (default: 10)'
+        email_gap: 'Minutes between emails from same account (default: 10) - API v2 parameter'
       },
       behavior: {
         stop_on_reply: 'Stop campaign when recipient replies (default: true)',
@@ -647,35 +647,39 @@ function generateCampaignGuidance(): any {
   };
 }
 
-// Parameter cleanup and validation for Instantly.ai API compatibility
+// CRITICAL: Parameter cleanup and validation for Instantly.ai API v2 compatibility
+// This function MUST remove all parameters that don't exist in the official API
 function cleanupAndValidateParameters(args: any): { cleanedArgs: any; warnings: string[] } {
   const warnings: string[] = [];
   const cleanedArgs = { ...args };
 
-  // List of parameters that are not supported by Instantly.ai API v2
+  console.error('[Instantly MCP] 🧹 CRITICAL: Cleaning parameters for API v2 compatibility...');
+
+  // CRITICAL: List of parameters that DO NOT EXIST in Instantly.ai API v2
+  // These MUST be removed to prevent API errors
   const unsupportedParams = [
-    'sequence_steps', 'step_delay_days', 'sequence_bodies', 'sequence_subjects', 'continue_thread'
+    'sequence_steps', 'step_delay_days', 'sequence_bodies', 'sequence_subjects', 'continue_thread',
+    'email_gap_minutes' // This parameter does NOT exist in API v2 - only email_gap exists
   ];
 
   // Remove unsupported parameters and warn user
   for (const param of unsupportedParams) {
     if (cleanedArgs[param] !== undefined) {
+      console.error(`[Instantly MCP] ⚠️ REMOVING invalid parameter: ${param} = ${cleanedArgs[param]}`);
+
+      // Special handling for email_gap_minutes conversion
+      if (param === 'email_gap_minutes' && cleanedArgs.email_gap === undefined) {
+        cleanedArgs.email_gap = cleanedArgs[param];
+        warnings.push(`✅ Converted legacy 'email_gap_minutes' to 'email_gap' (${cleanedArgs[param]} minutes) for API v2 compatibility.`);
+      } else {
+        warnings.push(`⚠️ Parameter '${param}' does not exist in Instantly.ai API v2 and has been removed.`);
+      }
+
       delete cleanedArgs[param];
-      warnings.push(`⚠️ Parameter '${param}' is not supported by Instantly.ai API v2 and has been removed. Use single-step campaigns only.`);
     }
   }
 
-  // Convert legacy email_gap_minutes to email_gap for API compatibility
-  // Note: email_gap_minutes is no longer exposed in the tool schema but we support it for backward compatibility
-  if (cleanedArgs.email_gap_minutes !== undefined && cleanedArgs.email_gap === undefined) {
-    cleanedArgs.email_gap = cleanedArgs.email_gap_minutes;
-    delete cleanedArgs.email_gap_minutes;
-    warnings.push(`✅ Converted legacy 'email_gap_minutes' to 'email_gap' for API compatibility.`);
-  } else if (cleanedArgs.email_gap_minutes !== undefined && cleanedArgs.email_gap !== undefined) {
-    delete cleanedArgs.email_gap_minutes;
-    warnings.push(`⚠️ Both 'email_gap' and 'email_gap_minutes' provided. Using 'email_gap' value and ignoring 'email_gap_minutes'.`);
-  }
-
+  console.error(`[Instantly MCP] ✅ Parameter cleanup complete. Warnings: ${warnings.length}`);
   return { cleanedArgs, warnings };
 }
 
