@@ -348,12 +348,34 @@ export const CreateAccountSchema = z.object({
 });
 
 /**
- * Update account validation schema
+ * Update account validation schema - Updated to match Instantly.ai API v2 specification
  */
 export const UpdateAccountSchema = z.object({
   email: EmailSchema,
-  daily_limit: z.number().int().min(1).max(1000).optional(),
-  warmup_enabled: z.boolean().optional()
+  first_name: z.string().optional(),
+  last_name: z.string().optional(),
+  warmup: z.object({
+    limit: z.number().optional(),
+    advanced: z.object({
+      warm_ctd: z.boolean().optional(),
+      open_rate: z.number().optional(),
+      important_rate: z.number().optional(),
+      read_emulation: z.boolean().optional(),
+      spam_save_rate: z.number().optional(),
+      weekday_only: z.boolean().optional()
+    }).optional(),
+    warmup_custom_ftag: z.string().optional(),
+    increment: z.string().optional(),
+    reply_rate: z.number().optional()
+  }).optional(),
+  daily_limit: z.number().int().min(1).max(1000).nullable().optional(),
+  tracking_domain_name: z.string().nullable().optional(),
+  tracking_domain_status: z.string().nullable().optional(),
+  enable_slow_ramp: z.boolean().nullable().optional(),
+  inbox_placement_test_limit: z.number().nullable().optional(),
+  sending_gap: z.number().min(0).max(1440).optional(),
+  skip_cname_check: z.boolean().optional(),
+  remove_tracking_domain: z.boolean().optional()
 });
 
 /**

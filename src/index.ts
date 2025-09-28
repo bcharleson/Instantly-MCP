@@ -2144,20 +2144,44 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
     }
 
     case 'update_account': {
+      console.error('[Instantly MCP] 🔧 Executing update_account...');
+
       if (!args?.email) {
         throw new McpError(ErrorCode.InvalidParams, 'email is required');
       }
 
-      const result = await makeInstantlyRequest(`/accounts/${args.email}`, {
+      // Build account update data with all provided parameters (excluding email from body)
+      const updateData: any = {};
+
+      // Add all optional parameters if provided
+      if (args.first_name !== undefined) updateData.first_name = args.first_name;
+      if (args.last_name !== undefined) updateData.last_name = args.last_name;
+      if (args.warmup !== undefined) updateData.warmup = args.warmup;
+      if (args.daily_limit !== undefined) updateData.daily_limit = args.daily_limit;
+      if (args.tracking_domain_name !== undefined) updateData.tracking_domain_name = args.tracking_domain_name;
+      if (args.tracking_domain_status !== undefined) updateData.tracking_domain_status = args.tracking_domain_status;
+      if (args.enable_slow_ramp !== undefined) updateData.enable_slow_ramp = args.enable_slow_ramp;
+      if (args.inbox_placement_test_limit !== undefined) updateData.inbox_placement_test_limit = args.inbox_placement_test_limit;
+      if (args.sending_gap !== undefined) updateData.sending_gap = args.sending_gap;
+      if (args.skip_cname_check !== undefined) updateData.skip_cname_check = args.skip_cname_check;
+      if (args.remove_tracking_domain !== undefined) updateData.remove_tracking_domain = args.remove_tracking_domain;
+
+      console.error(`[Instantly MCP] 📤 Updating account with data: ${JSON.stringify(updateData, null, 2)}`);
+
+      const result = await makeInstantlyRequest(`/account/patchaccount/${encodeURIComponent(args.email)}`, {
         method: 'PATCH',
-        body: args.settings || {}
+        body: updateData
       }, apiKey);
 
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(result, null, 2),
+            text: JSON.stringify({
+              success: true,
+              account: result,
+              message: 'Account updated successfully'
+            }, null, 2),
           },
         ],
       };
