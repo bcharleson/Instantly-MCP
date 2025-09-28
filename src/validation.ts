@@ -183,8 +183,9 @@ export const CreateCampaignSchema = z.object({
     .refine(
       (val) => val.length <= 50,
       { error: 'Subject line is over 50 characters. Shorter subjects have better open rates. Consider: "{{firstName}}, quick question about {{companyName}}"' }
-    ),
-  
+    )
+    .optional(), // Made optional for complex campaigns
+
   body: z.string()
     .min(1, { error: 'Email body cannot be empty' })
     .refine(
@@ -198,7 +199,7 @@ export const CreateCampaignSchema = z.object({
     .refine(
       (val) => {
         // Check for potentially problematic HTML tags (allow <p>, <br>, <br/> for formatting)
-        if (val.includes('<') && val.includes('>')) {
+        if (val && val.includes('<') && val.includes('>')) {
           // Allow specific formatting tags that are safe and enhance visual rendering
           const allowedTags = /<\/?(?:p|br|br\/)>/gi;
           const bodyWithoutAllowedTags = val.replace(allowedTags, '');
@@ -211,7 +212,8 @@ export const CreateCampaignSchema = z.object({
         return true;
       },
       'Body contains unsupported HTML tags. Only <p>, <br>, and <br/> tags are allowed for formatting. Use plain text with \\n for line breaks. Example: "Hi {{firstName}},\\n\\nYour message here."'
-    ),
+    )
+    .optional(), // Made optional for complex campaigns
   
   email_list: z.array(EmailSchema)
     .min(1, { error: 'At least one sender email address is required. Use emails from your verified accounts. Call list_accounts first to see available options.' })
@@ -237,7 +239,17 @@ export const CreateCampaignSchema = z.object({
   open_tracking: z.boolean().optional(),
   link_tracking: z.boolean().optional(),
   stop_on_reply: z.boolean().optional()
-});
+}).refine(
+  (data) => {
+    const hasSimpleParams = data.subject && data.body;
+    const hasComplexStructure = data.campaign_schedule && data.sequences;
+    return hasSimpleParams || hasComplexStructure;
+  },
+  {
+    message: 'Either provide simple parameters (subject, body, email_list) OR complex structure (campaign_schedule, sequences)',
+    path: ['campaign_structure']
+  }
+);
 
 /**
  * List accounts validation schema
