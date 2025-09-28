@@ -443,7 +443,8 @@ async function gatherCampaignPrerequisites(args: any, apiKey?: string): Promise<
           description: 'Maximum emails per day per account (30 for cold email compliance)',
           compliance_note: 'Higher limits may trigger spam filters and hurt deliverability. 30/day is the recommended maximum for cold outreach.'
         },
-        email_gap_minutes: { default: 10, description: 'Minutes between emails from same account' }
+        email_gap: { default: 10, description: 'Minutes between emails from same account (API parameter name)' },
+        email_gap_minutes: { default: 10, description: 'Minutes between emails from same account (legacy - will be converted to email_gap)' }
       }
     }
   };
@@ -646,6 +647,37 @@ function generateCampaignGuidance(): any {
   };
 }
 
+// Parameter cleanup and validation for Instantly.ai API compatibility
+function cleanupAndValidateParameters(args: any): { cleanedArgs: any; warnings: string[] } {
+  const warnings: string[] = [];
+  const cleanedArgs = { ...args };
+
+  // List of parameters that are not supported by Instantly.ai API v2
+  const unsupportedParams = [
+    'sequence_steps', 'step_delay_days', 'sequence_bodies', 'sequence_subjects', 'continue_thread'
+  ];
+
+  // Remove unsupported parameters and warn user
+  for (const param of unsupportedParams) {
+    if (cleanedArgs[param] !== undefined) {
+      delete cleanedArgs[param];
+      warnings.push(`⚠️ Parameter '${param}' is not supported by Instantly.ai API v2 and has been removed. Use single-step campaigns only.`);
+    }
+  }
+
+  // Convert email_gap_minutes to email_gap for API compatibility
+  if (cleanedArgs.email_gap_minutes !== undefined && cleanedArgs.email_gap === undefined) {
+    cleanedArgs.email_gap = cleanedArgs.email_gap_minutes;
+    delete cleanedArgs.email_gap_minutes;
+    warnings.push(`✅ Converted 'email_gap_minutes' to 'email_gap' for API compatibility.`);
+  } else if (cleanedArgs.email_gap_minutes !== undefined && cleanedArgs.email_gap !== undefined) {
+    delete cleanedArgs.email_gap_minutes;
+    warnings.push(`⚠️ Both 'email_gap' and 'email_gap_minutes' provided. Using 'email_gap' value and ignoring 'email_gap_minutes'.`);
+  }
+
+  return { cleanedArgs, warnings };
+}
+
 // Smart defaults system for campaign creation
 function applySmartDefaults(args: any): any {
   const defaultsApplied: string[] = [];
@@ -684,9 +716,15 @@ function applySmartDefaults(args: any): any {
     defaultsApplied.push('daily_limit: 30 (compliant limit for cold email outreach)');
   }
 
-  if (enhancedArgs.email_gap_minutes === undefined) {
-    enhancedArgs.email_gap_minutes = 10;
-    defaultsApplied.push('email_gap_minutes: 10 (10-minute gaps between emails from same account)');
+  // Handle email_gap parameter (API expects 'email_gap', not 'email_gap_minutes')
+  if (enhancedArgs.email_gap === undefined && enhancedArgs.email_gap_minutes === undefined) {
+    enhancedArgs.email_gap = 10;
+    defaultsApplied.push('email_gap: 10 (10-minute gaps between emails from same account)');
+  } else if (enhancedArgs.email_gap_minutes !== undefined && enhancedArgs.email_gap === undefined) {
+    // Convert email_gap_minutes to email_gap for API compatibility
+    enhancedArgs.email_gap = enhancedArgs.email_gap_minutes;
+    delete enhancedArgs.email_gap_minutes;
+    defaultsApplied.push(`email_gap: ${enhancedArgs.email_gap} (converted from email_gap_minutes for API compatibility)`);
   }
 
   // Apply behavior defaults
@@ -931,6 +969,11 @@ function buildCampaignPayload(args: any): any {
     campaignData.stop_on_reply = Boolean(args.stop_on_reply);
   }
 
+  // Handle email gap parameter (API expects 'email_gap' in minutes)
+  if (args.email_gap !== undefined) {
+    campaignData.email_gap = Number(args.email_gap);
+  }
+
   // Add sequences if email content is provided
   if (normalizedSubject || normalizedBody) {
     campaignData.sequences = [{
@@ -1167,9 +1210,16 @@ const TOOLS_DEFINITION = [
               minimum: 1,
               maximum: 30
             },
+            email_gap: {
+              type: 'number',
+              description: 'Minutes between emails from same account (API parameter name)',
+              default: 10,
+              minimum: 1,
+              maximum: 1440
+            },
             email_gap_minutes: {
               type: 'number',
-              description: 'Minutes between emails from same account',
+              description: 'Minutes between emails from same account (legacy - will be converted to email_gap)',
               default: 10,
               minimum: 1,
               maximum: 1440
@@ -1910,16 +1960,25 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
       console.error('[Instantly MCP] 🚀 Executing create_campaign with fixed API v2 payload...');
 
       try {
-        // Step 1: Apply smart defaults and enhancements
+        // Step 1: Clean up and validate parameters for API compatibility
+        console.error('[Instantly MCP] 🧹 Cleaning up parameters for API compatibility...');
+        const { cleanedArgs, warnings } = cleanupAndValidateParameters(args);
+
+        if (warnings.length > 0) {
+          console.error('[Instantly MCP] ⚠️ Parameter cleanup warnings:');
+          warnings.forEach(warning => console.error(`  ${warning}`));
+        }
+
+        // Step 2: Apply smart defaults and enhancements
         console.error('[Instantly MCP] 🔧 Applying smart defaults...');
-        const smartDefaultsResult = await applySmartDefaults(args);
+        const smartDefaultsResult = await applySmartDefaults(cleanedArgs);
         const enhanced_args = smartDefaultsResult.enhanced_args;
 
-        // Step 2: Validate the enhanced arguments
+        // Step 3: Validate the enhanced arguments
         console.error('[Instantly MCP] ✅ Validating enhanced campaign data...');
         const validatedData = await validateCampaignData(enhanced_args);
 
-        // Step 3: Validate sender email addresses against accounts (skip for test API keys or if disabled)
+        // Step 4: Validate sender email addresses against accounts (skip for test API keys or if disabled)
         const skipValidation = process.env.SKIP_ACCOUNT_VALIDATION === 'true';
         const isTestKey = apiKey?.includes('test') || apiKey?.includes('demo');
 
@@ -1930,12 +1989,12 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
           console.error('[Instantly MCP] ⏭️ Skipping account validation (test key or disabled)');
         }
 
-        // Step 4: Build the API v2 compliant payload
+        // Step 5: Build the API v2 compliant payload
         console.error('[Instantly MCP] 🏗️ Building API v2 compliant payload...');
         const campaignPayload = buildCampaignPayload(enhanced_args);
         console.error('[Instantly MCP] 📦 Generated payload:', JSON.stringify(campaignPayload, null, 2));
 
-        // Step 5: Make the API request
+        // Step 6: Make the API request
         console.error('[Instantly MCP] 🌐 Making API request to create campaign...');
         const response = await fetch('https://api.instantly.ai/api/v2/campaigns', {
           method: 'POST',

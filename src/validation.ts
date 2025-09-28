@@ -28,15 +28,35 @@ export const EmailSchema = z
   .min(1, { error: 'Email address cannot be empty' });
 
 /**
- * Timezone validation schema - exact values from Instantly API documentation
+ * Timezone validation schema - complete list from Instantly API documentation
  */
 export const TimezoneSchema = z.enum([
   "Etc/GMT+12", "Etc/GMT+11", "Etc/GMT+10", "America/Anchorage", "America/Dawson",
   "America/Creston", "America/Chihuahua", "America/Boise", "America/Belize",
-  "America/Chicago", "America/New_York", "America/Denver", "America/Los_Angeles",
-  "Europe/London", "Europe/Paris", "Asia/Tokyo", "Asia/Singapore", "Australia/Sydney"
+  "America/Chicago", "America/Bahia_Banderas", "America/Regina", "America/Bogota",
+  "America/Detroit", "America/Indiana/Marengo", "America/Caracas", "America/Asuncion",
+  "America/Glace_Bay", "America/Campo_Grande", "America/Anguilla", "America/Santiago",
+  "America/St_Johns", "America/Sao_Paulo", "America/Argentina/La_Rioja", "America/Araguaina",
+  "America/Godthab", "America/Montevideo", "America/Bahia", "America/Noronha",
+  "America/Scoresbysund", "Atlantic/Cape_Verde", "Africa/Casablanca", "America/Danmarkshavn",
+  "Europe/Isle_of_Man", "Atlantic/Canary", "Africa/Abidjan", "Arctic/Longyearbyen",
+  "Europe/Belgrade", "Africa/Ceuta", "Europe/Sarajevo", "Africa/Algiers",
+  "Africa/Windhoek", "Asia/Nicosia", "Asia/Beirut", "Africa/Cairo", "Asia/Damascus",
+  "Europe/Bucharest", "Africa/Blantyre", "Europe/Helsinki", "Europe/Istanbul",
+  "Asia/Jerusalem", "Africa/Tripoli", "Asia/Amman", "Asia/Baghdad", "Europe/Kaliningrad",
+  "Asia/Aden", "Africa/Addis_Ababa", "Europe/Kirov", "Europe/Astrakhan", "Asia/Tehran",
+  "Asia/Dubai", "Asia/Baku", "Indian/Mahe", "Asia/Tbilisi", "Asia/Yerevan",
+  "Asia/Kabul", "Antarctica/Mawson", "Asia/Yekaterinburg", "Asia/Karachi", "Asia/Kolkata",
+  "Asia/Colombo", "Asia/Kathmandu", "Antarctica/Vostok", "Asia/Dhaka", "Asia/Rangoon",
+  "Antarctica/Davis", "Asia/Novokuznetsk", "Asia/Hong_Kong", "Asia/Krasnoyarsk",
+  "Asia/Brunei", "Australia/Perth", "Asia/Taipei", "Asia/Choibalsan", "Asia/Irkutsk",
+  "Asia/Dili", "Asia/Pyongyang", "Australia/Adelaide", "Australia/Darwin",
+  "Australia/Brisbane", "Australia/Melbourne", "Antarctica/DumontDUrville",
+  "Australia/Currie", "Asia/Chita", "Antarctica/Macquarie", "Asia/Sakhalin",
+  "Pacific/Auckland", "Etc/GMT-12", "Pacific/Fiji", "Asia/Anadyr", "Asia/Kamchatka",
+  "Etc/GMT-13", "Pacific/Apia", "America/New_York"
 ], {
-  error: (issue) => `Invalid timezone: ${issue.input}. Must be one of the supported Instantly API timezones.`
+  error: (issue) => `Invalid timezone: ${issue.input}. Must be one of the supported Instantly API timezones. Common options: America/New_York, America/Chicago, America/Denver, America/Los_Angeles, Europe/London, Europe/Paris, Asia/Tokyo`
 });
 
 /**
@@ -209,9 +229,11 @@ export const CreateCampaignSchema = z.object({
   
   // Optional campaign settings
   daily_limit: z.number().int().min(1).max(30).optional(),
-  email_gap_minutes: z.number().int().min(1).max(1440).optional(),
+  email_gap: z.number().int().min(1).max(1440).optional(),
+  email_gap_minutes: z.number().int().min(1).max(1440).optional(), // Legacy support - will be converted to email_gap
   
-  // Sequence parameters (multi-step improvements)
+  // Sequence parameters (currently not supported by Instantly.ai API v2)
+  // These parameters are accepted but ignored to prevent validation errors
   sequence_steps: z.number().int().min(1).max(10).optional(),
   step_delay_days: z.number().int().min(1).max(30).optional(),
   sequence_bodies: z.array(z.string()).optional(),
