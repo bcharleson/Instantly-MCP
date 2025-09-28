@@ -1,14 +1,14 @@
-# DigitalOcean App Platform Configuration - PRODUCTION ENVIRONMENT
-# Deploy Instantly MCP Server for production use
-name: Instantly MCP Production
+# DigitalOcean App Platform Configuration - STAGING ENVIRONMENT
+# Deploy Instantly MCP Server for testing and validation
+name: Instantly MCP Staging
 region: nyc
 
 services:
-- name: mcp-server-production
+- name: mcp-server-staging
   source_dir: /
   github:
     repo: bcharleson/Instantly-MCP
-    branch: production
+    branch: main
     deploy_on_push: true
 
   # Build configuration - explicitly use buildpacks, not Docker
@@ -25,7 +25,7 @@ services:
   # Environment variables
   envs:
   - key: NODE_ENV
-    value: production
+    value: staging
   - key: TRANSPORT_MODE
     value: http
   - key: PORT
@@ -33,7 +33,7 @@ services:
   - key: HOST
     value: "0.0.0.0"
   - key: ENVIRONMENT
-    value: production
+    value: staging
   
   # Health check configuration
   health_check:
@@ -52,21 +52,17 @@ services:
   - path: /
     preserve_path_prefix: true
 
-# Domain configuration (using default DigitalOcean App Platform URL for testing)
-# Custom domain will be configured separately later
-# domains: []
-
-# Alerts configuration
+# Alerts configuration (less strict for staging)
 alerts:
 - rule: CPU_UTILIZATION
   disabled: false
-  value: 80
+  value: 90
 - rule: MEM_UTILIZATION
   disabled: false
-  value: 80
+  value: 90
 - rule: RESTART_COUNT
   disabled: false
-  value: 5
+  value: 10
 
 # Database configuration (none needed for this stateless service)
 databases: []
