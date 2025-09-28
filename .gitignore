@@ -33,6 +33,7 @@ test-*.js
 test-*.ts
 test-*.cjs
 test-*.sh
+test-*.json
 *test*.js
 *test*.ts
 *test*.cjs
