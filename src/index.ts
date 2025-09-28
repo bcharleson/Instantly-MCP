@@ -893,6 +893,34 @@ function buildCampaignPayload(args: any): any {
     throw new McpError(ErrorCode.InvalidParams, 'Campaign name is required');
   }
 
+  // CRITICAL: Detect campaign type - complex vs simple
+  const hasComplexStructure = args.campaign_schedule && args.sequences;
+
+  if (hasComplexStructure) {
+    // COMPLEX CAMPAIGN: Use provided structure directly
+    console.error('[Instantly MCP] 🏗️ Building COMPLEX campaign payload with provided sequences');
+
+    const campaignData: any = {
+      name: args.name,
+      campaign_schedule: args.campaign_schedule,
+      sequences: args.sequences,
+      email_list: args.email_list || []
+    };
+
+    // Add optional fields
+    if (args.daily_limit !== undefined) campaignData.daily_limit = Number(args.daily_limit);
+    if (args.email_gap !== undefined) campaignData.email_gap = Number(args.email_gap);
+    if (args.text_only !== undefined) campaignData.text_only = Boolean(args.text_only);
+    if (args.open_tracking !== undefined) campaignData.open_tracking = Boolean(args.open_tracking);
+    if (args.link_tracking !== undefined) campaignData.link_tracking = Boolean(args.link_tracking);
+    if (args.stop_on_reply !== undefined) campaignData.stop_on_reply = Boolean(args.stop_on_reply);
+
+    return campaignData;
+  }
+
+  // SIMPLE CAMPAIGN: Build traditional structure
+  console.error('[Instantly MCP] 🏗️ Building SIMPLE campaign payload with subject/body');
+
   // Process message shortcut if provided
   if (args.message && (!args.subject || !args.body)) {
     const msg = String(args.message).trim();
