@@ -1595,14 +1595,30 @@ const TOOLS_DEFINITION = [
       },
       {
         name: 'reply_to_email',
-        description: 'Reply to an email',
+        description: '⚠️ CAUTION: Reply to an email - SENDS REAL EMAILS TO REAL PEOPLE! Use only with emails you control completely. This tool sends actual email replies through the Instantly.ai API. Ensure you have permission to reply and the content is appropriate.',
         inputSchema: {
           type: 'object',
           properties: {
-            reply_to_uuid: { type: 'string', description: 'Reply UUID' },
-            eaccount: { type: 'string', description: 'Email account' },
-            subject: { type: 'string', description: 'Reply subject' },
-            body: { type: 'string', description: 'Reply body' }
+            reply_to_uuid: {
+              type: 'string',
+              description: 'The ID of the email to reply to (from email list or get_email response)'
+            },
+            eaccount: {
+              type: 'string',
+              description: 'The email account that will send this reply (must be connected to your workspace)'
+            },
+            subject: {
+              type: 'string',
+              description: 'Subject line of the reply email'
+            },
+            body: {
+              type: 'object',
+              description: 'Email body content - can specify html, text, or both',
+              properties: {
+                html: { type: 'string', description: 'HTML content of the email' },
+                text: { type: 'string', description: 'Plain text content of the email' }
+              }
+            }
           },
           required: ['reply_to_uuid', 'eaccount', 'subject', 'body'],
           additionalProperties: false
@@ -2977,19 +2993,37 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
     }
 
     case 'reply_to_email': {
-      console.error('[Instantly MCP] 📧 Executing reply_to_email...');
+      console.error('[Instantly MCP] ⚠️ CRITICAL: Executing reply_to_email - WILL SEND REAL EMAIL!');
 
-      if (!args.email_id || !args.reply_body) {
-        throw new McpError(ErrorCode.InvalidParams, 'Email ID and reply body are required for reply_to_email');
+      // Strict validation of required parameters
+      if (!args.reply_to_uuid) {
+        throw new McpError(ErrorCode.InvalidParams, 'reply_to_uuid is required - the ID of the email to reply to');
+      }
+      if (!args.eaccount) {
+        throw new McpError(ErrorCode.InvalidParams, 'eaccount is required - the email account that will send the reply');
+      }
+      if (!args.subject) {
+        throw new McpError(ErrorCode.InvalidParams, 'subject is required - the subject line of the reply');
+      }
+      if (!args.body) {
+        throw new McpError(ErrorCode.InvalidParams, 'body is required - the content of the reply email');
       }
 
+      // Build the reply data according to API v2 specification
       const replyData = {
-        email_id: args.email_id,
-        reply_body: args.reply_body,
-        subject: args.subject || 'Re: '
+        reply_to_uuid: args.reply_to_uuid,
+        eaccount: args.eaccount,
+        subject: args.subject,
+        body: args.body
       };
 
-      const replyResult = await makeInstantlyRequest('/emails/reply', { method: 'POST', ...replyData }, apiKey);
+      console.error(`[Instantly MCP] ⚠️ SENDING EMAIL REPLY with data: ${JSON.stringify(replyData, null, 2)}`);
+      console.error(`[Instantly MCP] ⚠️ This will send a real email to real people!`);
+
+      const replyResult = await makeInstantlyRequest('/emails/reply', {
+        method: 'POST',
+        body: replyData
+      }, apiKey);
 
       return {
         content: [
@@ -2998,7 +3032,8 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
             text: JSON.stringify({
               success: true,
               reply: replyResult,
-              message: 'Email reply sent successfully'
+              message: '⚠️ Email reply sent successfully - REAL EMAIL WAS SENT!',
+              warning: 'This tool sent an actual email reply to real recipients'
             }, null, 2)
           }
         ]
