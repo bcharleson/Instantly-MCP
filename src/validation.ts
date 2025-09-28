@@ -24,8 +24,9 @@ import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
  * Using Zod v4's top-level z.email() for better performance and tree-shaking
  */
 export const EmailSchema = z
-  .email({ error: 'Invalid email format. Must be a valid email address (e.g., user@domain.com)' })
-  .min(1, { error: 'Email address cannot be empty' });
+  .string()
+  .email('Invalid email format. Must be a valid email address (e.g., user@domain.com)')
+  .min(1, 'Email address cannot be empty');
 
 /**
  * Timezone validation schema - EXACT list from Instantly.ai API v2 documentation
@@ -174,20 +175,20 @@ export const CreateCampaignSchema = z.object({
   
   // Required campaign fields with enhanced guidance
   name: z.string()
-    .min(1, { error: 'Campaign name is required. Provide a descriptive name like "Q4 Product Launch Campaign" or "Holiday Sales Outreach"' })
-    .max(255, { error: 'Campaign name cannot exceed 255 characters. Keep it concise but descriptive.' }),
+    .min(1, 'Campaign name is required. Provide a descriptive name like "Q4 Product Launch Campaign" or "Holiday Sales Outreach"')
+    .max(255, 'Campaign name cannot exceed 255 characters. Keep it concise but descriptive.'),
 
   subject: z.string()
-    .min(1, { error: 'Email subject line is required. This is what recipients see in their inbox.' })
-    .max(255, { error: 'Subject line cannot exceed 255 characters. For better deliverability, keep it under 50 characters.' })
+    .min(1, 'Email subject line is required. This is what recipients see in their inbox.')
+    .max(255, 'Subject line cannot exceed 255 characters. For better deliverability, keep it under 50 characters.')
     .refine(
       (val) => val.length <= 50,
-      { error: 'Subject line is over 50 characters. Shorter subjects have better open rates. Consider: "{{firstName}}, quick question about {{companyName}}"' }
+      'Subject line is over 50 characters. Shorter subjects have better open rates. Consider: "{{firstName}}, quick question about {{companyName}}"'
     )
     .optional(), // Made optional for complex campaigns
 
   body: z.string()
-    .min(1, { error: 'Email body cannot be empty' })
+    .min(1, 'Email body cannot be empty')
     .refine(
       (val) => typeof val === 'string',
       'Body must be a plain string, not an object or array'
@@ -216,11 +217,11 @@ export const CreateCampaignSchema = z.object({
     .optional(), // Made optional for complex campaigns
   
   email_list: z.array(EmailSchema)
-    .min(1, { error: 'At least one sender email address is required. Use emails from your verified accounts. Call list_accounts first to see available options.' })
-    .max(100, { error: 'Cannot specify more than 100 email addresses in a single campaign. Consider creating multiple campaigns for larger lists.' })
+    .min(1, 'At least one sender email address is required. Use emails from your verified accounts. Call list_accounts first to see available options.')
+    .max(100, 'Cannot specify more than 100 email addresses in a single campaign. Consider creating multiple campaigns for larger lists.')
     .refine(
       (emails) => emails.length === 1,
-      { error: 'Only one sender email address is allowed per campaign creation call. To use multiple senders, create separate campaigns for each email address.' }
+      'Only one sender email address is allowed per campaign creation call. To use multiple senders, create separate campaigns for each email address.'
     ),
   
   // Optional scheduling parameters
