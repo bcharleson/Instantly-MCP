@@ -1,0 +1,19 @@
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "create_campaign",
+    "arguments": {
+      "name": "Test Campaign - API v2 Fixed",
+      "subject": "Testing the fixed Create Campaign tool",
+      "body": "Hi {{firstName}},\n\nThis is a test email to verify our Create Campaign tool is working correctly with the Instantly API v2.\n\nThe sequences structure has been fixed to match the API specification.\n\nBest regards,\nTest Team",
+      "email_list": ["brandon@onlinetopoffunnel.org"],
+      "skip_validation": true,
+      "daily_limit": 10,
+      "stop_on_reply": true,
+      "open_tracking": true,
+      "link_tracking": false
+    }
+  }
+}

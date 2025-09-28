@@ -911,14 +911,15 @@ function buildCampaignPayload(args: any): any {
   const userDays = (args?.days as any) || {};
 
   // CRITICAL: days object must be non-empty according to API spec
+  // API requires string keys for days ("0" through "6"), not numeric keys
   const daysConfig = {
-    0: userDays.sunday === true,
-    1: userDays.monday !== false,
-    2: userDays.tuesday !== false,
-    3: userDays.wednesday !== false,
-    4: userDays.thursday !== false,
-    5: userDays.friday !== false,
-    6: userDays.saturday === true
+    "0": userDays.sunday === true,
+    "1": userDays.monday !== false,
+    "2": userDays.tuesday !== false,
+    "3": userDays.wednesday !== false,
+    "4": userDays.thursday !== false,
+    "5": userDays.friday !== false,
+    "6": userDays.saturday === true
   };
 
   // Normalize and convert body content for HTML email rendering
