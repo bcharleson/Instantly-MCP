@@ -59,6 +59,20 @@ corrected-campaign.json
 corrected-campaign.jsonc
 production.config.js
 
+# Security: API keys and sensitive configuration
+*api-key*
+*API-KEY*
+*instantly-api*
+*INSTANTLY-API*
+.env.*
+!.env.example
+!.env.production
+*secret*
+*SECRET*
+*token*
+*TOKEN*
+check-exposed-api-key.js
+
 # Package files for distribution testing
 *.tgz
 *.dxt
