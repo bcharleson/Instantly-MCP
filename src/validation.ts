@@ -230,69 +230,14 @@ export const CreateCampaignSchema = z.object({
   // Optional campaign settings
   daily_limit: z.number().int().min(1).max(30).optional(),
   email_gap: z.number().int().min(1).max(1440).optional(),
-  email_gap_minutes: z.number().int().min(1).max(1440).optional(), // Legacy support - will be converted to email_gap
   
-  // Sequence parameters (currently not supported by Instantly.ai API v2)
-  // These parameters are accepted but ignored to prevent validation errors
-  sequence_steps: z.number().int().min(1).max(10).optional(),
-  step_delay_days: z.number().int().min(1).max(30).optional(),
-  sequence_bodies: z.array(z.string()).optional(),
-  sequence_subjects: z.array(z.string()).optional(),
-  continue_thread: z.boolean().optional(),
+
   
   // Tracking settings
   open_tracking: z.boolean().optional(),
   link_tracking: z.boolean().optional(),
   stop_on_reply: z.boolean().optional()
-}).refine(
-  (data) => {
-    // Validate sequence_bodies length exactly matches sequence_steps when provided
-    if (data.sequence_steps && data.sequence_bodies) {
-      return data.sequence_bodies.length === data.sequence_steps;
-    }
-    return true;
-  },
-  {
-    error: 'sequence_bodies array must contain exactly the same number of items as sequence_steps',
-    path: ['sequence_bodies']
-  }
-).refine(
-  (data) => {
-    // Validate sequence_subjects length exactly matches sequence_steps when provided
-    if (data.sequence_steps && data.sequence_subjects) {
-      return data.sequence_subjects.length === data.sequence_steps;
-    }
-    return true;
-  },
-  {
-    error: 'sequence_subjects array must contain exactly the same number of items as sequence_steps',
-    path: ['sequence_subjects']
-  }
-).refine(
-  (data) => {
-    // Validate all sequence_bodies items are non-empty strings when provided
-    if (data.sequence_bodies && Array.isArray(data.sequence_bodies)) {
-      return data.sequence_bodies.every(body => typeof body === 'string' && body.trim().length > 0);
-    }
-    return true;
-  },
-  {
-    error: 'All sequence_bodies items must be non-empty strings',
-    path: ['sequence_bodies']
-  }
-).refine(
-  (data) => {
-    // Validate all sequence_subjects items are non-empty strings when provided
-    if (data.sequence_subjects && Array.isArray(data.sequence_subjects)) {
-      return data.sequence_subjects.every(subject => typeof subject === 'string' && subject.trim().length > 0);
-    }
-    return true;
-  },
-  {
-    error: 'All sequence_subjects items must be non-empty strings',
-    path: ['sequence_subjects']
-  }
-);
+});
 
 /**
  * List accounts validation schema

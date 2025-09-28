@@ -444,8 +444,7 @@ async function gatherCampaignPrerequisites(args: any, apiKey?: string): Promise<
           description: 'Maximum emails per day per account (30 for cold email compliance)',
           compliance_note: 'Higher limits may trigger spam filters and hurt deliverability. 30/day is the recommended maximum for cold outreach.'
         },
-        email_gap: { default: 10, description: 'Minutes between emails from same account (API parameter name)' },
-        email_gap_minutes: { default: 10, description: 'Minutes between emails from same account (legacy - will be converted to email_gap)' }
+        email_gap: { default: 10, description: 'Minutes between emails from same account (1-1440 minutes)' }
       }
     }
   };
@@ -666,11 +665,12 @@ function cleanupAndValidateParameters(args: any): { cleanedArgs: any; warnings: 
     }
   }
 
-  // Convert email_gap_minutes to email_gap for API compatibility
+  // Convert legacy email_gap_minutes to email_gap for API compatibility
+  // Note: email_gap_minutes is no longer exposed in the tool schema but we support it for backward compatibility
   if (cleanedArgs.email_gap_minutes !== undefined && cleanedArgs.email_gap === undefined) {
     cleanedArgs.email_gap = cleanedArgs.email_gap_minutes;
     delete cleanedArgs.email_gap_minutes;
-    warnings.push(`✅ Converted 'email_gap_minutes' to 'email_gap' for API compatibility.`);
+    warnings.push(`✅ Converted legacy 'email_gap_minutes' to 'email_gap' for API compatibility.`);
   } else if (cleanedArgs.email_gap_minutes !== undefined && cleanedArgs.email_gap !== undefined) {
     delete cleanedArgs.email_gap_minutes;
     warnings.push(`⚠️ Both 'email_gap' and 'email_gap_minutes' provided. Using 'email_gap' value and ignoring 'email_gap_minutes'.`);
@@ -717,15 +717,10 @@ function applySmartDefaults(args: any): any {
     defaultsApplied.push('daily_limit: 30 (compliant limit for cold email outreach)');
   }
 
-  // Handle email_gap parameter (API expects 'email_gap', not 'email_gap_minutes')
-  if (enhancedArgs.email_gap === undefined && enhancedArgs.email_gap_minutes === undefined) {
+  // Handle email_gap parameter (API expects 'email_gap')
+  if (enhancedArgs.email_gap === undefined) {
     enhancedArgs.email_gap = 10;
     defaultsApplied.push('email_gap: 10 (10-minute gaps between emails from same account)');
-  } else if (enhancedArgs.email_gap_minutes !== undefined && enhancedArgs.email_gap === undefined) {
-    // Convert email_gap_minutes to email_gap for API compatibility
-    enhancedArgs.email_gap = enhancedArgs.email_gap_minutes;
-    delete enhancedArgs.email_gap_minutes;
-    defaultsApplied.push(`email_gap: ${enhancedArgs.email_gap} (converted from email_gap_minutes for API compatibility)`);
   }
 
   // Apply behavior defaults
@@ -1213,14 +1208,7 @@ const TOOLS_DEFINITION = [
             },
             email_gap: {
               type: 'number',
-              description: 'Minutes between emails from same account (API parameter name)',
-              default: 10,
-              minimum: 1,
-              maximum: 1440
-            },
-            email_gap_minutes: {
-              type: 'number',
-              description: 'Minutes between emails from same account (legacy - will be converted to email_gap)',
+              description: 'Minutes between emails from same account (1-1440 minutes)',
               default: 10,
               minimum: 1,
               maximum: 1440
@@ -1233,30 +1221,11 @@ const TOOLS_DEFINITION = [
               default: true
             },
 
-            // Multi-step sequence configuration
-            sequence_steps: {
-              type: 'number',
-              description: 'Number of follow-up emails in the sequence (1 = single email, 2-10 = multi-step sequence)',
-              default: 1,
-              minimum: 1,
-              maximum: 10
-            },
-            step_delay_days: {
-              type: 'number',
-              description: 'Days between each step in the sequence',
-              default: 3,
-              minimum: 1,
-              maximum: 30
-            },
-            sequence_bodies: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Optional: Custom email body content for each step. If not provided, follow-ups will use default templates. Must have at least sequence_steps items.'
-            },
-            sequence_subjects: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Optional: Custom subject lines for each step. If not provided, follow-ups will use "Follow-up: [original subject]". Must have at least sequence_steps items.'
+            // Advanced options (optional)
+            stop_on_auto_reply: {
+              type: 'boolean',
+              description: 'Stop campaign when auto-reply is detected (out-of-office, etc.)',
+              default: true
             }
           },
           required: ['name', 'subject', 'body', 'email_list'],
