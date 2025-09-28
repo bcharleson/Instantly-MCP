@@ -199,7 +199,6 @@ async function makeInstantlyRequest(endpoint: string, options: any = {}, apiKey?
   const requestOptions: any = {
     method,
     headers: {
-      'Content-Type': 'application/json',
       'Authorization': `Bearer ${useApiKey}`,
     },
     // Add 60-second timeout for all API requests (increased for campaign creation)
@@ -207,6 +206,7 @@ async function makeInstantlyRequest(endpoint: string, options: any = {}, apiKey?
   };
 
   if (method !== 'GET' && options.body) {
+    requestOptions.headers['Content-Type'] = 'application/json';
     requestOptions.body = JSON.stringify(options.body);
   }
 
