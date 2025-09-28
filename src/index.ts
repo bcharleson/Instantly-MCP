@@ -3737,8 +3737,8 @@ async function handleToolCall(params: any) {
         ]
       };
 
-    case 'check_feature_availability':
-      const featuresResult = await makeInstantlyRequest('/account/features', {}, args.apiKey);
+    case 'check_feature_availability': {
+      const featuresResult = await makeInstantlyRequest('/account/features', {}, apiKey);
       return {
         content: [
           {
@@ -3751,6 +3751,7 @@ async function handleToolCall(params: any) {
           }
         ]
       };
+    }
 
     // Duplicate implementations removed - using the main implementations above
 
