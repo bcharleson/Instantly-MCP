@@ -815,11 +815,24 @@ function convertLineBreaksToHTML(text: string): string {
   // Normalize line endings to \n
   const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
-  // Convert all line breaks to <br /> tags (no paragraph wrapping)
-  // Double line breaks (\n\n) become <br /><br /> for spacing
-  return normalized
-    .replace(/\n\n/g, '<br /><br />')  // Double line breaks for paragraph spacing
-    .replace(/\n/g, '<br />');        // Single line breaks
+  // Split by double line breaks to create logical paragraphs
+  const paragraphs = normalized.split('\n\n');
+
+  return paragraphs
+    .map(paragraph => {
+      // Skip empty paragraphs
+      if (!paragraph.trim()) {
+        return '';
+      }
+
+      // Convert single line breaks within paragraphs to <br /> tags
+      const withBreaks = paragraph.trim().replace(/\n/g, '<br />');
+
+      // Return just the content with <br /> tags (no <p> wrapper)
+      return withBreaks;
+    })
+    .filter(p => p) // Remove empty paragraphs
+    .join('<br /><br />'); // Join paragraphs with double <br /> for spacing
 }
 
 // Build campaign payload with proper HTML formatting for Instantly.ai
