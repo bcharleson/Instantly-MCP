@@ -314,12 +314,20 @@ export class StreamingHttpTransport {
       }
 
       // Use API key as-is from URL path (Instantly.ai expects base64-encoded format)
-      console.error(`[HTTP] 🔑 Using API key from URL path as-is`);
+      console.error(`[HTTP] 🔑 Using API key from URL path as-is: ${apiKey.substring(0, 20)}...`);
 
       // Store the API key in request headers for SDK to pass through via extra.requestInfo.headers
       req.headers['x-instantly-api-key'] = apiKey;
       // Also store in request object as backup
       (req as any).instantlyApiKey = apiKey;
+
+      // Debug: Log headers before calling handleRequest
+      console.error(`[HTTP] 🔍 Headers before handleRequest:`, JSON.stringify({
+        'x-instantly-api-key': req.headers['x-instantly-api-key'] ? 'SET' : 'NOT SET',
+        'content-type': req.headers['content-type'],
+        'accept': req.headers['accept']
+      }));
+      console.error(`[HTTP] 🔍 Request body:`, JSON.stringify(req.body));
 
       // Delegate to official StreamableHTTPServerTransport
       await this.transport.handleRequest(req, res, req.body);
