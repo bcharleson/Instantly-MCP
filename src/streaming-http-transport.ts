@@ -285,7 +285,8 @@ export class StreamingHttpTransport {
 
     // Main MCP endpoint with header-based authentication
     this.app.post('/mcp', this.authMiddleware.bind(this), async (req, res) => {
-      await this.handleMcpRequest(req, res);
+      // Delegate to official StreamableHTTPServerTransport - it handles all MCP protocol details
+      await this.transport.handleRequest(req, res, req.body);
     });
 
     // URL-based authentication endpoint: /mcp/{API_KEY}
@@ -314,10 +315,13 @@ export class StreamingHttpTransport {
       // Use API key as-is from URL path (Instantly.ai expects base64-encoded format)
       console.error(`[HTTP] 🔑 Using API key from URL path as-is`);
 
-      // Store the API key in request for tool handlers
+      // Store the API key in request headers for SDK to pass through via extra.requestInfo.headers
+      req.headers['x-instantly-api-key'] = apiKey;
+      // Also store in request object as backup
       (req as any).instantlyApiKey = apiKey;
 
-      await this.handleMcpRequest(req, res);
+      // Delegate to official StreamableHTTPServerTransport
+      await this.transport.handleRequest(req, res, req.body);
     });
 
     // Minimal /authorize endpoint for MCP clients that expect OAuth-style discovery
@@ -539,7 +543,9 @@ export class StreamingHttpTransport {
     // Use API key as-is from headers (Instantly.ai expects base64-encoded format)
     console.error(`[HTTP] 🔑 Using API key from headers as-is`);
 
-    // Store the API key in request for tool handlers
+    // Store the API key in request headers for SDK to pass through via extra.requestInfo.headers
+    req.headers['x-instantly-api-key'] = instantlyApiKey;
+    // Also store in request object as backup
     (req as any).instantlyApiKey = instantlyApiKey;
     next();
   }
@@ -603,119 +609,7 @@ export class StreamingHttpTransport {
     });
   }
 
-  /**
-   * Shared MCP request handler for both authentication methods
-   */
-  private async handleMcpRequest(req: express.Request, res: express.Response): Promise<void> {
-    const startTime = Date.now();
-    const sessionId = (req.headers['mcp-session-id'] as string) || `session-${Date.now()}`;
-    const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
-    const authMethod = req.params?.apiKey ? 'URL' : (req.headers.authorization ? 'Bearer' : 'Header');
-    const protocolVersion = req.headers['mcp-protocol-version'] as string;
-    
-    // Validate MCP-Protocol-Version header (backward compatible)
-    // Per MCP spec: if no header provided, assume 2025-03-26 for backward compatibility
-    if (protocolVersion && !['2025-06-18', '2025-03-26', '2024-11-05'].includes(protocolVersion)) {
-      console.error(`[HTTP] ❌ Unsupported protocol version: ${protocolVersion}`);
-      res.status(400).json({
-        jsonrpc: '2.0',
-        id: null,
-        error: {
-          code: -32600,
-          message: `Unsupported MCP protocol version: ${protocolVersion}. Supported: 2025-06-18, 2025-03-26, 2024-11-05`
-        }
-      });
-      return;
-    }
 
-    try {
-      // Enhanced session tracking
-      this.activeSessions.set(sessionId, {
-        startTime,
-        lastActivity: Date.now(),
-        requestCount: (this.activeSessions.get(sessionId)?.requestCount || 0) + 1,
-        clientIp,
-        authMethod,
-        userAgent: req.headers['user-agent'] || 'unknown'
-      });
-
-      // Check Accept header (required by MCP spec)
-      const acceptHeader = req.headers.accept || '';
-      const supportsJson = acceptHeader.includes('application/json');
-      const supportsSSE = acceptHeader.includes('text/event-stream');
-      
-      console.error(`[HTTP] 📋 Accept header: ${acceptHeader}`);
-      console.error(`[HTTP] 🔍 Supports JSON: ${supportsJson}, SSE: ${supportsSSE}`);
-
-      // Validate request body
-      if (!req.body || typeof req.body !== 'object') {
-        res.status(400).json({
-          jsonrpc: '2.0',
-          id: null,
-          error: {
-            code: -32700,
-            message: 'Parse error',
-            data: { reason: 'Invalid JSON-RPC request body' }
-          }
-        });
-        return;
-      }
-
-      // Handle MCP request with per-request API key
-      const apiKey = (req as any).instantlyApiKey;
-      const mcpRequest = req.body;
-
-      // Log the request for monitoring
-      console.error(`[MCP] ${sessionId} - ${mcpRequest.method || 'unknown'} - ${authMethod} auth - ${clientIp}`);
-
-      // Process the MCP request with the extracted API key
-      const response = await this.handleMcpRequestWithApiKey(mcpRequest, apiKey, req, res);
-
-      const responseTime = Date.now() - startTime;
-      res.setHeader('mcp-session-id', sessionId);
-      res.setHeader('x-response-time', `${responseTime}ms`);
-      res.setHeader('x-auth-method', authMethod);
-      
-      // Set appropriate content type based on Accept header
-      if (supportsJson) {
-        res.setHeader('Content-Type', 'application/json');
-      }
-
-      // Handle notifications (no response expected)
-      if (response === null) {
-        res.status(204).end(); // 204 No Content for notifications
-      } else {
-        res.json(response);
-      }
-
-      // Log successful response
-      console.error(`[MCP] ${sessionId} - Success - ${responseTime}ms`);
-
-    } catch (error: any) {
-      const responseTime = Date.now() - startTime;
-      console.error(`[Instantly MCP] ❌ MCP request error (${sessionId}):`, {
-        error: error.message,
-        stack: error.stack?.split('\n')[0],
-        method: req.body?.method,
-        authMethod,
-        clientIp,
-        responseTime
-      });
-
-      res.status(500).json({
-        jsonrpc: '2.0',
-        id: req.body?.id || null,
-        error: {
-          code: -32603,
-          message: process.env.NODE_ENV === 'production' ? 'Internal server error' : error.message,
-          data: process.env.NODE_ENV === 'production' ? undefined : { stack: error.stack }
-        }
-      });
-    } finally {
-      const session = this.activeSessions.get(sessionId);
-      if (session) session.lastActivity = Date.now();
-    }
-  }
 
   /**
    * Clean up inactive sessions and rate limit entries
@@ -747,158 +641,7 @@ export class StreamingHttpTransport {
     }
   }
 
-  /**
-   * Handle MCP request with per-request API key
-   */
-  private async handleMcpRequestWithApiKey(mcpRequest: any, apiKey: string, req: any, res: any): Promise<any> {
-    const { method, params, id } = mcpRequest;
-    console.error(`[Instantly MCP] 📨 HTTP Request: ${method} (API Key: ${apiKey ? '✅ Present' : '❌ Missing'})`);
 
-    try {
-      switch (method) {
-        case 'ping':
-        case 'health':
-          // Health check endpoint for Claude Desktop remote connector service
-          console.error('[Instantly MCP] 🏥 Health check request received');
-          return {
-            jsonrpc: '2.0',
-            id,
-            result: {
-              status: 'healthy',
-              timestamp: new Date().toISOString(),
-              server: 'instantly-mcp',
-              version: '1.1.0'
-            }
-          };
-
-        case 'initialize':
-          // MCP protocol initialization - Optimized for Claude Desktop compatibility
-          const startTime = Date.now();
-          console.error('[Instantly MCP] 🔧 HTTP Initialize request received from:', params?.clientInfo?.name || 'unknown');
-
-          // Generate session ID for Claude Desktop (required by MCP spec)
-          const sessionId = `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-          console.error(`[Instantly MCP] 🆔 Generated session ID: ${sessionId}`);
-
-          // Pre-load icon for faster response
-          const httpIcon = loadInstantlyIcon();
-          console.error('[Instantly MCP] 🎨 HTTP Icon loaded:', httpIcon ? '✅ Present' : '❌ Missing');
-
-          // Negotiate protocol version - use client's version if supported, otherwise use latest
-          const clientProtocolVersion = params?.protocolVersion;
-          const supportedVersions = ['2025-06-18', '2025-03-26', '2024-11-05'];
-          const negotiatedVersion = supportedVersions.includes(clientProtocolVersion) ? clientProtocolVersion : '2025-06-18';
-          
-          console.error(`[Instantly MCP] 🤝 Protocol negotiation - Client: ${clientProtocolVersion}, Negotiated: ${negotiatedVersion}`);
-
-          // Optimized initialization response for Claude Desktop remote connectors
-          const initResponse = {
-            jsonrpc: '2.0',
-            id,
-            result: {
-              protocolVersion: negotiatedVersion, // Negotiated version based on client request
-              capabilities: {
-                tools: {
-                  listChanged: true,
-                },
-                resources: {
-                  subscribe: false,
-                  listChanged: false,
-                },
-                prompts: {
-                  listChanged: false,
-                },
-                // Claude Desktop expects explicit auth capability declaration
-                auth: {
-                  required: false,
-                },
-              },
-              serverInfo: {
-                name: 'instantly-mcp',
-                version: '1.1.0',
-                icon: httpIcon,
-                // Add description for Claude Desktop
-                description: 'Instantly.ai email automation and campaign management tools',
-              },
-              // Add instructions for Claude Desktop
-              instructions: 'Use these tools to manage Instantly.ai email campaigns, accounts, and automation workflows.',
-            }
-          };
-
-          // Set session ID header (required by MCP spec for remote servers)
-          res.setHeader('Mcp-Session-Id', sessionId);
-          
-          const responseTime = Date.now() - startTime;
-          console.error(`[Instantly MCP] ✅ HTTP Initialize response prepared in ${responseTime}ms with session ID`);
-          return initResponse;
-
-        case 'initialized':
-        case 'notifications/initialized':
-          // MCP protocol initialization complete notification
-          // Notifications don't return responses, just acknowledge receipt
-          return null; // No response for notifications
-
-        case 'tools/list':
-          // Return the tools list
-          if (this.requestHandlers?.toolsList) {
-            return await this.requestHandlers.toolsList(id);
-          }
-          // Return the actual tools definition
-          return {
-            jsonrpc: '2.0',
-            id,
-            result: {
-              tools: TOOLS_DEFINITION
-            }
-          };
-
-        case 'tools/call':
-          // Execute tool with API key
-          try {
-            const { name, arguments: args } = params;
-            console.error(`[Instantly MCP] 🔧 StreamingHttpTransport tool call: ${name}`);
-            
-            // Call the shared tool execution function
-            const result = await executeToolDirectly(name, args, apiKey);
-            
-            return {
-              jsonrpc: '2.0',
-              id,
-              result
-            };
-          } catch (error: any) {
-            console.error(`[Instantly MCP] ❌ Tool execution error:`, error);
-            return {
-              jsonrpc: '2.0',
-              id,
-              error: {
-                code: -32603,
-                message: error.message || 'Tool execution failed'
-              }
-            };
-          }
-
-        default:
-          return {
-            jsonrpc: '2.0',
-            id,
-            error: {
-              code: -32601,
-              message: `Method not found: ${method}`
-            }
-          };
-      }
-    } catch (error: any) {
-      return {
-        jsonrpc: '2.0',
-        id,
-        error: {
-          code: -32603,
-          message: error.message || 'Internal error'
-        }
-      };
-    }
-  }
 
   /**
    * Set request handlers (to be called by main server)
