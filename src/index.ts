@@ -3288,7 +3288,7 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
       console.error(`[Instantly MCP] 🔧 Using endpoint: /accounts/warmup/enable`);
       const enableWarmupResult = await makeInstantlyRequest('/accounts/warmup/enable', {
         method: 'POST',
-        body: { email: args.email }
+        body: { emails: [args.email] }
       }, apiKey);
 
       return {
@@ -3315,7 +3315,7 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
       console.error(`[Instantly MCP] 🔧 Using endpoint: /accounts/warmup/disable`);
       const disableWarmupResult = await makeInstantlyRequest('/accounts/warmup/disable', {
         method: 'POST',
-        body: { email: args.email }
+        body: { emails: [args.email] }
       }, apiKey);
 
       return {
