@@ -3101,6 +3101,54 @@ async function executeToolDirectly(name: string, args: any, apiKey?: string): Pr
       };
     }
 
+    case 'pause_account': {
+      console.error('[Instantly MCP] ⏸️ Executing pause_account...');
+
+      if (!args.email) {
+        throw new McpError(ErrorCode.InvalidParams, 'Email is required for pause_account');
+      }
+
+      console.error(`[Instantly MCP] 🔧 Using endpoint: /accounts/${args.email}/pause`);
+      const pauseAccountResult = await makeInstantlyRequest(`/accounts/${args.email}/pause`, { method: 'POST' }, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              account: pauseAccountResult,
+              message: `Account ${args.email} paused successfully`
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
+    case 'resume_account': {
+      console.error('[Instantly MCP] ▶️ Executing resume_account...');
+
+      if (!args.email) {
+        throw new McpError(ErrorCode.InvalidParams, 'Email is required for resume_account');
+      }
+
+      console.error(`[Instantly MCP] 🔧 Using endpoint: /accounts/${args.email}/resume`);
+      const resumeAccountResult = await makeInstantlyRequest(`/accounts/${args.email}/resume`, { method: 'POST' }, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              account: resumeAccountResult,
+              message: `Account ${args.email} resumed successfully`
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
     // Add more tools as needed...
     default:
       throw new McpError(ErrorCode.InvalidRequest, `Unknown tool: ${name}`);
@@ -3735,53 +3783,7 @@ async function handleToolCall(params: any) {
 
     // Duplicate implementations removed - using the main implementations above
 
-    case 'pause_account': {
-      console.error('[Instantly MCP] ⏸️ Executing pause_account...');
 
-      if (!args.email) {
-        throw new McpError(ErrorCode.InvalidParams, 'Email is required for pause_account');
-      }
-
-      console.error(`[Instantly MCP] 🔧 Using endpoint: /accounts/${args.email}/pause`);
-      const pauseAccountResult = await makeInstantlyRequest(`/accounts/${args.email}/pause`, { method: 'POST' }, apiKey);
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              account: pauseAccountResult,
-              message: `Account ${args.email} paused successfully`
-            }, null, 2)
-          }
-        ]
-      };
-    }
-
-    case 'resume_account': {
-      console.error('[Instantly MCP] ▶️ Executing resume_account...');
-
-      if (!args.email) {
-        throw new McpError(ErrorCode.InvalidParams, 'Email is required for resume_account');
-      }
-
-      console.error(`[Instantly MCP] 🔧 Using endpoint: /accounts/${args.email}/resume`);
-      const resumeAccountResult = await makeInstantlyRequest(`/accounts/${args.email}/resume`, { method: 'POST' }, apiKey);
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              account: resumeAccountResult,
-              message: `Account ${args.email} resumed successfully`
-            }, null, 2)
-          }
-        ]
-      };
-    }
 
     // ===== ADDITIONAL TOOLS FROM MAIN HANDLER =====
     // Note: create_campaign is handled in the main switch statement above with enhanced functionality
