@@ -465,7 +465,7 @@ export class StreamingHttpTransport {
         message: `Endpoint ${req.path} not found`,
         availableEndpoints: ['/mcp', '/mcp/{API_KEY}', '/authorize', '/health', '/info'],
         transport: 'streamable-http',
-        protocol: '2025-03-26'
+        protocol: '2024-11-05'
       });
     });
   }
@@ -761,7 +761,7 @@ export class StreamingHttpTransport {
             jsonrpc: '2.0',
             id,
             result: {
-              protocolVersion: '2025-03-26', // Updated to latest spec version
+              protocolVersion: '2024-11-05', // Updated to latest spec version
               capabilities: {
                 tools: {
                   listChanged: true,
