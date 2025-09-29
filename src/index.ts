@@ -1156,7 +1156,7 @@ async function validateEmailListAgainstAccounts(emailList: string[], apiKey?: st
 }
 
 // Define tools array for both stdio and HTTP transports
-const TOOLS_DEFINITION = [
+export const TOOLS_DEFINITION = [
       {
         name: 'list_accounts',
         description: 'List all email accounts with reliable pagination',
@@ -1792,7 +1792,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 });
 
 // Shared tool execution function that can be called from both MCP and HTTP handlers
-async function executeToolDirectly(name: string, args: any, apiKey?: string): Promise<any> {
+export async function executeToolDirectly(name: string, args: any, apiKey?: string): Promise<any> {
   console.error(`[Instantly MCP] 🔧 Executing tool directly: ${name}`);
   console.error(`[Instantly MCP] 🔍 Tool arguments:`, JSON.stringify(args, null, 2));
 

@@ -11,6 +11,7 @@ import { createServer, Server as HttpServer } from 'http';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { TOOLS_DEFINITION, executeToolDirectly } from './index.js';
 
 // Simple rate limiting interface
 interface RateLimitEntry {
@@ -616,29 +617,40 @@ export class StreamingHttpTransport {
           if (this.requestHandlers?.toolsList) {
             return await this.requestHandlers.toolsList(id);
           }
-          // Fallback to static tools list
+          // Return the actual tools definition
           return {
             jsonrpc: '2.0',
             id,
             result: {
-              tools: [] // Will be populated by the actual handler
+              tools: TOOLS_DEFINITION
             }
           };
 
         case 'tools/call':
           // Execute tool with API key
-          if (this.requestHandlers?.toolCall) {
-            // Add API key to arguments for tool execution (expected by handleToolCall function)
-            const paramsWithApiKey = {
-              ...params,
-              arguments: {
-                ...params.arguments,
-                apiKey
+          try {
+            const { name, arguments: args } = params;
+            console.error(`[Instantly MCP] 🔧 StreamingHttpTransport tool call: ${name}`);
+            
+            // Call the shared tool execution function
+            const result = await executeToolDirectly(name, args, apiKey);
+            
+            return {
+              jsonrpc: '2.0',
+              id,
+              result
+            };
+          } catch (error: any) {
+            console.error(`[Instantly MCP] ❌ Tool execution error:`, error);
+            return {
+              jsonrpc: '2.0',
+              id,
+              error: {
+                code: -32603,
+                message: error.message || 'Tool execution failed'
               }
             };
-            return await this.requestHandlers.toolCall(paramsWithApiKey, id);
           }
-          throw new Error('Tool call handler not configured');
 
         default:
           return {
