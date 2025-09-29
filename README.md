@@ -18,7 +18,7 @@ npm start
 
 Server available at: `http://localhost:3000/mcp`
 
-### Claude Desktop Setup
+### Claude Desktop Setup (Local)
 ```json
 {
   "mcpServers": {
@@ -27,6 +27,41 @@ Server available at: `http://localhost:3000/mcp`
       "args": ["/path/to/instantly-mcp/dist/index.js"],
       "env": {
         "INSTANTLY_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
+```
+
+## Remote HTTP Endpoint
+
+### Production Endpoint
+**URL**: `https://mcp.instantly.ai/mcp`
+
+### Authentication Methods
+
+#### 1. URL-based Authentication
+```
+https://mcp.instantly.ai/mcp/YOUR_API_KEY
+```
+
+#### 2. Header Authentication
+```
+URL: https://mcp.instantly.ai/mcp
+Header: Authorization: YOUR_API_KEY
+```
+*Note: Bearer token prefix is not required*
+
+### Usage with MCP Clients
+Configure your MCP client to use the remote endpoint:
+
+```json
+{
+  "mcpServers": {
+    "instantly": {
+      "url": "https://mcp.instantly.ai/mcp",
+      "headers": {
+        "Authorization": "your-api-key-here"
       }
     }
   }
@@ -102,9 +137,11 @@ Authorization: Bearer your-key
 
 ## Features
 
+- **Streamable HTTP Transport** - Remote MCP server at `https://mcp.instantly.ai/mcp`
 - **Bulletproof Timezone System** - 26 verified working timezones with intelligent fallbacks
 - **Production Ready** - Rate limiting, error handling, pagination
 - **Instantly.ai API v2** - Full compatibility with latest API
+- **Dual Authentication** - URL-based and header-based API key authentication
 - **Dual Transport** - STDIO and HTTP streaming support
 
 ## License
