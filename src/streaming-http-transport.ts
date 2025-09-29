@@ -356,12 +356,13 @@ export class StreamingHttpTransport {
       console.error(`[HTTP] 📋 Accept: ${acceptHeader}`);
       console.error(`[HTTP] 🔖 Protocol Version: ${protocolVersion || 'Not provided'}`);
       
-      // Validate MCP-Protocol-Version header (REQUIRED by MCP 2025-06-18 spec)
-      if (protocolVersion && protocolVersion !== '2025-06-18') {
+      // Validate MCP-Protocol-Version header (backward compatible)
+      // Per MCP spec: if no header provided, assume 2025-03-26 for backward compatibility
+      if (protocolVersion && !['2025-06-18', '2025-03-26', '2024-11-05'].includes(protocolVersion)) {
         console.error(`[HTTP] ❌ Unsupported protocol version: ${protocolVersion}`);
         return res.status(400).json({
           error: 'Bad Request',
-          message: `Unsupported MCP protocol version: ${protocolVersion}. Expected: 2025-06-18`
+          message: `Unsupported MCP protocol version: ${protocolVersion}. Supported: 2025-06-18, 2025-03-26, 2024-11-05`
         });
       }
       
@@ -612,15 +613,16 @@ export class StreamingHttpTransport {
     const authMethod = req.params?.apiKey ? 'URL' : (req.headers.authorization ? 'Bearer' : 'Header');
     const protocolVersion = req.headers['mcp-protocol-version'] as string;
     
-    // Validate MCP-Protocol-Version header (REQUIRED by MCP 2025-06-18 spec)
-    if (protocolVersion && protocolVersion !== '2025-06-18') {
+    // Validate MCP-Protocol-Version header (backward compatible)
+    // Per MCP spec: if no header provided, assume 2025-03-26 for backward compatibility
+    if (protocolVersion && !['2025-06-18', '2025-03-26', '2024-11-05'].includes(protocolVersion)) {
       console.error(`[HTTP] ❌ Unsupported protocol version: ${protocolVersion}`);
       return res.status(400).json({
         jsonrpc: '2.0',
         id: null,
         error: {
           code: -32600,
-          message: `Unsupported MCP protocol version: ${protocolVersion}. Expected: 2025-06-18`
+          message: `Unsupported MCP protocol version: ${protocolVersion}. Supported: 2025-06-18, 2025-03-26, 2024-11-05`
         }
       });
     }
@@ -781,12 +783,19 @@ export class StreamingHttpTransport {
           const httpIcon = loadInstantlyIcon();
           console.error('[Instantly MCP] 🎨 HTTP Icon loaded:', httpIcon ? '✅ Present' : '❌ Missing');
 
+          // Negotiate protocol version - use client's version if supported, otherwise use latest
+          const clientProtocolVersion = params?.protocolVersion;
+          const supportedVersions = ['2025-06-18', '2025-03-26', '2024-11-05'];
+          const negotiatedVersion = supportedVersions.includes(clientProtocolVersion) ? clientProtocolVersion : '2025-06-18';
+          
+          console.error(`[Instantly MCP] 🤝 Protocol negotiation - Client: ${clientProtocolVersion}, Negotiated: ${negotiatedVersion}`);
+
           // Optimized initialization response for Claude Desktop remote connectors
           const initResponse = {
             jsonrpc: '2.0',
             id,
             result: {
-              protocolVersion: '2025-06-18', // Updated to latest spec version
+              protocolVersion: negotiatedVersion, // Negotiated version based on client request
               capabilities: {
                 tools: {
                   listChanged: true,
