@@ -3384,6 +3384,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
 
   console.error(`[Instantly MCP] 🔧 Tool called via MCP: ${name}`);
   console.error(`[Instantly MCP] 🔍 Debug - Main handler params:`, JSON.stringify(request.params, null, 2));
+  console.error(`[Instantly MCP] 🔍 Debug - Extra parameter:`, JSON.stringify(extra, null, 2));
 
   // Extract API key from multiple sources
   let apiKey: string | undefined;
@@ -3399,9 +3400,21 @@ server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
   // Method 2: Check if API key is in extra context (from HTTP transport headers)
   if (!apiKey && extra && typeof extra === 'object') {
     const extraObj = extra as any;
-    if (extraObj.headers && extraObj.headers['x-instantly-api-key']) {
+    console.error(`[Instantly MCP] 🔍 Debug - extraObj structure:`, Object.keys(extraObj));
+
+    // Try requestInfo.headers first (SDK standard)
+    if (extraObj.requestInfo && extraObj.requestInfo.headers) {
+      console.error(`[Instantly MCP] 🔍 Debug - requestInfo.headers keys:`, Object.keys(extraObj.requestInfo.headers));
+      if (extraObj.requestInfo.headers['x-instantly-api-key']) {
+        apiKey = extraObj.requestInfo.headers['x-instantly-api-key'];
+        console.error(`[Instantly MCP] 🔑 API key extracted from requestInfo.headers`);
+      }
+    }
+
+    // Fallback to direct headers property
+    if (!apiKey && extraObj.headers && extraObj.headers['x-instantly-api-key']) {
       apiKey = extraObj.headers['x-instantly-api-key'];
-      console.error(`[Instantly MCP] 🔑 API key extracted from headers`);
+      console.error(`[Instantly MCP] 🔑 API key extracted from direct headers`);
     }
   }
 
