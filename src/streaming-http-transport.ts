@@ -72,6 +72,42 @@ export class StreamingHttpTransport {
    * Setup Express middleware
    */
   private setupMiddleware(): void {
+    // Security: Origin header validation (required by MCP spec)
+    this.app.use((req, res, next) => {
+      const origin = req.headers.origin;
+      
+      // Allow requests without origin (direct API calls, Postman, etc.)
+      if (!origin) {
+        next();
+        return;
+      }
+      
+      // Validate origin to prevent DNS rebinding attacks
+      const allowedOrigins = [
+        'https://claude.ai',
+        'https://claude.com', 
+        'http://localhost',
+        'https://localhost'
+      ];
+      
+      const isAllowed = allowedOrigins.some(allowed => 
+        origin === allowed || origin.startsWith(allowed + ':')
+      );
+      
+      if (!isAllowed) {
+        console.error(`[HTTP] 🚫 Blocked request from unauthorized origin: ${origin}`);
+        res.status(403).json({
+          error: 'Forbidden',
+          message: 'Origin not allowed',
+          origin: origin
+        });
+        return;
+      }
+      
+      console.error(`[HTTP] ✅ Allowed origin: ${origin}`);
+      next();
+    });
+
     // Enhanced headers for Claude Desktop remote connector compatibility
     this.app.use((req, res, next) => {
       res.set({
@@ -284,17 +320,40 @@ export class StreamingHttpTransport {
       await this.handleMcpRequest(req, res);
     });
 
-    // Minimal /authorize endpoint for MCP clients that expect it (but don't use OAuth2)
-    this.app.get('/authorize', (req, res) => {
-      console.error('[HTTP] 🔐 /authorize endpoint accessed - returning success without OAuth2 flow');
+    // GET endpoint for MCP clients (supports SSE if needed)
+    this.app.get('/mcp/:apiKey?', (req, res) => {
+      const apiKey = req.params.apiKey;
+      const acceptHeader = req.headers.accept || '';
       
-      // Just return success - no OAuth2 flow needed for direct API key auth
+      console.error(`[HTTP] 🔍 GET /mcp request - API Key: ${apiKey ? '✅ Present' : '❌ Missing'}`);
+      console.error(`[HTTP] 📋 Accept: ${acceptHeader}`);
+      
+      if (acceptHeader.includes('text/event-stream')) {
+        // Client wants SSE stream - return 405 as we use Streamable HTTP
+        console.error('[HTTP] 🚫 SSE not supported - use Streamable HTTP POST');
+        res.status(405).json({
+          error: 'Method Not Allowed',
+          message: 'SSE not supported. Use POST for Streamable HTTP transport.',
+          transport: 'streamable-http',
+          endpoint: apiKey ? `/mcp/${apiKey}` : '/mcp'
+        });
+        return;
+      }
+      
+      // Return server info for GET requests
       res.json({
-        status: 'success',
-        message: 'Authorization not required - use direct API key authentication',
+        server: 'instantly-mcp',
+        version: '1.1.0',
+        transport: 'streamable-http',
+        protocol: '2025-03-26',
         endpoints: {
-          'path_auth': '/mcp/{API_KEY}',
-          'header_auth': '/mcp with x-instantly-api-key header'
+          'mcp_post': apiKey ? `/mcp/${apiKey}` : '/mcp',
+          'health': '/health',
+          'info': '/info'
+        },
+        auth: {
+          required: true,
+          methods: ['path_parameter', 'header']
         }
       });
     });
@@ -378,7 +437,9 @@ export class StreamingHttpTransport {
       res.status(404).json({
         error: 'Not Found',
         message: `Endpoint ${req.path} not found`,
-        availableEndpoints: ['/mcp', '/mcp/{API_KEY}', '/authorize', '/health', '/info']
+        availableEndpoints: ['/mcp', '/mcp/{API_KEY}', '/health', '/info'],
+        transport: 'streamable-http',
+        protocol: '2025-03-26'
       });
     });
   }
@@ -524,6 +585,14 @@ export class StreamingHttpTransport {
         userAgent: req.headers['user-agent'] || 'unknown'
       });
 
+      // Check Accept header (required by MCP spec)
+      const acceptHeader = req.headers.accept || '';
+      const supportsJson = acceptHeader.includes('application/json');
+      const supportsSSE = acceptHeader.includes('text/event-stream');
+      
+      console.error(`[HTTP] 📋 Accept header: ${acceptHeader}`);
+      console.error(`[HTTP] 🔍 Supports JSON: ${supportsJson}, SSE: ${supportsSSE}`);
+
       // Validate request body
       if (!req.body || typeof req.body !== 'object') {
         res.status(400).json({
@@ -546,12 +615,17 @@ export class StreamingHttpTransport {
       console.error(`[MCP] ${sessionId} - ${mcpRequest.method || 'unknown'} - ${authMethod} auth - ${clientIp}`);
 
       // Process the MCP request with the extracted API key
-      const response = await this.handleMcpRequestWithApiKey(mcpRequest, apiKey);
+      const response = await this.handleMcpRequestWithApiKey(mcpRequest, apiKey, req, res);
 
       const responseTime = Date.now() - startTime;
       res.setHeader('mcp-session-id', sessionId);
       res.setHeader('x-response-time', `${responseTime}ms`);
       res.setHeader('x-auth-method', authMethod);
+      
+      // Set appropriate content type based on Accept header
+      if (supportsJson) {
+        res.setHeader('Content-Type', 'application/json');
+      }
 
       // Handle notifications (no response expected)
       if (response === null) {
@@ -622,7 +696,7 @@ export class StreamingHttpTransport {
   /**
    * Handle MCP request with per-request API key
    */
-  private async handleMcpRequestWithApiKey(mcpRequest: any, apiKey: string): Promise<any> {
+  private async handleMcpRequestWithApiKey(mcpRequest: any, apiKey: string, req: any, res: any): Promise<any> {
     const { method, params, id } = mcpRequest;
     console.error(`[Instantly MCP] 📨 HTTP Request: ${method} (API Key: ${apiKey ? '✅ Present' : '❌ Missing'})`);
 
@@ -648,6 +722,10 @@ export class StreamingHttpTransport {
           const startTime = Date.now();
           console.error('[Instantly MCP] 🔧 HTTP Initialize request received from:', params?.clientInfo?.name || 'unknown');
 
+          // Generate session ID for Claude Desktop (required by MCP spec)
+          const sessionId = `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+          console.error(`[Instantly MCP] 🆔 Generated session ID: ${sessionId}`);
+
           // Pre-load icon for faster response
           const httpIcon = loadInstantlyIcon();
           console.error('[Instantly MCP] 🎨 HTTP Icon loaded:', httpIcon ? '✅ Present' : '❌ Missing');
@@ -657,7 +735,7 @@ export class StreamingHttpTransport {
             jsonrpc: '2.0',
             id,
             result: {
-              protocolVersion: '2024-11-05',
+              protocolVersion: '2025-03-26', // Updated to latest spec version
               capabilities: {
                 tools: {
                   listChanged: true,
@@ -686,8 +764,11 @@ export class StreamingHttpTransport {
             }
           };
 
+          // Set session ID header (required by MCP spec for remote servers)
+          res.setHeader('Mcp-Session-Id', sessionId);
+          
           const responseTime = Date.now() - startTime;
-          console.error(`[Instantly MCP] ✅ HTTP Initialize response prepared in ${responseTime}ms`);
+          console.error(`[Instantly MCP] ✅ HTTP Initialize response prepared in ${responseTime}ms with session ID`);
           return initResponse;
 
         case 'initialized':
