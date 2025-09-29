@@ -329,6 +329,75 @@ export class StreamingHttpTransport {
       });
     });
 
+    // Server-Sent Events endpoint for streaming MCP clients
+    this.app.get('/sse', (req, res) => {
+      console.error('[HTTP] 📡 SSE connection request from MCP client');
+      
+      // Setup SSE headers
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Cache-Control',
+        'X-Accel-Buffering': 'no' // Disable Nginx buffering
+      });
+
+      // Send initial connection message
+      res.write('data: {"type":"connection","status":"connected"}\n\n');
+
+      // Keep connection alive with periodic heartbeat
+      const keepAlive = setInterval(() => {
+        res.write(': heartbeat\n\n');
+      }, 30000);
+
+      // Handle client disconnect
+      req.on('close', () => {
+        console.error('[HTTP] 📡 SSE connection closed by client');
+        clearInterval(keepAlive);
+      });
+
+      req.on('error', (error) => {
+        console.error('[HTTP] ❌ SSE connection error:', error);
+        clearInterval(keepAlive);
+      });
+    });
+
+    // SSE endpoint with API key in URL for authenticated streaming
+    this.app.get('/sse/:apiKey', (req, res) => {
+      const apiKey = req.params.apiKey;
+      console.error(`[HTTP] 📡 Authenticated SSE connection request (API key: ${apiKey.substring(0, 8)}...)`);
+      
+      // Setup SSE headers
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Cache-Control',
+        'X-Accel-Buffering': 'no'
+      });
+
+      // Send initial connection message with API key confirmation
+      res.write(`data: {"type":"connection","status":"connected","authenticated":true}\n\n`);
+
+      // Keep connection alive
+      const keepAlive = setInterval(() => {
+        res.write(': heartbeat\n\n');
+      }, 30000);
+
+      // Handle client disconnect
+      req.on('close', () => {
+        console.error('[HTTP] 📡 Authenticated SSE connection closed');
+        clearInterval(keepAlive);
+      });
+
+      req.on('error', (error) => {
+        console.error('[HTTP] ❌ Authenticated SSE connection error:', error);
+        clearInterval(keepAlive);
+      });
+    });
+
     // CORS preflight
     this.app.options('*', (req, res) => {
       res.sendStatus(200);
@@ -727,6 +796,13 @@ export class StreamingHttpTransport {
     toolCall: (params: any, id: any) => Promise<any>;
   }): void {
     this.requestHandlers = handlers;
+  }
+
+  /**
+   * Get the underlying transport for server connection
+   */
+  getTransport() {
+    return this.transport;
   }
 
   /**

@@ -3817,6 +3817,11 @@ async function main() {
     };
     
     const transport = new StreamingHttpTransport(server, config);
+    
+    // Connect the server to the transport (critical for MCP protocol)
+    await server.connect(transport.getTransport());
+    
+    // Start the HTTP server
     await transport.start();
     
     console.error('[Instantly MCP] ✅ StreamableHTTPServerTransport started successfully');
