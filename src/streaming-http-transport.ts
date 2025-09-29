@@ -247,22 +247,9 @@ export class StreamingHttpTransport {
       });
     });
 
-    // Main MCP endpoint with multiple auth methods (header, query param)
-    this.app.post('/mcp', async (req, res) => {
-      // Check for query parameter API key first (HeyReach style)
-      const queryApiKey = req.query.xMcpKey as string;
-      
-      if (queryApiKey) {
-        console.error(`[HTTP] 🔑 Query parameter API key detected: ${queryApiKey.substring(0, 8)}...`);
-        (req as any).instantlyApiKey = queryApiKey;
-        await this.handleMcpRequest(req, res);
-        return;
-      }
-      
-      // Fall back to header-based auth
-      await this.authMiddleware(req, res, async () => {
-        await this.handleMcpRequest(req, res);
-      });
+    // Main MCP endpoint with header-based authentication
+    this.app.post('/mcp', this.authMiddleware.bind(this), async (req, res) => {
+      await this.handleMcpRequest(req, res);
     });
 
     // URL-based authentication endpoint: /mcp/{API_KEY}
@@ -297,6 +284,20 @@ export class StreamingHttpTransport {
       await this.handleMcpRequest(req, res);
     });
 
+    // Minimal /authorize endpoint for MCP clients that expect it (but don't use OAuth2)
+    this.app.get('/authorize', (req, res) => {
+      console.error('[HTTP] 🔐 /authorize endpoint accessed - returning success without OAuth2 flow');
+      
+      // Just return success - no OAuth2 flow needed for direct API key auth
+      res.json({
+        status: 'success',
+        message: 'Authorization not required - use direct API key authentication',
+        endpoints: {
+          'path_auth': '/mcp/{API_KEY}',
+          'header_auth': '/mcp with x-instantly-api-key header'
+        }
+      });
+    });
 
     // Server-Sent Events endpoint for streaming MCP clients
     this.app.get('/sse', (req, res) => {
@@ -377,7 +378,7 @@ export class StreamingHttpTransport {
       res.status(404).json({
         error: 'Not Found',
         message: `Endpoint ${req.path} not found`,
-        availableEndpoints: ['/mcp', '/mcp/{API_KEY}', '/mcp?xMcpKey={API_KEY}', '/health', '/info']
+        availableEndpoints: ['/mcp', '/mcp/{API_KEY}', '/authorize', '/health', '/info']
       });
     });
   }
