@@ -1779,6 +1779,73 @@ export const TOOLS_DEFINITION = [
           required: ['email'],
           additionalProperties: false
         }
+      },
+      {
+        name: 'create_account',
+        description: 'Create a new email account for sending campaigns - Account creation',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            email: { type: 'string', description: 'Email address for the new account' },
+            password: { type: 'string', description: 'Password for the email account' },
+            first_name: { type: 'string', description: 'First name associated with the account' },
+            last_name: { type: 'string', description: 'Last name associated with the account' },
+            smtp_host: { type: 'string', description: 'SMTP server host' },
+            smtp_port: { type: 'number', description: 'SMTP server port' },
+            smtp_username: { type: 'string', description: 'SMTP username' },
+            smtp_password: { type: 'string', description: 'SMTP password' }
+          },
+          required: ['email', 'password'],
+          additionalProperties: false
+        }
+      },
+      {
+        name: 'delete_account',
+        description: '⚠️ DESTRUCTIVE: Delete an email account permanently - This action cannot be undone!',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            email: { type: 'string', description: 'Email address of the account to delete permanently' }
+          },
+          required: ['email'],
+          additionalProperties: false
+        }
+      },
+      {
+        name: 'enable_warmup',
+        description: 'Enable email warmup for an account to improve deliverability',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            email: { type: 'string', description: 'Email address of the account to enable warmup for' }
+          },
+          required: ['email'],
+          additionalProperties: false
+        }
+      },
+      {
+        name: 'disable_warmup',
+        description: 'Disable email warmup for an account',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            email: { type: 'string', description: 'Email address of the account to disable warmup for' }
+          },
+          required: ['email'],
+          additionalProperties: false
+        }
+      },
+      {
+        name: 'test_account_vitals',
+        description: 'Test account vitals and connectivity - Diagnostic tool for account health',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            email: { type: 'string', description: 'Email address of the account to test' }
+          },
+          required: ['email'],
+          additionalProperties: false
+        }
       }
 ];
 
@@ -3143,6 +3210,150 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
               success: true,
               account: resumeAccountResult,
               message: `Account ${args.email} resumed successfully`
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
+    case 'create_account': {
+      console.error('[Instantly MCP] ➕ Executing create_account...');
+
+      if (!args.email || !args.password) {
+        throw new McpError(ErrorCode.InvalidParams, 'Email and password are required for create_account');
+      }
+
+      console.error(`[Instantly MCP] 🔧 Using endpoint: /accounts`);
+      const createAccountResult = await makeInstantlyRequest('/accounts', {
+        method: 'POST',
+        body: {
+          email: args.email,
+          password: args.password,
+          first_name: args.first_name,
+          last_name: args.last_name,
+          smtp_host: args.smtp_host,
+          smtp_port: args.smtp_port,
+          smtp_username: args.smtp_username,
+          smtp_password: args.smtp_password
+        }
+      }, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              account: createAccountResult,
+              message: `Account ${args.email} created successfully`
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
+    case 'delete_account': {
+      console.error('[Instantly MCP] 🗑️ Executing delete_account...');
+      console.error('[Instantly MCP] ⚠️ WARNING: This is a destructive operation that cannot be undone!');
+
+      if (!args.email) {
+        throw new McpError(ErrorCode.InvalidParams, 'Email is required for delete_account');
+      }
+
+      console.error(`[Instantly MCP] 🔧 Using endpoint: /accounts/${args.email}`);
+      const deleteAccountResult = await makeInstantlyRequest(`/accounts/${args.email}`, { method: 'DELETE' }, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              result: deleteAccountResult,
+              message: `Account ${args.email} deleted permanently`,
+              warning: 'This action cannot be undone'
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
+    case 'enable_warmup': {
+      console.error('[Instantly MCP] 🔥 Executing enable_warmup...');
+
+      if (!args.email) {
+        throw new McpError(ErrorCode.InvalidParams, 'Email is required for enable_warmup');
+      }
+
+      console.error(`[Instantly MCP] 🔧 Using endpoint: /accounts/warmup/enable`);
+      const enableWarmupResult = await makeInstantlyRequest('/accounts/warmup/enable', {
+        method: 'POST',
+        body: { email: args.email }
+      }, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              result: enableWarmupResult,
+              message: `Warmup enabled for account ${args.email}`
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
+    case 'disable_warmup': {
+      console.error('[Instantly MCP] ❄️ Executing disable_warmup...');
+
+      if (!args.email) {
+        throw new McpError(ErrorCode.InvalidParams, 'Email is required for disable_warmup');
+      }
+
+      console.error(`[Instantly MCP] 🔧 Using endpoint: /accounts/warmup/disable`);
+      const disableWarmupResult = await makeInstantlyRequest('/accounts/warmup/disable', {
+        method: 'POST',
+        body: { email: args.email }
+      }, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              result: disableWarmupResult,
+              message: `Warmup disabled for account ${args.email}`
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
+    case 'test_account_vitals': {
+      console.error('[Instantly MCP] 🩺 Executing test_account_vitals...');
+
+      if (!args.email) {
+        throw new McpError(ErrorCode.InvalidParams, 'Email is required for test_account_vitals');
+      }
+
+      console.error(`[Instantly MCP] 🔧 Using endpoint: /accounts/test/vitals`);
+      const testVitalsResult = await makeInstantlyRequest('/accounts/test/vitals', {
+        method: 'POST',
+        body: { email: args.email }
+      }, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              vitals: testVitalsResult,
+              message: `Account vitals tested for ${args.email}`,
+              note: 'This diagnostic tool helps identify account connectivity and health issues'
             }, null, 2)
           }
         ]
