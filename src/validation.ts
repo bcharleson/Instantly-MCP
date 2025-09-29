@@ -163,7 +163,9 @@ export const CreateCampaignSchema = z.object({
     .max(255, 'Subject line cannot exceed 255 characters. For better deliverability, keep it under 50 characters.')
     .refine(
       (val) => val.length <= 50,
-      'Subject line is over 50 characters. Shorter subjects have better open rates. Consider: "{{firstName}}, quick question about {{companyName}}"'
+      {
+        message: 'subject: Subject line is over 50 characters. Shorter subjects have better open rates. Consider: "{{firstName}}, quick question about {{companyName}}" • "Helping {{companyName}} with [specific problem]" • "{{firstName}}, saw your recent [achievement/news]"'
+      }
     )
     .optional(), // Made optional for complex campaigns
 
@@ -197,11 +199,29 @@ export const CreateCampaignSchema = z.object({
     .optional(), // Made optional for complex campaigns
   
   email_list: z.array(EmailSchema)
-    .min(1, 'At least one sender email address is required. Use emails from your verified accounts. Call list_accounts first to see available options.')
+    .min(1, 'At least one sender email address is required. ⚠️ CRITICAL: You MUST call list_accounts first to get verified email addresses. NEVER use placeholder emails like test@example.com or user@example.com.')
     .max(100, 'Cannot specify more than 100 email addresses in a single campaign. Consider creating multiple campaigns for larger lists.')
     .refine(
-      (emails) => emails.length === 1,
-      'Only one sender email address is allowed per campaign creation call. To use multiple senders, create separate campaigns for each email address.'
+      (emails) => {
+        // Check for common placeholder/fake email patterns
+        const placeholderPatterns = [
+          /test@/i,
+          /example\.com$/i,
+          /user@/i,
+          /email@/i,
+          /demo@/i,
+          /sample@/i
+        ];
+
+        const hasPlaceholder = emails.some(email =>
+          placeholderPatterns.some(pattern => pattern.test(email))
+        );
+
+        return !hasPlaceholder;
+      },
+      {
+        message: '⚠️ CRITICAL ERROR: Placeholder/fake email addresses detected (e.g., test@example.com, user@example.com). You MUST:\n1. Call list_accounts first to get real, verified email addresses\n2. Use ONLY emails from the list_accounts response\n3. NEVER use placeholder or example email addresses\n\nIt seems the email account used in the test is invalid for creating campaigns. Here are some of your available eligible sender accounts you can use for the campaign:\n\nPlease call list_accounts to see your verified email addresses, then use those addresses in the email_list parameter.'
+      }
     ),
   
   // Optional scheduling parameters
@@ -531,12 +551,12 @@ export function validateCampaignData(args: unknown): z.infer<typeof CreateCampai
       let enhancedMessage = error.message;
 
       // Add specific guidance for common issues
-      if (error.message.includes('email_list')) {
-        enhancedMessage += '\n\n💡 GUIDANCE: Call list_accounts first to see your available sender email addresses. Only use verified, warmed-up accounts that show status=1 and warmup_status=1.';
+      if (error.message.includes('email_list') || error.message.includes('Placeholder')) {
+        enhancedMessage += '\n\n💡 CRITICAL GUIDANCE: \n1️⃣ Call list_accounts first to see your available sender email addresses\n2️⃣ Only use verified, warmed-up accounts that show status=1 and warmup_status=1\n3️⃣ NEVER use placeholder emails like test@example.com, user@example.com, etc.\n4️⃣ To create ONE campaign with MULTIPLE emails, provide ALL emails in a SINGLE email_list array\n5️⃣ Example: email_list: ["real1@domain.com", "real2@domain.com"] creates ONE campaign with 2 senders';
       }
 
       if (error.message.includes('subject') || error.message.includes('Subject')) {
-        enhancedMessage += '\n\n💡 GUIDANCE: Good subject lines are personal and specific. Examples:\n• "{{firstName}}, quick question about {{companyName}}"\n• "Helping {{companyName}} with [specific problem]"\n• "{{firstName}}, saw your recent [achievement/news]"';
+        enhancedMessage += '\n\n💡 GUIDANCE: Good subject lines are personal and specific. Examples:\n• "{{firstName}}, quick question about {{companyName}}" (48 chars)\n• "Helping {{companyName}} with [specific problem]" (adjust to <50)\n• "{{firstName}}, saw your recent [achievement/news]" (adjust to <50)\n\n⚠️ CRITICAL: Subject line MUST be under 50 characters. If your subject is too long, you MUST shorten it before retrying.';
       }
 
       if (error.message.includes('body') || error.message.includes('Body')) {

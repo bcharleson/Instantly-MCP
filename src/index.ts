@@ -1196,7 +1196,7 @@ export const TOOLS_DEFINITION = [
       },
       {
         name: 'create_campaign',
-        description: 'Create a new email campaign with intelligent guidance and validation. Automatically provides comprehensive prerequisite checking, account validation, and user-friendly error messages. Call with minimal information to get detailed guidance on requirements.',
+        description: '⚠️ CRITICAL PREREQUISITES - READ BEFORE CALLING:\n\n1️⃣ ALWAYS call list_accounts FIRST to get verified email addresses\n2️⃣ NEVER use placeholder emails like test@example.com or user@example.com\n3️⃣ ONLY use real, verified email addresses from list_accounts response\n4️⃣ To create ONE campaign with MULTIPLE sender emails, provide ALL emails in a SINGLE email_list array\n5️⃣ Do NOT create multiple separate campaigns when user provides multiple emails - create ONE campaign with all emails\n\nCreate a new email campaign with intelligent guidance and validation. Automatically provides comprehensive prerequisite checking, account validation, and user-friendly error messages.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -1207,7 +1207,7 @@ export const TOOLS_DEFINITION = [
             },
             subject: {
               type: 'string',
-              description: 'Email subject line. Keep under 50 characters. Use personalization: {{firstName}}, {{companyName}}'
+              description: '⚠️ CRITICAL: Subject line MUST be under 50 characters for optimal deliverability. Current best practices:\n• Keep it under 50 characters (HARD LIMIT for good open rates)\n• Make it personal and specific\n• Use personalization variables: {{firstName}}, {{companyName}}\n• Examples of GOOD subjects (under 50 chars):\n  - "{{firstName}}, quick question about {{companyName}}"\n  - "Helping {{companyName}} with [problem]"\n  - "{{firstName}}, saw your recent [achievement]"\n• BAD examples (too long, generic, spammy):\n  - "I wanted to reach out to discuss an exciting opportunity"\n  - "Special offer just for you - limited time only!"\n\nIf validation fails with "Subject line is over 50 characters", you MUST shorten the subject line before retrying.'
             },
             body: {
               type: 'string',
@@ -1216,8 +1216,8 @@ export const TOOLS_DEFINITION = [
             email_list: {
               type: 'array',
               items: { type: 'string' },
-              description: 'Array of sender email addresses. Must be from your verified accounts (call list_accounts first to see options). Only one email per campaign creation call.',
-              example: ['john@yourcompany.com']
+              description: '⚠️ CRITICAL - READ CAREFULLY:\n\n1️⃣ PREREQUISITE: You MUST call list_accounts FIRST to get available email addresses\n2️⃣ NEVER use fake/placeholder emails like:\n   ❌ test@example.com\n   ❌ user@example.com\n   ❌ email@test.com\n   ❌ Any email not from list_accounts\n\n3️⃣ ONLY use verified email addresses from list_accounts response\n\n4️⃣ MULTIPLE EMAILS = ONE CAMPAIGN:\n   ✅ CORRECT: ["email1@domain.com", "email2@domain.com", "email3@domain.com"] → Creates ONE campaign with 3 senders\n   ❌ WRONG: Creating 3 separate campaigns with one email each\n\n5️⃣ When user provides multiple emails, include ALL of them in THIS SINGLE email_list array\n\n6️⃣ Maximum 100 emails per campaign\n\nExample: If user says "use these 3 emails: a@x.com, b@x.com, c@x.com", you should:\n- Call list_accounts to verify they exist\n- Create ONE campaign with email_list: ["a@x.com", "b@x.com", "c@x.com"]\n- NOT create 3 separate campaigns',
+              example: ['john@yourcompany.com', 'jane@yourcompany.com']
             },
 
             // Tracking settings (disabled by default for better deliverability)
