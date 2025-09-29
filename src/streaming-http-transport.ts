@@ -60,10 +60,11 @@ export class StreamingHttpTransport {
     this.config = config;
     this.app = express();
     this.setupMiddleware();
-    // Initialize official streamable HTTP transport (connect during start())
+    // Initialize official streamable HTTP transport in stateless mode for better compatibility
+    // Stateless mode (sessionIdGenerator: undefined) allows clients to connect without session management
     this.transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: () => `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      enableDnsRebindingProtection: true,
+      sessionIdGenerator: undefined, // Stateless mode - no session management
+      enableDnsRebindingProtection: false, // Disable for remote access compatibility
     });
     this.setupRoutes();
   }
