@@ -3799,20 +3799,33 @@ async function main() {
   const { isN8nMode, transportMode, isHttpMode } = parseConfig();
 
   if (isHttpMode) {
-    console.error(`[Instantly MCP] 🌐 Starting ${transportMode} transport mode with direct Express handler...`);
+    console.error(`[Instantly MCP] 🌐 Starting ${transportMode} transport mode with StreamableHTTPServerTransport...`);
 
+    // Use the proper StreamingHttpTransport that implements MCP protocol
+    const { StreamingHttpTransport } = await import('./streaming-http-transport.js');
+    
+    const config = {
+      port: parseInt(process.env.PORT || '3000'),
+      host: process.env.HOST || '0.0.0.0',
+      cors: {
+        origin: '*',
+        credentials: true
+      },
+      auth: {
+        apiKeyHeader: 'x-instantly-api-key'
+      }
+    };
+    
+    const transport = new StreamingHttpTransport(server, config);
+    await transport.start();
+    
+    console.error('[Instantly MCP] ✅ StreamableHTTPServerTransport started successfully');
+    console.error('[Instantly MCP] 📡 Server properly implements MCP streaming protocol for Claude Desktop');
+    
     if (process.env.NODE_ENV === 'production') {
       console.error('[Instantly MCP] 🏢 Production endpoints:');
       console.error('[Instantly MCP] 🔗 URL auth: https://instantly-mcp-iyjln.ondigitalocean.app/mcp/{API_KEY}');
     }
-
-    // Using direct Express handler for optimal control and debugging
-    console.error('[Instantly MCP] 🚀 Using direct Express handler for HTTP transport');
-
-    // Start the direct Express handler
-    await startN8nHttpServer();
-
-    console.error('[Instantly MCP] ✅ Direct Express handler started successfully');
 
   } else {
     console.error('[Instantly MCP] 🔌 Starting stdio mode (Claude Desktop, Cursor IDE)...');
