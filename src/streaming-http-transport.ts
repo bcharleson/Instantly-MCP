@@ -247,9 +247,22 @@ export class StreamingHttpTransport {
       });
     });
 
-    // Main MCP endpoint with header-based authentication (more secure)
-    this.app.post('/mcp', this.authMiddleware.bind(this), async (req, res) => {
-      await this.handleMcpRequest(req, res);
+    // Main MCP endpoint with multiple auth methods (header, query param)
+    this.app.post('/mcp', async (req, res) => {
+      // Check for query parameter API key first (HeyReach style)
+      const queryApiKey = req.query.xMcpKey as string;
+      
+      if (queryApiKey) {
+        console.error(`[HTTP] 🔑 Query parameter API key detected: ${queryApiKey.substring(0, 8)}...`);
+        (req as any).instantlyApiKey = queryApiKey;
+        await this.handleMcpRequest(req, res);
+        return;
+      }
+      
+      // Fall back to header-based auth
+      await this.authMiddleware(req, res, async () => {
+        await this.handleMcpRequest(req, res);
+      });
     });
 
     // URL-based authentication endpoint: /mcp/{API_KEY}
@@ -284,50 +297,6 @@ export class StreamingHttpTransport {
       await this.handleMcpRequest(req, res);
     });
 
-    // OAuth2-like endpoints for MCP clients that expect them (Goose, etc.)
-    this.app.get('/authorize', (req, res) => {
-      const { 
-        response_type, 
-        client_id, 
-        redirect_uri, 
-        state,
-        code_challenge 
-      } = req.query;
-
-      console.error('[HTTP] 🔐 OAuth2 authorize request from MCP client');
-      
-      // Generate a simple authorization code
-      const authCode = Buffer.from(JSON.stringify({
-        timestamp: Date.now(),
-        client_id: client_id || 'mcp-client'
-      })).toString('base64');
-
-      if (redirect_uri) {
-        // Redirect with authorization code
-        const redirectUrl = new URL(redirect_uri as string);
-        redirectUrl.searchParams.append('code', authCode);
-        if (state) redirectUrl.searchParams.append('state', state as string);
-        res.redirect(redirectUrl.toString());
-      } else {
-        // Return code directly for clients that don't use redirects
-        res.json({
-          code: authCode,
-          state: state || null
-        });
-      }
-    });
-
-    // Token exchange endpoint
-    this.app.post('/token', (req, res) => {
-      console.error('[HTTP] 🔐 OAuth2 token exchange request from MCP client');
-      
-      // Return a simple access token
-      res.json({
-        access_token: req.body.code || 'mcp-access-token',
-        token_type: 'Bearer',
-        expires_in: 3600
-      });
-    });
 
     // Server-Sent Events endpoint for streaming MCP clients
     this.app.get('/sse', (req, res) => {
@@ -408,7 +377,7 @@ export class StreamingHttpTransport {
       res.status(404).json({
         error: 'Not Found',
         message: `Endpoint ${req.path} not found`,
-        availableEndpoints: ['/mcp', '/authorize', '/token', '/health', '/info']
+        availableEndpoints: ['/mcp', '/mcp/{API_KEY}', '/mcp?xMcpKey={API_KEY}', '/health', '/info']
       });
     });
   }
