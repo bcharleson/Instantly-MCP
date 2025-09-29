@@ -57,7 +57,7 @@
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "node-fetch": "^3.3.2",
-    "zod": "^3.25.0"
+    "zod": "^4.1.11"
   },
   "devDependencies": {
     "@babel/parser": "^7.27.5",
