@@ -350,9 +350,20 @@ export class StreamingHttpTransport {
     this.app.get('/mcp/:apiKey?', (req, res) => {
       const apiKey = req.params.apiKey;
       const acceptHeader = req.headers.accept || '';
+      const protocolVersion = req.headers['mcp-protocol-version'] as string;
       
       console.error(`[HTTP] 🔍 GET /mcp request - API Key: ${apiKey ? '✅ Present' : '❌ Missing'}`);
       console.error(`[HTTP] 📋 Accept: ${acceptHeader}`);
+      console.error(`[HTTP] 🔖 Protocol Version: ${protocolVersion || 'Not provided'}`);
+      
+      // Validate MCP-Protocol-Version header (REQUIRED by MCP 2025-06-18 spec)
+      if (protocolVersion && protocolVersion !== '2025-06-18') {
+        console.error(`[HTTP] ❌ Unsupported protocol version: ${protocolVersion}`);
+        return res.status(400).json({
+          error: 'Bad Request',
+          message: `Unsupported MCP protocol version: ${protocolVersion}. Expected: 2025-06-18`
+        });
+      }
       
       if (acceptHeader.includes('text/event-stream')) {
         // Client wants SSE stream - return 405 as we use Streamable HTTP
@@ -371,7 +382,7 @@ export class StreamingHttpTransport {
         server: 'instantly-mcp',
         version: '1.1.0',
         transport: 'streamable-http',
-        protocol: '2025-03-26',
+        protocol: '2025-06-18',
         endpoints: {
           'mcp_post': apiKey ? `/mcp/${apiKey}` : '/mcp',
           'health': '/health',
@@ -599,6 +610,20 @@ export class StreamingHttpTransport {
     const sessionId = (req.headers['mcp-session-id'] as string) || `session-${Date.now()}`;
     const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
     const authMethod = req.params?.apiKey ? 'URL' : (req.headers.authorization ? 'Bearer' : 'Header');
+    const protocolVersion = req.headers['mcp-protocol-version'] as string;
+    
+    // Validate MCP-Protocol-Version header (REQUIRED by MCP 2025-06-18 spec)
+    if (protocolVersion && protocolVersion !== '2025-06-18') {
+      console.error(`[HTTP] ❌ Unsupported protocol version: ${protocolVersion}`);
+      return res.status(400).json({
+        jsonrpc: '2.0',
+        id: null,
+        error: {
+          code: -32600,
+          message: `Unsupported MCP protocol version: ${protocolVersion}. Expected: 2025-06-18`
+        }
+      });
+    }
 
     try {
       // Enhanced session tracking
