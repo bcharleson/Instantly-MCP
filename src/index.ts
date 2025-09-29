@@ -930,7 +930,7 @@ function buildCampaignPayload(args: any): any {
   }
 
   // Apply timezone and days configuration
-  const timezone = args?.timezone || 'Etc/GMT+12'; // Use API default timezone
+  const timezone = args?.timezone || 'America/Chicago'; // Use correct API default timezone
   const userDays = (args?.days as any) || {};
 
   // CRITICAL: days object must be non-empty according to API spec
@@ -1008,13 +1008,16 @@ function buildCampaignPayload(args: any): any {
   }
 
   // Add sequences if email content is provided
-  // CRITICAL FIX: Use correct Instantly API v2 structure
+  // CRITICAL FIX: Use correct Instantly API v2 structure with variants
   if (normalizedSubject || normalizedBody) {
     campaignData.sequences = [{
       steps: [{
-        subject: normalizedSubject,
-        body: normalizedBody
-        // delay is optional, defaults to 0 for first email
+        type: "email",
+        delay: 0, // First email has no delay (days to wait for NEXT email)
+        variants: [{
+          subject: normalizedSubject,
+          body: normalizedBody
+        }]
       }]
     }];
   }
@@ -1032,9 +1035,9 @@ function buildCampaignPayload(args: any): any {
       const firstStepBody = hasCustomBodies ? convertLineBreaksToHTML(String(args.sequence_bodies[0])) : normalizedBody;
       const firstStepSubject = hasCustomSubjects ? String(args.sequence_subjects[0]) : normalizedSubject;
 
-      // CRITICAL FIX: Direct properties, not nested in variants
-      campaignData.sequences[0].steps[0].body = firstStepBody;
-      campaignData.sequences[0].steps[0].subject = firstStepSubject;
+      // CRITICAL FIX: Update variants array, not direct properties
+      campaignData.sequences[0].steps[0].variants[0].body = firstStepBody;
+      campaignData.sequences[0].steps[0].variants[0].subject = firstStepSubject;
     }
 
     // Add follow-up steps
@@ -1058,11 +1061,14 @@ function buildCampaignPayload(args: any): any {
         followUpBody = `This is follow-up #${i}.<br /><br />${normalizedBody}`.trim();
       }
 
-      // CRITICAL FIX: Use correct Instantly API v2 structure
+      // CRITICAL FIX: Use correct Instantly API v2 structure with variants
       campaignData.sequences[0].steps.push({
-        subject: followUpSubject,
-        body: followUpBody,
-        delay: stepDelayDays  // delay in days between steps
+        type: "email",
+        delay: stepDelayDays,  // delay in days between steps
+        variants: [{
+          subject: followUpSubject,
+          body: followUpBody
+        }]
       });
     }
   }
