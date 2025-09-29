@@ -284,6 +284,51 @@ export class StreamingHttpTransport {
       await this.handleMcpRequest(req, res);
     });
 
+    // OAuth2-like endpoints for MCP clients that expect them (Goose, etc.)
+    this.app.get('/authorize', (req, res) => {
+      const { 
+        response_type, 
+        client_id, 
+        redirect_uri, 
+        state,
+        code_challenge 
+      } = req.query;
+
+      console.error('[HTTP] 🔐 OAuth2 authorize request from MCP client');
+      
+      // Generate a simple authorization code
+      const authCode = Buffer.from(JSON.stringify({
+        timestamp: Date.now(),
+        client_id: client_id || 'mcp-client'
+      })).toString('base64');
+
+      if (redirect_uri) {
+        // Redirect with authorization code
+        const redirectUrl = new URL(redirect_uri as string);
+        redirectUrl.searchParams.append('code', authCode);
+        if (state) redirectUrl.searchParams.append('state', state as string);
+        res.redirect(redirectUrl.toString());
+      } else {
+        // Return code directly for clients that don't use redirects
+        res.json({
+          code: authCode,
+          state: state || null
+        });
+      }
+    });
+
+    // Token exchange endpoint
+    this.app.post('/token', (req, res) => {
+      console.error('[HTTP] 🔐 OAuth2 token exchange request from MCP client');
+      
+      // Return a simple access token
+      res.json({
+        access_token: req.body.code || 'mcp-access-token',
+        token_type: 'Bearer',
+        expires_in: 3600
+      });
+    });
+
     // CORS preflight
     this.app.options('*', (req, res) => {
       res.sendStatus(200);
@@ -294,7 +339,7 @@ export class StreamingHttpTransport {
       res.status(404).json({
         error: 'Not Found',
         message: `Endpoint ${req.path} not found`,
-        availableEndpoints: ['/mcp', '/health', '/info']
+        availableEndpoints: ['/mcp', '/authorize', '/token', '/health', '/info']
       });
     });
   }
