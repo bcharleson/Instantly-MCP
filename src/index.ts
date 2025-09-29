@@ -3799,34 +3799,18 @@ async function main() {
   const { isN8nMode, transportMode, isHttpMode } = parseConfig();
 
   if (isHttpMode) {
-    console.error(`[Instantly MCP] 🌐 Starting ${transportMode} transport mode with StreamableHTTPServerTransport...`);
+    console.error(`[Instantly MCP] 🌐 Starting simplified HTTP MCP server for Claude Desktop compatibility...`);
 
-    // Use the proper StreamingHttpTransport that implements MCP protocol
-    const { StreamingHttpTransport } = await import('./streaming-http-transport.js');
+    // Import and start the simplified HTTP server that follows proven patterns
+    await import('./http-mcp-server.js');
     
-    const config = {
-      port: parseInt(process.env.PORT || '3000'),
-      host: process.env.HOST || '0.0.0.0',
-      cors: {
-        origin: '*',
-        credentials: true
-      },
-      auth: {
-        apiKeyHeader: 'x-instantly-api-key'
-      }
-    };
-    
-    const transport = new StreamingHttpTransport(server, config);
-    
-    // Start the HTTP server (includes server.connect internally)
-    await transport.start();
-    
-    console.error('[Instantly MCP] ✅ StreamableHTTPServerTransport started successfully');
-    console.error('[Instantly MCP] 📡 Server properly implements MCP streaming protocol for Claude Desktop');
+    console.error('[Instantly MCP] ✅ HTTP MCP server started successfully');
+    console.error('[Instantly MCP] 📡 Server implements standard MCP protocol for Claude Desktop and Goose');
     
     if (process.env.NODE_ENV === 'production') {
       console.error('[Instantly MCP] 🏢 Production endpoints:');
       console.error('[Instantly MCP] 🔗 URL auth: https://instantly-mcp-iyjln.ondigitalocean.app/mcp/{API_KEY}');
+      console.error('[Instantly MCP] 🔑 Header auth: https://instantly-mcp-iyjln.ondigitalocean.app/mcp');
     }
 
   } else {

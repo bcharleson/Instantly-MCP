@@ -320,6 +320,32 @@ export class StreamingHttpTransport {
       await this.handleMcpRequest(req, res);
     });
 
+    // Minimal /authorize endpoint for MCP clients that expect OAuth-style discovery
+    this.app.get('/authorize', (req, res) => {
+      console.error('[HTTP] 🔐 /authorize endpoint accessed - MCP client discovery');
+      
+      // Return MCP server capabilities instead of OAuth flow
+      res.json({
+        server: 'instantly-mcp',
+        version: '1.1.0',
+        protocol: 'mcp',
+        transport: 'streamable-http',
+        auth: {
+          type: 'api_key',
+          methods: ['url_path', 'header'],
+          description: 'Provide API key via URL path or x-instantly-api-key header'
+        },
+        endpoints: {
+          mcp: '/mcp',
+          mcp_with_key: '/mcp/{API_KEY}',
+          health: '/health',
+          info: '/info'
+        },
+        capabilities: ['tools'],
+        ready: true
+      });
+    });
+
     // GET endpoint for MCP clients (supports SSE if needed)
     this.app.get('/mcp/:apiKey?', (req, res) => {
       const apiKey = req.params.apiKey;
@@ -437,7 +463,7 @@ export class StreamingHttpTransport {
       res.status(404).json({
         error: 'Not Found',
         message: `Endpoint ${req.path} not found`,
-        availableEndpoints: ['/mcp', '/mcp/{API_KEY}', '/health', '/info'],
+        availableEndpoints: ['/mcp', '/mcp/{API_KEY}', '/authorize', '/health', '/info'],
         transport: 'streamable-http',
         protocol: '2025-03-26'
       });
