@@ -49,12 +49,14 @@
     "verify:parity": "npm run build && node verify-tool-parity.js",
     "deploy:digitalocean": "./deploy-digitalocean.sh",
     "deploy:railway": "railway up",
-    "test:railway": "echo 'Replace with your Railway URL' && curl https://your-app.railway.app/health"
+    "test:railway": "echo 'Replace with your Railway URL' && curl https://your-app.railway.app/health",
+    "test:timezones": "node scripts/test-timezones.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.15.1",
     "cors": "^2.8.5",
     "express": "^4.21.2",
+    "node-fetch": "^3.3.2",
     "zod": "^3.25.0"
   },
   "devDependencies": {

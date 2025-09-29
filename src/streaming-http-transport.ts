@@ -617,7 +617,7 @@ export class StreamingHttpTransport {
     // Per MCP spec: if no header provided, assume 2025-03-26 for backward compatibility
     if (protocolVersion && !['2025-06-18', '2025-03-26', '2024-11-05'].includes(protocolVersion)) {
       console.error(`[HTTP] ❌ Unsupported protocol version: ${protocolVersion}`);
-      return res.status(400).json({
+      res.status(400).json({
         jsonrpc: '2.0',
         id: null,
         error: {
@@ -625,6 +625,7 @@ export class StreamingHttpTransport {
           message: `Unsupported MCP protocol version: ${protocolVersion}. Supported: 2025-06-18, 2025-03-26, 2024-11-05`
         }
       });
+      return;
     }
 
     try {

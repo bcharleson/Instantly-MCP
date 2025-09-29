@@ -1,0 +1,152 @@
+{
+  "working": [
+    {
+      "timezone": "America/Chicago",
+      "campaignId": "29de29eb-599a-43ad-8ee8-4bc787921ccc",
+      "status": "success"
+    },
+    {
+      "timezone": "America/Detroit",
+      "campaignId": "4d4a1573-1df0-48f5-be1b-56c931f825cc",
+      "status": "success"
+    },
+    {
+      "timezone": "America/Boise",
+      "campaignId": "8a63c7fa-effc-4da4-bb3e-17fc01401127",
+      "status": "success"
+    },
+    {
+      "timezone": "America/Anchorage",
+      "campaignId": "ef4451f6-3624-49e6-b610-57c910edcdc3",
+      "status": "success"
+    },
+    {
+      "timezone": "Europe/Belgrade",
+      "campaignId": "8bc31ce4-058c-441a-95a5-710dce958150",
+      "status": "success"
+    },
+    {
+      "timezone": "Europe/Helsinki",
+      "campaignId": "dc4a0c68-74f3-4d7f-96fe-bd8f8503d45a",
+      "status": "success"
+    },
+    {
+      "timezone": "Asia/Dubai",
+      "campaignId": "5ab1212d-7415-4127-a79c-52dcbabcbf68",
+      "status": "success"
+    },
+    {
+      "timezone": "Asia/Hong_Kong",
+      "campaignId": "1f141cea-d0df-4551-a41a-48c251019932",
+      "status": "success"
+    },
+    {
+      "timezone": "Australia/Melbourne",
+      "campaignId": "b09b6421-b615-47a1-8453-fab614ce5baf",
+      "status": "success"
+    },
+    {
+      "timezone": "Pacific/Auckland",
+      "campaignId": "7b874056-4078-4bab-a230-1f56c6a826ef",
+      "status": "success"
+    },
+    {
+      "timezone": "Africa/Cairo",
+      "campaignId": "d0dd6546-a142-4a16-a6b3-4750ba0bf61f",
+      "status": "success"
+    },
+    {
+      "timezone": "America/Sao_Paulo",
+      "campaignId": "899456e2-d856-43fb-85c3-c77abc97a5be",
+      "status": "success"
+    },
+    {
+      "timezone": "Europe/Bucharest",
+      "campaignId": "cfa8a5f2-e29c-40b6-8d08-1eed2cf25846",
+      "status": "success"
+    },
+    {
+      "timezone": "Europe/Istanbul",
+      "campaignId": "0ff2f87c-a4d1-49ff-8045-5c4cf073ce90",
+      "status": "success"
+    },
+    {
+      "timezone": "Europe/Kaliningrad",
+      "campaignId": "754dc8d7-f159-4dd3-ae88-2325732001d8",
+      "status": "success"
+    },
+    {
+      "timezone": "Asia/Kolkata",
+      "campaignId": "d9bac9aa-c19d-4009-b104-9bbc9bf01790",
+      "status": "success"
+    },
+    {
+      "timezone": "Asia/Karachi",
+      "campaignId": "46b6c92c-1001-4554-a450-7456b1cecb07",
+      "status": "success"
+    },
+    {
+      "timezone": "Asia/Tehran",
+      "campaignId": "d1ded769-42a4-4f29-af73-8aab9af4c7e9",
+      "status": "success"
+    },
+    {
+      "timezone": "Asia/Baghdad",
+      "campaignId": "9b100b41-79da-4ec2-a1ca-7219794896d4",
+      "status": "success"
+    },
+    {
+      "timezone": "Asia/Yekaterinburg",
+      "campaignId": "7943e369-875c-4f67-9056-55c8e2ef39e9",
+      "status": "success"
+    },
+    {
+      "timezone": "Australia/Perth",
+      "campaignId": "3ef2dfdb-f9e1-4328-a073-49cfc9cfc314",
+      "status": "success"
+    },
+    {
+      "timezone": "Australia/Darwin",
+      "campaignId": "0fdaf299-e480-4890-9b3b-f33c65abd0a6",
+      "status": "success"
+    },
+    {
+      "timezone": "America/Bogota",
+      "campaignId": "2dfb2cd1-02ba-4669-824b-a2a6a465de93",
+      "status": "success"
+    },
+    {
+      "timezone": "America/Caracas",
+      "campaignId": "16fbc5df-c25d-45e6-912a-9d3c490ccee6",
+      "status": "success"
+    },
+    {
+      "timezone": "Atlantic/Cape_Verde",
+      "campaignId": "94f1db02-5277-40e2-89a1-a2fa2f6178d4",
+      "status": "success"
+    },
+    {
+      "timezone": "Africa/Casablanca",
+      "campaignId": "0a16ed1c-e348-49fa-91ac-67fa6fc06ff7",
+      "status": "success"
+    }
+  ],
+  "failed": [
+    {
+      "timezone": "Asia/Tokyo",
+      "status": 400,
+      "error": "{\"statusCode\":400,\"error\":\"Bad Request\",\"message\":\"body/campaign_schedule/schedules/0/timezone must be equal to one of the allowed values\"}",
+      "reason": "API rejection"
+    }
+  ],
+  "errors": [],
+  "summary": {
+    "totalTested": 27,
+    "working": 26,
+    "failed": 1,
+    "errors": 0,
+    "successRate": 96,
+    "lastUpdate": "2025-09-29T14:11:50.377Z",
+    "strategicTestDuration": 79
+  }
+}

@@ -44,6 +44,7 @@ import {
 import { handleInstantlyError, parseInstantlyResponse } from './error-handler.js';
 import { rateLimiter } from './rate-limiter.js';
 import { buildInstantlyPaginationQuery, buildQueryParams, parsePaginatedResponse, paginateInstantlyAPI } from './pagination.js';
+import { validateAndMapTimezone, DEFAULT_TIMEZONE, BUSINESS_PRIORITY_TIMEZONES } from './timezone-config.js';
 import {
   validateToolParameters,
   validateCampaignData,
@@ -431,7 +432,7 @@ async function gatherCampaignPrerequisites(args: any, apiKey?: string): Promise<
         }
       },
       scheduling: {
-        timezone: { default: 'America/New_York', description: 'Timezone for sending schedule' },
+        timezone: { default: DEFAULT_TIMEZONE, description: 'Timezone for sending schedule (verified working timezone)' },
         timing_from: { default: '09:00', description: 'Start time for sending (24h format)' },
         timing_to: { default: '17:00', description: 'End time for sending (24h format)' },
         days: {
@@ -572,7 +573,7 @@ function generateCampaignGuidance(): any {
         track_clicks: 'Tracks when recipients click links in your emails (recommended: true)'
       },
       scheduling: {
-        timezone: 'Timezone for sending schedule (default: America/New_York)',
+        timezone: `Timezone for sending schedule (default: ${DEFAULT_TIMEZONE} - verified working timezone)`,
         timing_from: 'Start time for sending in 24h format (default: 09:00)',
         timing_to: 'End time for sending in 24h format (default: 17:00)',
         days: 'Days of week for sending (default: Monday-Friday only)'
@@ -703,10 +704,17 @@ function applySmartDefaults(args: any): any {
     defaultsApplied.push('track_clicks: false (disabled for better deliverability and privacy compliance)');
   }
 
-  // Apply scheduling defaults
+  // Apply scheduling defaults with bulletproof timezone validation
   if (enhancedArgs.timezone === undefined) {
-    enhancedArgs.timezone = 'America/New_York';
-    defaultsApplied.push('timezone: America/New_York (Eastern Time - adjust if needed)');
+    enhancedArgs.timezone = DEFAULT_TIMEZONE;
+    defaultsApplied.push(`timezone: ${DEFAULT_TIMEZONE} (verified working timezone - adjust if needed)`);
+  } else {
+    // Validate and map timezone if needed
+    const timezoneResult = validateAndMapTimezone(enhancedArgs.timezone);
+    if (timezoneResult.mapped) {
+      enhancedArgs.timezone = timezoneResult.timezone;
+      defaultsApplied.push(`timezone: ${timezoneResult.warning}`);
+    }
   }
 
   if (enhancedArgs.timing_from === undefined) {
@@ -929,8 +937,16 @@ function buildCampaignPayload(args: any): any {
     if (!args.body) args.body = bod || subj;
   }
 
-  // Apply timezone and days configuration
-  const timezone = args?.timezone || 'America/Chicago'; // Use correct API default timezone
+  // Apply timezone and days configuration with bulletproof validation
+  let timezone = args?.timezone || DEFAULT_TIMEZONE;
+
+  // Validate and map timezone if needed
+  const timezoneResult = validateAndMapTimezone(timezone);
+  if (timezoneResult.mapped) {
+    timezone = timezoneResult.timezone;
+    console.error(`[Instantly MCP] 🔄 ${timezoneResult.warning}`);
+  }
+
   const userDays = (args?.days as any) || {};
 
   // CRITICAL: days object must be non-empty according to API spec
@@ -1219,9 +1235,9 @@ export const TOOLS_DEFINITION = [
             // Scheduling options
             timezone: {
               type: 'string',
-              description: 'Timezone for sending schedule',
-              default: 'America/New_York',
-              example: 'America/New_York'
+              description: `Timezone for sending schedule. Supported timezones: ${BUSINESS_PRIORITY_TIMEZONES.join(', ')}. Unsupported timezones will be automatically mapped to closest supported timezone.`,
+              default: DEFAULT_TIMEZONE,
+              example: DEFAULT_TIMEZONE
             },
             timing_from: {
               type: 'string',
@@ -3932,7 +3948,7 @@ async function handleToolCall(params: any) {
 
     // ===== NEW TIER 1 TOOLS - PRODUCTION VERIFIED =====
     case 'count_unread_emails': {
-      const unreadResult = await makeInstantlyRequest('/emails/unread/count', {}, apiKey);
+      const unreadResult = await makeInstantlyRequest('/emails/unread/count', {}, args.apiKey);
       return {
         content: [
           {
@@ -3954,7 +3970,7 @@ async function handleToolCall(params: any) {
       if (args.end_date) analyticsParams.end_date = args.end_date;
       if (args.campaign_status !== undefined) analyticsParams.campaign_status = args.campaign_status;
 
-      const analyticsResult = await makeInstantlyRequest('/campaigns/analytics/daily', { params: analyticsParams }, apiKey);
+      const analyticsResult = await makeInstantlyRequest('/campaigns/analytics/daily', { params: analyticsParams }, args.apiKey);
       return {
         content: [
           {
@@ -3971,7 +3987,7 @@ async function handleToolCall(params: any) {
     }
 
     case 'get_account_info': {
-      const accountInfoResult = await makeInstantlyRequest('/account', {}, apiKey);
+      const accountInfoResult = await makeInstantlyRequest('/account', {}, args.apiKey);
       return {
         content: [
           {
