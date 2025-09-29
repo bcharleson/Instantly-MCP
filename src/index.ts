@@ -1782,30 +1782,34 @@ export const TOOLS_DEFINITION = [
       },
       {
         name: 'create_account',
-        description: 'Create a new email account for sending campaigns - Account creation',
+        description: 'Create a new email account for sending campaigns - Account creation with full IMAP/SMTP configuration',
         inputSchema: {
           type: 'object',
           properties: {
             email: { type: 'string', description: 'Email address for the new account' },
-            password: { type: 'string', description: 'Password for the email account' },
             first_name: { type: 'string', description: 'First name associated with the account' },
             last_name: { type: 'string', description: 'Last name associated with the account' },
-            smtp_host: { type: 'string', description: 'SMTP server host' },
-            smtp_port: { type: 'number', description: 'SMTP server port' },
-            smtp_username: { type: 'string', description: 'SMTP username' },
-            smtp_password: { type: 'string', description: 'SMTP password' }
+            provider_code: { type: 'number', description: 'Email provider code (required by API)' },
+            imap_username: { type: 'string', description: 'IMAP username for receiving emails' },
+            imap_password: { type: 'string', description: 'IMAP password for receiving emails' },
+            imap_host: { type: 'string', description: 'IMAP server host (e.g., imap.gmail.com)' },
+            imap_port: { type: 'number', description: 'IMAP server port (e.g., 993)' },
+            smtp_username: { type: 'string', description: 'SMTP username for sending emails' },
+            smtp_password: { type: 'string', description: 'SMTP password for sending emails' },
+            smtp_host: { type: 'string', description: 'SMTP server host (e.g., smtp.gmail.com)' },
+            smtp_port: { type: 'number', description: 'SMTP server port (e.g., 587)' }
           },
-          required: ['email', 'password'],
+          required: ['email', 'first_name', 'last_name', 'provider_code', 'imap_username', 'imap_password', 'imap_host', 'imap_port', 'smtp_username', 'smtp_password', 'smtp_host', 'smtp_port'],
           additionalProperties: false
         }
       },
       {
         name: 'delete_account',
-        description: '⚠️ DESTRUCTIVE: Delete an email account permanently - This action cannot be undone!',
+        description: '🚨 EXTREMELY DESTRUCTIVE: PERMANENTLY DELETE EMAIL ACCOUNT - ⚠️ WARNING: This action CANNOT be undone! ⚠️ WARNING: All campaign data, emails, and account settings will be lost forever! ⚠️ WARNING: Use with extreme caution!',
         inputSchema: {
           type: 'object',
           properties: {
-            email: { type: 'string', description: 'Email address of the account to delete permanently' }
+            email: { type: 'string', description: '⚠️ DANGER: Email address of the account to DELETE PERMANENTLY AND IRREVERSIBLY' }
           },
           required: ['email'],
           additionalProperties: false
@@ -2176,35 +2180,6 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
 
       const result = await makeInstantlyRequest(`/campaigns/${args.campaign_id}/activate`, {
         method: 'POST'
-      }, apiKey);
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    }
-
-    case 'create_account': {
-      if (!args?.email) {
-        throw new McpError(ErrorCode.InvalidParams, 'email is required');
-      }
-
-      const accountData = {
-        email: args.email,
-        smtp_host: args.smtp_host,
-        smtp_port: args.smtp_port,
-        smtp_username: args.smtp_username,
-        smtp_password: args.smtp_password,
-        ...args
-      };
-
-      const result = await makeInstantlyRequest('/accounts', {
-        method: 'POST',
-        body: accountData
       }, apiKey);
 
       return {
@@ -3219,8 +3194,12 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
     case 'create_account': {
       console.error('[Instantly MCP] ➕ Executing create_account...');
 
-      if (!args.email || !args.password) {
-        throw new McpError(ErrorCode.InvalidParams, 'Email and password are required for create_account');
+      // Validate all required parameters according to official API
+      const requiredParams = ['email', 'first_name', 'last_name', 'provider_code', 'imap_username', 'imap_password', 'imap_host', 'imap_port', 'smtp_username', 'smtp_password', 'smtp_host', 'smtp_port'];
+      const missingParams = requiredParams.filter(param => !args[param]);
+
+      if (missingParams.length > 0) {
+        throw new McpError(ErrorCode.InvalidParams, `Missing required parameters for create_account: ${missingParams.join(', ')}`);
       }
 
       console.error(`[Instantly MCP] 🔧 Using endpoint: /accounts`);
@@ -3228,13 +3207,17 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
         method: 'POST',
         body: {
           email: args.email,
-          password: args.password,
           first_name: args.first_name,
           last_name: args.last_name,
-          smtp_host: args.smtp_host,
-          smtp_port: args.smtp_port,
+          provider_code: args.provider_code,
+          imap_username: args.imap_username,
+          imap_password: args.imap_password,
+          imap_host: args.imap_host,
+          imap_port: args.imap_port,
           smtp_username: args.smtp_username,
-          smtp_password: args.smtp_password
+          smtp_password: args.smtp_password,
+          smtp_host: args.smtp_host,
+          smtp_port: args.smtp_port
         }
       }, apiKey);
 
@@ -3253,15 +3236,20 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
     }
 
     case 'delete_account': {
-      console.error('[Instantly MCP] 🗑️ Executing delete_account...');
-      console.error('[Instantly MCP] ⚠️ WARNING: This is a destructive operation that cannot be undone!');
+      console.error('[Instantly MCP] 🚨 EXECUTING EXTREMELY DESTRUCTIVE OPERATION: delete_account...');
+      console.error('[Instantly MCP] ⚠️ CRITICAL WARNING: This will PERMANENTLY DELETE the email account!');
+      console.error('[Instantly MCP] ⚠️ CRITICAL WARNING: All campaign data, emails, and settings will be LOST FOREVER!');
+      console.error('[Instantly MCP] ⚠️ CRITICAL WARNING: This action CANNOT be undone or reversed!');
+      console.error('[Instantly MCP] 🚨 PROCEED WITH EXTREME CAUTION!');
 
       if (!args.email) {
         throw new McpError(ErrorCode.InvalidParams, 'Email is required for delete_account');
       }
 
-      console.error(`[Instantly MCP] 🔧 Using endpoint: /accounts/${args.email}`);
-      const deleteAccountResult = await makeInstantlyRequest(`/accounts/${args.email}`, { method: 'DELETE' }, apiKey);
+      console.error(`[Instantly MCP] 🔧 Using endpoint: /accounts/${encodeURIComponent(args.email)}`);
+      console.error(`[Instantly MCP] 🚨 FINAL WARNING: About to permanently delete account: ${args.email}`);
+
+      const deleteAccountResult = await makeInstantlyRequest(`/accounts/${encodeURIComponent(args.email)}`, { method: 'DELETE' }, apiKey);
 
       return {
         content: [
@@ -3270,8 +3258,10 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
             text: JSON.stringify({
               success: true,
               result: deleteAccountResult,
-              message: `Account ${args.email} deleted permanently`,
-              warning: 'This action cannot be undone'
+              message: `🚨 ACCOUNT ${args.email} HAS BEEN PERMANENTLY DELETED`,
+              critical_warning: 'THIS ACTION CANNOT BE UNDONE - ALL DATA IS LOST FOREVER',
+              deleted_account: args.email,
+              timestamp: new Date().toISOString()
             }, null, 2)
           }
         ]
