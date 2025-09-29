@@ -3342,7 +3342,7 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
       console.error(`[Instantly MCP] 🔧 Using endpoint: /accounts/test/vitals`);
       const testVitalsResult = await makeInstantlyRequest('/accounts/test/vitals', {
         method: 'POST',
-        body: { email: args.email }
+        body: { accounts: [args.email] }
       }, apiKey);
 
       return {
