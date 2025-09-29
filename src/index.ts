@@ -3676,8 +3676,8 @@ async function handleToolCall(params: any) {
       };
 
     // ===== NEW TIER 1 TOOLS - PRODUCTION VERIFIED =====
-    case 'count_unread_emails':
-      const unreadResult = await makeInstantlyRequest('/emails/unread/count', {}, args.apiKey);
+    case 'count_unread_emails': {
+      const unreadResult = await makeInstantlyRequest('/emails/unread/count', {}, apiKey);
       return {
         content: [
           {
@@ -3690,15 +3690,16 @@ async function handleToolCall(params: any) {
           }
         ]
       };
+    }
 
-    case 'get_daily_campaign_analytics':
+    case 'get_daily_campaign_analytics': {
       const analyticsParams: any = {};
       if (args.campaign_id) analyticsParams.campaign_id = args.campaign_id;
       if (args.start_date) analyticsParams.start_date = args.start_date;
       if (args.end_date) analyticsParams.end_date = args.end_date;
       if (args.campaign_status !== undefined) analyticsParams.campaign_status = args.campaign_status;
 
-      const analyticsResult = await makeInstantlyRequest('/campaigns/analytics/daily', { params: analyticsParams }, args.apiKey);
+      const analyticsResult = await makeInstantlyRequest('/campaigns/analytics/daily', { params: analyticsParams }, apiKey);
       return {
         content: [
           {
@@ -3712,6 +3713,7 @@ async function handleToolCall(params: any) {
           }
         ]
       };
+    }
 
     case 'get_account_info': {
       const accountInfoResult = await makeInstantlyRequest('/account', {}, apiKey);
