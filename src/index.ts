@@ -3713,8 +3713,8 @@ async function handleToolCall(params: any) {
         ]
       };
 
-    case 'get_account_info':
-      const accountInfoResult = await makeInstantlyRequest('/account', {}, args.apiKey);
+    case 'get_account_info': {
+      const accountInfoResult = await makeInstantlyRequest('/account', {}, apiKey);
       return {
         content: [
           {
@@ -3727,6 +3727,7 @@ async function handleToolCall(params: any) {
           }
         ]
       };
+    }
 
 
 
