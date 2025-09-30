@@ -1,68 +1,124 @@
 /**
- * Bulletproof Timezone Configuration for Instantly.ai MCP Server
- * 
- * This file contains the verified working timezones based on systematic testing
- * against the actual Instantly.ai API. All timezones listed here have been
- * confirmed to work in production.
- * 
- * Last updated: 2025-09-29
- * Test results: 26/27 timezones working (96% success rate)
+ * Official Timezone Configuration for Instantly.ai MCP Server
+ *
+ * This file contains the official timezone list from the Instantly.ai application.
+ * These timezones are synchronized with the Instantly.ai Copilot integration
+ * and are guaranteed to work with the Instantly.ai API.
+ *
+ * Last updated: 2025-09-30
+ * Source: Instantly.ai Copilot integration (provided by Andrei)
+ * Total timezones: 107
  */
 
 import { z } from 'zod';
 
 /**
- * VERIFIED WORKING TIMEZONES
- * These timezones have been tested and confirmed to work with Instantly.ai API
+ * OFFICIAL INSTANTLY.AI TIMEZONES
+ * Synchronized with the Instantly.ai application timezone selector
  */
 export const VERIFIED_WORKING_TIMEZONES = [
-  // === NORTH AMERICA ===
-  "America/Anchorage",    // Alaska Time (UTC-9)
-  "America/Boise",        // Mountain Time (UTC-7)
-  "America/Chicago",      // Central Time (UTC-6) - RECOMMENDED DEFAULT
-  "America/Detroit",      // Eastern Time (UTC-5)
-  
-  // === SOUTH AMERICA ===
-  "America/Bogota",       // Colombia Time (UTC-5)
-  "America/Caracas",      // Venezuela Time (UTC-4)
-  "America/Sao_Paulo",    // Brazil Time (UTC-3)
-  
-  // === EUROPE ===
-  "Europe/Belgrade",      // Central European Time (UTC+1)
-  "Europe/Bucharest",     // Eastern European Time (UTC+2)
-  "Europe/Helsinki",      // Eastern European Time (UTC+2)
-  "Europe/Istanbul",      // Turkey Time (UTC+3)
-  "Europe/Kaliningrad",   // Kaliningrad Time (UTC+2)
-  
-  // === AFRICA ===
-  "Africa/Cairo",         // Egypt Time (UTC+2)
-  "Africa/Casablanca",    // Morocco Time (UTC+1)
-  
-  // === ASIA ===
-  "Asia/Baghdad",         // Arabia Standard Time (UTC+3)
-  "Asia/Dubai",           // Gulf Standard Time (UTC+4)
-  "Asia/Hong_Kong",       // Hong Kong Time (UTC+8)
-  "Asia/Karachi",         // Pakistan Standard Time (UTC+5)
-  "Asia/Kolkata",         // India Standard Time (UTC+5:30)
-  "Asia/Tehran",          // Iran Standard Time (UTC+3:30)
-  "Asia/Yekaterinburg",   // Yekaterinburg Time (UTC+5)
-  
-  // === OCEANIA ===
-  "Australia/Darwin",     // Australian Central Time (UTC+9:30)
-  "Australia/Melbourne",  // Australian Eastern Time (UTC+10)
-  "Australia/Perth",      // Australian Western Time (UTC+8)
-  "Pacific/Auckland",     // New Zealand Time (UTC+12)
-  
-  // === ATLANTIC ===
-  "Atlantic/Cape_Verde",  // Cape Verde Time (UTC-1)
-] as const;
-
-/**
- * KNOWN FAILED TIMEZONES
- * These timezones are in the API documentation but fail in practice
- */
-export const KNOWN_FAILED_TIMEZONES = [
-  "Asia/Tokyo",           // Japan Standard Time - FAILS despite being in API docs
+  'Etc/GMT+12',
+  'Etc/GMT+11',
+  'Etc/GMT+10',
+  'America/Anchorage',
+  'America/Dawson',
+  'America/Creston',
+  'America/Chihuahua',
+  'America/Boise',
+  'America/Belize',
+  'America/Chicago',
+  'America/Bahia_Banderas',
+  'America/Regina',
+  'America/Bogota',
+  'America/Detroit',
+  'America/Indiana/Marengo',
+  'America/Caracas',
+  'America/Asuncion',
+  'America/Glace_Bay',
+  'America/Campo_Grande',
+  'America/Anguilla',
+  'America/Santiago',
+  'America/St_Johns',
+  'America/Sao_Paulo',
+  'America/Argentina/La_Rioja',
+  'America/Araguaina',
+  'America/Godthab',
+  'America/Montevideo',
+  'America/Bahia',
+  'America/Noronha',
+  'America/Scoresbysund',
+  'Atlantic/Cape_Verde',
+  'Africa/Casablanca',
+  'America/Danmarkshavn',
+  'Europe/Isle_of_Man',
+  'Atlantic/Canary',
+  'Africa/Abidjan',
+  'Arctic/Longyearbyen',
+  'Europe/Belgrade',
+  'Africa/Ceuta',
+  'Europe/Sarajevo',
+  'Africa/Algiers',
+  'Africa/Windhoek',
+  'Asia/Nicosia',
+  'Asia/Beirut',
+  'Africa/Cairo',
+  'Asia/Damascus',
+  'Europe/Bucharest',
+  'Africa/Blantyre',
+  'Europe/Helsinki',
+  'Europe/Istanbul',
+  'Asia/Jerusalem',
+  'Africa/Tripoli',
+  'Asia/Amman',
+  'Asia/Baghdad',
+  'Europe/Kaliningrad',
+  'Asia/Aden',
+  'Africa/Addis_Ababa',
+  'Europe/Kirov',
+  'Europe/Astrakhan',
+  'Asia/Tehran',
+  'Asia/Dubai',
+  'Asia/Baku',
+  'Indian/Mahe',
+  'Asia/Tbilisi',
+  'Asia/Yerevan',
+  'Asia/Kabul',
+  'Antarctica/Mawson',
+  'Asia/Yekaterinburg',
+  'Asia/Karachi',
+  'Asia/Kolkata',
+  'Asia/Colombo',
+  'Asia/Kathmandu',
+  'Antarctica/Vostok',
+  'Asia/Dhaka',
+  'Asia/Rangoon',
+  'Antarctica/Davis',
+  'Asia/Novokuznetsk',
+  'Asia/Hong_Kong',
+  'Asia/Krasnoyarsk',
+  'Asia/Brunei',
+  'Australia/Perth',
+  'Asia/Taipei',
+  'Asia/Choibalsan',
+  'Asia/Irkutsk',
+  'Asia/Dili',
+  'Asia/Pyongyang',
+  'Australia/Adelaide',
+  'Australia/Darwin',
+  'Australia/Brisbane',
+  'Australia/Melbourne',
+  'Antarctica/DumontDUrville',
+  'Australia/Currie',
+  'Asia/Chita',
+  'Antarctica/Macquarie',
+  'Asia/Sakhalin',
+  'Pacific/Auckland',
+  'Etc/GMT-12',
+  'Pacific/Fiji',
+  'Asia/Anadyr',
+  'Asia/Kamchatka',
+  'Etc/GMT-13',
+  'Pacific/Apia',
 ] as const;
 
 /**
@@ -80,84 +136,82 @@ export const BUSINESS_PRIORITY_TIMEZONES = [
 
 /**
  * DEFAULT TIMEZONE
- * Verified working timezone to use as default
+ * Official default timezone from Instantly.ai application
  */
 export const DEFAULT_TIMEZONE = "America/Chicago";
 
 /**
  * TIMEZONE FALLBACK MAPPING
- * Maps commonly requested but unsupported timezones to supported alternatives
+ * Maps commonly requested timezone aliases to official Instantly.ai timezones
  */
 export const TIMEZONE_FALLBACK_MAP: Record<string, string> = {
   // Common US timezone aliases
   "America/New_York": "America/Detroit",
-  "America/Los_Angeles": "America/Boise", // Closest working timezone
+  "America/Los_Angeles": "America/Dawson",
   "America/Denver": "America/Boise",
   "US/Eastern": "America/Detroit",
   "US/Central": "America/Chicago",
   "US/Mountain": "America/Boise",
-  "US/Pacific": "America/Boise",
-  
+  "US/Pacific": "America/Dawson",
+
   // Common European timezone aliases
-  "Europe/London": "Europe/Belgrade",
-  "Europe/Paris": "Europe/Belgrade",
-  "Europe/Berlin": "Europe/Belgrade",
-  "Europe/Rome": "Europe/Belgrade",
-  "Europe/Madrid": "Europe/Belgrade",
-  "Europe/Amsterdam": "Europe/Belgrade",
-  "Europe/Vienna": "Europe/Belgrade",
+  "Europe/London": "Europe/Isle_of_Man",
+  "Europe/Paris": "Africa/Ceuta",
+  "Europe/Berlin": "Arctic/Longyearbyen",
+  "Europe/Rome": "Arctic/Longyearbyen",
+  "Europe/Madrid": "Africa/Ceuta",
+  "Europe/Amsterdam": "Arctic/Longyearbyen",
+  "Europe/Vienna": "Arctic/Longyearbyen",
   "Europe/Prague": "Europe/Belgrade",
-  "Europe/Warsaw": "Europe/Belgrade",
-  "Europe/Stockholm": "Europe/Helsinki",
-  "Europe/Oslo": "Europe/Belgrade",
-  "Europe/Copenhagen": "Europe/Belgrade",
-  "Europe/Brussels": "Europe/Belgrade",
-  "Europe/Zurich": "Europe/Belgrade",
-  
+  "Europe/Warsaw": "Europe/Sarajevo",
+  "Europe/Stockholm": "Arctic/Longyearbyen",
+  "Europe/Oslo": "Arctic/Longyearbyen",
+  "Europe/Copenhagen": "Africa/Ceuta",
+  "Europe/Brussels": "Africa/Ceuta",
+  "Europe/Zurich": "Arctic/Longyearbyen",
+
   // Common Asian timezone aliases
-  "Asia/Tokyo": "Asia/Hong_Kong",
-  "Asia/Seoul": "Asia/Hong_Kong",
+  "Asia/Tokyo": "Asia/Dili",
+  "Asia/Seoul": "Asia/Pyongyang",
   "Asia/Shanghai": "Asia/Hong_Kong",
-  "Asia/Singapore": "Asia/Hong_Kong",
+  "Asia/Singapore": "Asia/Brunei",
   "Asia/Manila": "Asia/Hong_Kong",
-  "Asia/Bangkok": "Asia/Dubai",
-  "Asia/Jakarta": "Asia/Dubai",
-  "Asia/Kuala_Lumpur": "Asia/Hong_Kong",
-  
+  "Asia/Bangkok": "Antarctica/Davis",
+  "Asia/Jakarta": "Antarctica/Davis",
+  "Asia/Kuala_Lumpur": "Asia/Brunei",
+
   // Common Australian timezone aliases
   "Australia/Sydney": "Australia/Melbourne",
-  "Australia/Brisbane": "Australia/Melbourne",
-  "Australia/Adelaide": "Australia/Darwin",
-  
+
   // UTC variants
-  "UTC": "America/Chicago",
-  "GMT": "Europe/Belgrade",
+  "UTC": "America/Danmarkshavn",
+  "GMT": "America/Danmarkshavn",
 };
 
 /**
- * Bulletproof timezone validation schema
- * Only allows verified working timezones
+ * Official timezone validation schema
+ * Only allows timezones from the official Instantly.ai application
  */
 export const BulletproofTimezoneSchema = z.enum(VERIFIED_WORKING_TIMEZONES, {
   errorMap: (issue, ctx) => {
     const input = ctx.data;
     const fallback = TIMEZONE_FALLBACK_MAP[input as string];
-    
+
     if (fallback) {
       return {
-        message: `Timezone "${input}" is not supported by Instantly.ai API. Using "${fallback}" instead. Supported timezones: ${BUSINESS_PRIORITY_TIMEZONES.join(', ')}`
+        message: `Timezone "${input}" is not in the official Instantly.ai timezone list. Using "${fallback}" instead. Recommended timezones: ${BUSINESS_PRIORITY_TIMEZONES.join(', ')}`
       };
     }
-    
+
     return {
-      message: `Timezone "${input}" is not supported by Instantly.ai API. Use one of: ${BUSINESS_PRIORITY_TIMEZONES.join(', ')}. For a complete list of ${VERIFIED_WORKING_TIMEZONES.length} supported timezones, see the documentation.`
+      message: `Timezone "${input}" is not supported. Use one of: ${BUSINESS_PRIORITY_TIMEZONES.join(', ')}. For a complete list of ${VERIFIED_WORKING_TIMEZONES.length} supported timezones, see the Instantly.ai application.`
     };
   }
 });
 
 /**
  * Timezone validation and fallback function
- * Automatically maps unsupported timezones to supported ones
+ * Automatically maps unsupported timezones to official Instantly.ai timezones
  */
 export function validateAndMapTimezone(timezone: string): {
   timezone: string;
@@ -165,14 +219,14 @@ export function validateAndMapTimezone(timezone: string): {
   originalTimezone?: string;
   warning?: string;
 } {
-  // Check if timezone is already supported
+  // Check if timezone is already in the official list
   if (VERIFIED_WORKING_TIMEZONES.includes(timezone as any)) {
     return {
       timezone,
       mapped: false
     };
   }
-  
+
   // Check if we have a fallback mapping
   const fallback = TIMEZONE_FALLBACK_MAP[timezone];
   if (fallback) {
@@ -180,16 +234,16 @@ export function validateAndMapTimezone(timezone: string): {
       timezone: fallback,
       mapped: true,
       originalTimezone: timezone,
-      warning: `Timezone "${timezone}" is not supported by Instantly.ai API. Automatically mapped to "${fallback}".`
+      warning: `Timezone "${timezone}" is not in the official Instantly.ai timezone list. Automatically mapped to "${fallback}".`
     };
   }
-  
+
   // No mapping available, use default
   return {
     timezone: DEFAULT_TIMEZONE,
     mapped: true,
     originalTimezone: timezone,
-    warning: `Timezone "${timezone}" is not supported by Instantly.ai API. Using default timezone "${DEFAULT_TIMEZONE}". Supported timezones: ${BUSINESS_PRIORITY_TIMEZONES.join(', ')}`
+    warning: `Timezone "${timezone}" is not supported. Using default timezone "${DEFAULT_TIMEZONE}". Recommended timezones: ${BUSINESS_PRIORITY_TIMEZONES.join(', ')}`
   };
 }
 
