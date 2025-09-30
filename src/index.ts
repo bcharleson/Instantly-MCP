@@ -1202,7 +1202,7 @@ export const TOOLS_DEFINITION = [
       },
       {
         name: 'create_campaign',
-        description: '⚠️ CRITICAL PREREQUISITES - READ BEFORE CALLING:\n\n1️⃣ ALWAYS call list_accounts FIRST to get verified email addresses\n2️⃣ NEVER use placeholder emails like test@example.com or user@example.com\n3️⃣ ONLY use real, verified email addresses from list_accounts response\n4️⃣ To create ONE campaign with MULTIPLE sender emails, provide ALL emails in a SINGLE email_list array\n5️⃣ Do NOT create multiple separate campaigns when user provides multiple emails - create ONE campaign with all emails\n\nCreate a new email campaign with intelligent guidance and validation. Automatically provides comprehensive prerequisite checking, account validation, and user-friendly error messages.',
+        description: '⚠️ CRITICAL PREREQUISITES - READ BEFORE CALLING:\n\n1️⃣ ALWAYS call list_accounts FIRST to get verified email addresses\n2️⃣ NEVER use placeholder emails like test@example.com or user@example.com\n3️⃣ ONLY use real, verified email addresses from list_accounts response\n4️⃣ To create ONE campaign with MULTIPLE sender emails, provide ALL emails in a SINGLE email_list array\n5️⃣ Do NOT create multiple separate campaigns when user provides multiple emails - create ONE campaign with all emails\n\n✨ MULTI-STEP CAMPAIGNS SUPPORTED:\n• Use sequence_steps parameter (2-10) to create follow-up sequences\n• Use step_delay_days parameter (1-30) to set delay between steps\n• Perfect for cold outreach, nurture campaigns, and follow-up workflows\n• Example: sequence_steps=3, step_delay_days=2 creates 3-step sequence with 2-day delays\n\nCreate a new email campaign with intelligent guidance and validation. Automatically provides comprehensive prerequisite checking, account validation, and user-friendly error messages.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -1286,6 +1286,32 @@ export const TOOLS_DEFINITION = [
               type: 'boolean',
               description: 'Stop campaign when auto-reply is detected (out-of-office, etc.)',
               default: true
+            },
+
+            // Multi-step sequence configuration
+            sequence_steps: {
+              type: 'number',
+              description: 'Number of steps in the email sequence (optional, default: 1 for single email, max: 10).\n\n⚠️ MULTI-STEP CAMPAIGNS SUPPORTED:\n• Set to 2 or more to create follow-up sequences\n• Step 1 sends immediately when campaign starts\n• Each step waits step_delay_days before sending next step\n• Example: sequence_steps=3 with step_delay_days=2 creates:\n  Step 1 → Wait 2 days → Step 2 → Wait 2 days → Step 3\n\nUse this for cold outreach sequences, nurture campaigns, and follow-up workflows.',
+              minimum: 1,
+              maximum: 10,
+              default: 1
+            },
+            step_delay_days: {
+              type: 'number',
+              description: 'Days to wait AFTER sending each step before sending the next step (optional, default: 3 days).\n\n⚠️ DELAY BEHAVIOR:\n• Applies to ALL steps in the sequence (including Step 1)\n• Step 1: delay=X (wait X days after Step 1 before Step 2)\n• Step 2: delay=X (wait X days after Step 2 before Step 3)\n• Best practices: Use 2-7 days for cold outreach\n• Only used when sequence_steps > 1',
+              minimum: 1,
+              maximum: 30,
+              default: 3
+            },
+            sequence_subjects: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Optional: Custom subject lines for each step (array of strings). Must match sequence_steps count. If not provided, follow-ups use "Follow-up: {original subject}". Example: ["Initial Email", "Follow-up 1", "Follow-up 2"]'
+            },
+            sequence_bodies: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Optional: Custom email bodies for each step (array of strings). Must match sequence_steps count. Use \\n for line breaks. If not provided, follow-ups use auto-generated content. Example: ["Hi {{firstName}},...", "Following up...", "Last attempt..."]'
             }
           },
           required: ['name', 'subject', 'body', 'email_list'],
