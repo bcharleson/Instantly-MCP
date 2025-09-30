@@ -58,7 +58,7 @@ export const DateFormatSchema = z
  * Campaign stage validation
  */
 export const CampaignStageSchema = z.enum(['prerequisite_check', 'preview', 'create'], {
-  error: 'Invalid stage. Must be one of: prerequisite_check, preview, create'
+  invalid_type_error: 'Invalid stage. Must be one of: prerequisite_check, preview, create'
 });
 
 /**
@@ -101,25 +101,25 @@ export const CreateCampaignPrerequisiteSchema = z.object({
 
   // Optional campaign fields for prerequisite check
   name: z.string()
-    .min(1, { error: 'Campaign name cannot be empty' })
-    .max(255, { error: 'Campaign name cannot exceed 255 characters' })
+    .min(1, { message: 'Campaign name cannot be empty' })
+    .max(255, { message: 'Campaign name cannot exceed 255 characters' })
     .optional(),
 
   subject: z.string()
-    .min(1, { error: 'Subject line cannot be empty' })
-    .max(255, { error: 'Subject line cannot exceed 255 characters' })
+    .min(1, { message: 'Subject line cannot be empty' })
+    .max(255, { message: 'Subject line cannot exceed 255 characters' })
     .optional(),
 
   body: z.string()
-    .min(1, { error: 'Email body cannot be empty' })
+    .min(1, { message: 'Email body cannot be empty' })
     .optional(),
 
   // Message shortcut for quick setup
   message: z.string().optional(),
 
   email_list: z.array(EmailSchema)
-    .min(1, { error: 'At least one email address is required' })
-    .max(100, { error: 'Cannot specify more than 100 email addresses' })
+    .min(1, { message: 'At least one email address is required' })
+    .max(100, { message: 'Cannot specify more than 100 email addresses' })
     .optional(),
 
   // Optional scheduling parameters
@@ -295,8 +295,8 @@ export const ListCampaignsSchema = z.object({
  */
 export const GetWarmupAnalyticsSchema = z.object({
   emails: z.array(EmailSchema)
-    .min(1, { error: 'At least one email address is required' })
-    .max(100, { error: 'Cannot specify more than 100 email addresses' }),
+    .min(1, { message: 'At least one email address is required' })
+    .max(100, { message: 'Cannot specify more than 100 email addresses' }),
   start_date: DateFormatSchema.optional(),
   end_date: DateFormatSchema.optional()
 });
@@ -312,14 +312,14 @@ export const VerifyEmailSchema = z.object({
  * Get campaign validation schema
  */
 export const GetCampaignSchema = z.object({
-  campaign_id: z.string().min(1, { error: 'Campaign ID cannot be empty' })
+  campaign_id: z.string().min(1, { message: 'Campaign ID cannot be empty' })
 });
 
 /**
  * Get campaign analytics validation schema
  */
 export const GetCampaignAnalyticsSchema = z.object({
-  campaign_id: z.string().min(1, { error: 'Campaign ID cannot be empty' }).optional(),
+  campaign_id: z.string().min(1, { message: 'Campaign ID cannot be empty' }).optional(),
   start_date: DateFormatSchema.optional(),
   end_date: DateFormatSchema.optional()
 });
@@ -328,7 +328,7 @@ export const GetCampaignAnalyticsSchema = z.object({
  * Update campaign validation schema
  */
 export const UpdateCampaignSchema = z.object({
-  campaign_id: z.string().min(1, { error: 'Campaign ID cannot be empty' }),
+  campaign_id: z.string().min(1, { message: 'Campaign ID cannot be empty' }),
   name: z.string().min(1).max(255).optional(),
   status: z.string().optional()
 });
@@ -340,11 +340,11 @@ export const UpdateCampaignSchema = z.object({
  */
 export const CreateAccountSchema = z.object({
   email: EmailSchema,
-  password: z.string().min(1, { error: 'Password cannot be empty' }),
-  smtp_host: z.string().min(1, { error: 'SMTP host cannot be empty' }),
+  password: z.string().min(1, { message: 'Password cannot be empty' }),
+  smtp_host: z.string().min(1, { message: 'SMTP host cannot be empty' }),
   smtp_port: z.number().int().min(1).max(65535),
-  smtp_username: z.string().min(1, { error: 'SMTP username cannot be empty' }),
-  smtp_password: z.string().min(1, { error: 'SMTP password cannot be empty' })
+  smtp_username: z.string().min(1, { message: 'SMTP username cannot be empty' }),
+  smtp_password: z.string().min(1, { message: 'SMTP password cannot be empty' })
 });
 
 /**
@@ -416,7 +416,7 @@ export const CreateLeadSchema = z.object({
  * Update lead validation schema - Updated to match Instantly.ai API v2 specification
  */
 export const UpdateLeadSchema = z.object({
-  lead_id: z.string().min(1, { error: 'Lead ID cannot be empty' }),
+  lead_id: z.string().min(1, { message: 'Lead ID cannot be empty' }),
   personalization: z.string().optional(),
   website: z.string().url().optional(),
   last_name: z.string().optional(),
@@ -444,7 +444,7 @@ export const ListLeadsSchema = z.object({
  * Create lead list validation schema - Updated to match Instantly.ai API v2 specification
  */
 export const CreateLeadListSchema = z.object({
-  name: z.string().min(1, { error: 'Lead list name cannot be empty' }),
+  name: z.string().min(1, { message: 'Lead list name cannot be empty' }),
   has_enrichment_task: z.boolean().optional(),
   owned_by: z.string().optional()
 });
@@ -462,7 +462,7 @@ export const ListLeadListsSchema = z.object({
  */
 export const ReplyToEmailSchema = z.object({
   reply_to_uuid: z.string()
-    .min(1, { error: 'Reply to UUID cannot be empty' })
+    .min(1, { message: 'Reply to UUID cannot be empty' })
     .refine(
       (val) => val !== 'test-uuid',
       'reply_to_uuid must be a valid email ID. Use list_emails or get_email tools first to obtain a valid email UUID.'
@@ -490,7 +490,7 @@ export const ListEmailsSchema = z.object({
  * Get email validation schema
  */
 export const GetEmailSchema = z.object({
-  email_id: z.string().min(1, { error: 'Email ID cannot be empty' })
+  email_id: z.string().min(1, { message: 'Email ID cannot be empty' })
 });
 
 /**

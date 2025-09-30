@@ -202,19 +202,19 @@ export function getTimezoneInfo(timezone: string): {
   utcOffset: string;
   region: string;
 } {
-  const timezoneInfo: Record<string, { description: string; utcOffset: string; region: string }> = {
-    "America/Chicago": { description: "Central Time (US)", utcOffset: "UTC-6", region: "North America" },
-    "America/Detroit": { description: "Eastern Time (US)", utcOffset: "UTC-5", region: "North America" },
-    "America/Boise": { description: "Mountain Time (US)", utcOffset: "UTC-7", region: "North America" },
-    "America/Anchorage": { description: "Alaska Time (US)", utcOffset: "UTC-9", region: "North America" },
-    "Europe/Belgrade": { description: "Central European Time", utcOffset: "UTC+1", region: "Europe" },
-    "Europe/Helsinki": { description: "Eastern European Time", utcOffset: "UTC+2", region: "Europe" },
-    "Asia/Dubai": { description: "Gulf Standard Time", utcOffset: "UTC+4", region: "Asia" },
-    "Asia/Hong_Kong": { description: "Hong Kong Time", utcOffset: "UTC+8", region: "Asia" },
-    "Australia/Melbourne": { description: "Australian Eastern Time", utcOffset: "UTC+10", region: "Oceania" },
-    "Pacific/Auckland": { description: "New Zealand Time", utcOffset: "UTC+12", region: "Oceania" },
+  const timezoneInfo: Record<string, { timezone: string; description: string; utcOffset: string; region: string }> = {
+    "America/Chicago": { timezone: "America/Chicago", description: "Central Time (US)", utcOffset: "UTC-6", region: "North America" },
+    "America/Detroit": { timezone: "America/Detroit", description: "Eastern Time (US)", utcOffset: "UTC-5", region: "North America" },
+    "America/Boise": { timezone: "America/Boise", description: "Mountain Time (US)", utcOffset: "UTC-7", region: "North America" },
+    "America/Anchorage": { timezone: "America/Anchorage", description: "Alaska Time (US)", utcOffset: "UTC-9", region: "North America" },
+    "Europe/Belgrade": { timezone: "Europe/Belgrade", description: "Central European Time", utcOffset: "UTC+1", region: "Europe" },
+    "Europe/Helsinki": { timezone: "Europe/Helsinki", description: "Eastern European Time", utcOffset: "UTC+2", region: "Europe" },
+    "Asia/Dubai": { timezone: "Asia/Dubai", description: "Gulf Standard Time", utcOffset: "UTC+4", region: "Asia" },
+    "Asia/Hong_Kong": { timezone: "Asia/Hong_Kong", description: "Hong Kong Time", utcOffset: "UTC+8", region: "Asia" },
+    "Australia/Melbourne": { timezone: "Australia/Melbourne", description: "Australian Eastern Time", utcOffset: "UTC+10", region: "Oceania" },
+    "Pacific/Auckland": { timezone: "Pacific/Auckland", description: "New Zealand Time", utcOffset: "UTC+12", region: "Oceania" },
   };
-  
+
   return timezoneInfo[timezone] || {
     timezone: timezone,
     description: timezone,
