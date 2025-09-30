@@ -1027,11 +1027,18 @@ function buildCampaignPayload(args: any): any {
 
   // Add sequences if email content is provided
   // CRITICAL FIX: Use correct Instantly API v2 structure with variants
+  // Handle multi-step sequences if specified
+  const sequenceSteps = args?.sequence_steps || 1;
+  const stepDelayDays = args?.step_delay_days || 3;
+
   if (normalizedSubject || normalizedBody) {
     campaignData.sequences = [{
       steps: [{
         type: "email",
-        delay: 0, // First email has no delay (days to wait for NEXT email)
+        // CRITICAL: delay field means "days to wait AFTER sending this step before sending next step"
+        // For single-step campaigns (sequenceSteps === 1), delay should be 0 (no next step)
+        // For multi-step campaigns, Step 1 should have the delay before Step 2
+        delay: sequenceSteps > 1 ? stepDelayDays : 0,
         variants: [{
           subject: normalizedSubject,
           body: normalizedBody
@@ -1039,10 +1046,6 @@ function buildCampaignPayload(args: any): any {
       }]
     }];
   }
-
-  // Handle multi-step sequences if specified
-  const sequenceSteps = args?.sequence_steps || 1;
-  const stepDelayDays = args?.step_delay_days || 3;
 
   if (sequenceSteps > 1 && campaignData.sequences) {
     const hasCustomBodies = args?.sequence_bodies && Array.isArray(args.sequence_bodies);
