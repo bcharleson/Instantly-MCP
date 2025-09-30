@@ -65,13 +65,13 @@ export const enhancedCreateCampaignTool = {
       // SEQUENCE CONFIGURATION - Controls follow-up emails
       sequence_steps: {
         type: 'number',
-        description: 'Number of steps in the email sequence (optional, default: 1 for just the initial email). Each step creates an email with the required API v2 structure: sequences[0].steps[i] containing type="email", delay (days before sending), and variants[] array with subject, body, and v_disabled fields. If set to 2 or more, additional follow-up emails are created automatically. Maximum 10 steps.',
+        description: 'Number of steps in the email sequence (optional, default: 1 for single email, max: 10).\n\n⚠️ CRITICAL - HOW MULTI-STEP SEQUENCES WORK:\n• Step 1 sends immediately when campaign starts\n• Each step has a "delay" field = days to wait AFTER sending that step before sending the next step\n• Example with sequence_steps=3 and step_delay_days=2:\n  - Step 1 sends → Wait 2 days → Step 2 sends → Wait 2 days → Step 3 sends\n• ALL steps (including Step 1) have the delay value set to step_delay_days\n• This ensures proper spacing between all follow-up emails\n\nTechnical: Creates sequences[0].steps[i] with type="email", delay (days to wait after this step), and variants[] array.',
         minimum: 1,
         maximum: 10
       },
       step_delay_days: {
         type: 'number',
-        description: 'Days to wait before sending each follow-up email (optional, default: 3 days). This sets the delay field in sequences[0].steps[i].delay as required by the API. Each follow-up step will have this delay value. Minimum 1 day, maximum 30 days.',
+        description: 'Days to wait AFTER sending each step before sending the next step (optional, default: 3 days).\n\n⚠️ CRITICAL - DELAY BEHAVIOR:\n• This delay applies to ALL steps in the sequence (including Step 1)\n• The delay field means: "After sending this step, wait X days before sending the next step"\n• Example with step_delay_days=2:\n  - Step 1: delay=2 (wait 2 days after Step 1 before sending Step 2)\n  - Step 2: delay=2 (wait 2 days after Step 2 before sending Step 3)\n  - Step 3: delay=2 (wait 2 days after Step 3 before sending Step 4)\n• Best practices: Use 2-7 days between steps for cold outreach\n• Minimum 1 day, maximum 30 days',
         minimum: 1,
         maximum: 30
       },

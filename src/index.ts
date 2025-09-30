@@ -590,7 +590,7 @@ function generateCampaignGuidance(): any {
       },
       sequences: {
         sequence_steps: 'Number of emails in the sequence (default: 1 for single email, max: 10)',
-        step_delay_days: 'Days between each follow-up email (default: 3 days)',
+        step_delay_days: 'Days to wait AFTER sending each step before sending the next step (default: 3 days). CRITICAL: This delay applies to ALL steps including Step 1. Example with 2-day delay: Step 1 sends → Wait 2 days → Step 2 sends → Wait 2 days → Step 3 sends.',
         sequence_bodies: 'Optional custom email content for each step (array of strings)',
         sequence_subjects: 'Optional custom subject lines for each step (array of strings)',
         when_to_use: 'Multi-step sequences are effective for cold outreach, nurturing leads, and following up on proposals',
@@ -598,8 +598,9 @@ function generateCampaignGuidance(): any {
           'Start with 2-3 steps for cold outreach',
           'Increase value with each follow-up',
           'Reference previous emails in follow-ups',
-          'Space follow-ups 3-7 days apart',
-          'Personalize each step differently'
+          'Space follow-ups 2-7 days apart (step_delay_days parameter)',
+          'Personalize each step differently',
+          'CRITICAL: The delay applies to ALL steps - Step 1 will wait before Step 2, Step 2 will wait before Step 3, etc.'
         ]
       }
     },
