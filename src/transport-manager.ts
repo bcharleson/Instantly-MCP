@@ -249,7 +249,7 @@ export class TransportManager {
           'Email verification',
           'Subsequence management'
         ],
-        documentation: 'https://github.com/bcharleson/Instantly-MCP'
+        documentation: 'https://github.com/Instantly-ai/instantly-mcp'
       });
     });
   }

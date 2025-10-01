@@ -14,15 +14,7 @@
     "cursor"
   ],
   "license": "MIT",
-  "author": "bcharleson",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/bcharleson/Instantly-MCP.git"
-  },
-  "bugs": {
-    "url": "https://github.com/bcharleson/Instantly-MCP/issues"
-  },
-  "homepage": "https://github.com/bcharleson/Instantly-MCP#readme",
+  "author": "instantly",
   "type": "module",
   "bin": "dist/index.js",
   "main": "dist/index.js",

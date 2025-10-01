@@ -10,13 +10,6 @@
     "email": "170791+bcharleson@users.noreply.github.com",
     "url": "https://github.com/bcharleson"
   },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/bcharleson/Instantly-MCP.git"
-  },
-  "homepage": "https://github.com/bcharleson/Instantly-MCP",
-  "documentation": "https://github.com/bcharleson/Instantly-MCP#readme",
-  "support": "https://github.com/bcharleson/Instantly-MCP/issues",
   "keywords": [
     "instantly",
     "email",

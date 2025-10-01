@@ -280,7 +280,7 @@ export class StreamingHttpTransport {
             }
           ]
         },
-        documentation: 'https://github.com/bcharleson/Instantly-MCP'
+        documentation: 'https://github.com/Instantly-ai/instantly-mcp'
       });
     });
 
