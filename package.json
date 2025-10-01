@@ -49,18 +49,18 @@
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "node-fetch": "^3.3.2",
-    "zod": "^3.25.0",
-    "typescript": "^5.3.0",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.3",
-    "@types/node": "^20.0.0"
+    "zod": "^3.25.0"
   },
   "devDependencies": {
     "@babel/parser": "^7.27.5",
     "@babel/traverse": "^7.27.4",
     "@babel/types": "^7.27.6",
     "@types/babel__traverse": "^7.20.7",
-    "tsx": "^4.7.0"
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/node": "^20.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0"
   },
   "engines": {
     "node": ">=18.0.0"
