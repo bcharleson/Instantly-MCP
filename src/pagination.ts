@@ -33,6 +33,28 @@ export interface ReusablePaginationOptions {
   operationType?: 'accounts' | 'campaigns' | 'emails' | 'leads';
 }
 
+export interface PaginationMetadata {
+  returned_count: number;
+  has_more: boolean;
+  next_starting_after?: string;
+  limit: number;
+  pages_retrieved: number;
+  request_time_ms: number;
+  timeout_occurred: boolean;
+  note?: string;
+}
+
+export interface PaginatedResult<T> {
+  data: T[];
+  pagination: PaginationMetadata;
+  filters_applied?: Record<string, any>;
+  metadata: {
+    request_time_ms: number;
+    note: string;
+    timeout_occurred: boolean;
+  };
+}
+
 export function buildInstantlyPaginationQuery(params: PaginationParams): URLSearchParams {
   const query = new URLSearchParams();
   
@@ -311,6 +333,7 @@ export function validatePaginationResults<T>(
 /**
  * Reusable pagination function for Instantly API endpoints
  * Handles the complete pagination flow with proper termination logic
+ * NOW WITH: Timeout protection, delays between requests, conservative limits, partial results
  */
 export async function paginateInstantlyAPI(
   endpoint: string,
@@ -319,13 +342,19 @@ export async function paginateInstantlyAPI(
   options: ReusablePaginationOptions = {}
 ): Promise<any[]> {
   const {
-    maxPages = 50,
+    maxPages = 5, // CHANGED: Conservative default (was 50)
     batchSize = 100,
     additionalParams = [],
     progressCallback,
     enablePerformanceMonitoring = true,
     operationType = 'accounts'
   } = options;
+
+  // ADDED: Timeout protection
+  const TOTAL_TIMEOUT_MS = 60000; // 60 seconds total
+  const TIMEOUT_BUFFER_MS = 10000; // Stop 10s before timeout to return partial results
+  const DELAY_BETWEEN_REQUESTS_MS = 200; // 200ms delay between pagination requests
+  const startTime = Date.now();
 
   // Initialize performance monitoring if enabled
   let performanceMonitor: any = null;
@@ -349,9 +378,19 @@ export async function paginateInstantlyAPI(
   let pageCount = 0;
   let startingAfter: string | undefined = params?.starting_after;
   let hasMore = true;
+  let timeoutOccurred = false;
+  let nextStartingAfter: string | undefined = undefined;
 
   try {
     while (hasMore && pageCount < maxPages) {
+      // ADDED: Check timeout before each page request
+      const elapsedTime = Date.now() - startTime;
+      if (elapsedTime > TOTAL_TIMEOUT_MS - TIMEOUT_BUFFER_MS) {
+        console.error(`[Instantly MCP] ⏱️ Approaching timeout (${elapsedTime}ms elapsed), stopping pagination gracefully`);
+        timeoutOccurred = true;
+        break;
+      }
+
       pageCount++;
 
       // Build query parameters for this page
@@ -404,7 +443,6 @@ export async function paginateInstantlyAPI(
 
       // Extract items from response (handle different response formats)
       let pageItems: any[] = [];
-      let nextStartingAfter: string | undefined = undefined;
 
       if (Array.isArray(response)) {
         // Direct array response
@@ -464,9 +502,20 @@ export async function paginateInstantlyAPI(
         console.error(`[Instantly MCP] Reached maximum page limit (${maxPages}), stopping pagination`);
         break;
       }
+
+      // ADDED: Delay between requests to prevent rate limiting
+      if (hasMore && pageCount < maxPages) {
+        await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_REQUESTS_MS));
+      }
     }
 
-    console.error(`[Instantly MCP] Reusable pagination complete: ${allItems.length} total items retrieved in ${pageCount} pages`);
+    const totalTime = Date.now() - startTime;
+    console.error(`[Instantly MCP] Reusable pagination complete: ${allItems.length} total items retrieved in ${pageCount} pages (${totalTime}ms)`);
+
+    // ADDED: Log timeout warning if occurred
+    if (timeoutOccurred) {
+      console.error(`[Instantly MCP] ⚠️ TIMEOUT: Partial results returned. Use starting_after="${nextStartingAfter}" to retrieve remaining items.`);
+    }
 
     // Finalize performance monitoring
     if (performanceMonitor) {
@@ -486,6 +535,20 @@ export async function paginateInstantlyAPI(
       console.error(`[Instantly MCP] ✅ Successfully retrieved complete dataset: ${allItems.length} items`);
     }
 
+    // ADDED: Store metadata for caller to access
+    (allItems as any).__pagination_metadata = {
+      returned_count: allItems.length,
+      has_more: !!nextStartingAfter,
+      next_starting_after: nextStartingAfter,
+      limit: batchSize,
+      pages_retrieved: pageCount,
+      request_time_ms: totalTime,
+      timeout_occurred: timeoutOccurred,
+      note: nextStartingAfter
+        ? `Retrieved ${pageCount} pages (${allItems.length} items). More results available. To retrieve additional pages, call this tool again with starting_after parameter set to: ${nextStartingAfter}`
+        : `Retrieved all available data (${allItems.length} items in ${pageCount} pages).`
+    };
+
     return allItems;
   } catch (error) {
     console.error(`[Instantly MCP] Error during reusable pagination at page ${pageCount}:`, error);
@@ -495,6 +558,62 @@ export async function paginateInstantlyAPI(
       performanceMonitor.finalize();
     }
 
+    // CHANGED: Return partial results instead of throwing error
+    if (allItems.length > 0) {
+      const totalTime = Date.now() - startTime;
+      console.error(`[Instantly MCP] ⚠️ Error occurred, but returning ${allItems.length} items retrieved before error`);
+
+      // Store metadata for partial results
+      (allItems as any).__pagination_metadata = {
+        returned_count: allItems.length,
+        has_more: true, // Assume more data exists since we errored
+        next_starting_after: nextStartingAfter,
+        limit: batchSize,
+        pages_retrieved: pageCount,
+        request_time_ms: totalTime,
+        timeout_occurred: true,
+        note: `Partial results returned due to error. Retrieved ${allItems.length} items before error occurred.`
+      };
+
+      return allItems;
+    }
+
     throw error;
   }
+}
+
+/**
+ * Helper function to apply client-side date filtering
+ * Used when API doesn't support server-side date filtering
+ */
+export function applyDateFilters<T extends Record<string, any>>(
+  items: T[],
+  createdAfter?: string,
+  createdBefore?: string,
+  dateField: string = 'created_at'
+): T[] {
+  if (!createdAfter && !createdBefore) {
+    return items;
+  }
+
+  return items.filter(item => {
+    const itemDate = item[dateField];
+    if (!itemDate) return true; // Keep items without date field
+
+    const itemTimestamp = new Date(itemDate).getTime();
+
+    if (createdAfter) {
+      const afterTimestamp = new Date(createdAfter).getTime();
+      if (itemTimestamp < afterTimestamp) return false;
+    }
+
+    if (createdBefore) {
+      const beforeTimestamp = new Date(createdBefore).getTime();
+      // Add 1 day to include the entire "before" date
+      const beforeEndOfDay = beforeTimestamp + (24 * 60 * 60 * 1000);
+      if (itemTimestamp > beforeEndOfDay) return false;
+    }
+
+    return true;
+  });
 }

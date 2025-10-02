@@ -247,20 +247,35 @@ async function makeInstantlyRequest(endpoint: string, options: any = {}, apiKey?
   }
 }
 
-// FIXED: Simple, reliable pagination for list_accounts - now supports per-request API keys
-async function getAllAccounts(apiKey?: string): Promise<any[]> {
-  console.error('[Instantly MCP] 📊 Retrieving all accounts with reliable pagination...');
+// UPDATED: Pagination for list_accounts with cursor support and metadata
+async function getAllAccounts(apiKey?: string, params?: any): Promise<any> {
+  console.error('[Instantly MCP] 📊 Retrieving accounts with pagination...');
 
   try {
     // Create a wrapper function that includes the API key
     const makeRequestWithKey = (endpoint: string, options: any = {}) =>
       makeInstantlyRequest(endpoint, options, apiKey);
 
+    // Build pagination parameters
+    const paginationParams: any = {};
+    if (params?.starting_after) {
+      paginationParams.starting_after = params.starting_after;
+    }
+
     // Use direct API call with pagination
-    const result = await paginateInstantlyAPI('/accounts', makeRequestWithKey);
+    const result = await paginateInstantlyAPI('/accounts', makeRequestWithKey, paginationParams, {
+      maxPages: 5,
+      batchSize: params?.limit || 100,
+      operationType: 'accounts'
+    });
 
     console.error(`[Instantly MCP] ✅ Successfully retrieved ${result.length} accounts`);
-    return result;
+
+    // Return both data and metadata
+    return {
+      data: result,
+      metadata: (result as any).__pagination_metadata
+    };
   } catch (error) {
     console.error('[Instantly MCP] ❌ Error retrieving accounts:', error);
     throw error;
@@ -1187,14 +1202,19 @@ async function validateEmailListAgainstAccounts(emailList: string[], apiKey?: st
 export const TOOLS_DEFINITION = [
       {
         name: 'list_accounts',
-        description: 'List all email accounts with reliable pagination',
+        description: 'List email accounts with cursor-based pagination. Returns up to 5 pages (500 items) by default. Use starting_after parameter to retrieve additional pages.',
         inputSchema: {
           type: 'object',
           properties: {
-            get_all: {
-              type: 'boolean',
-              description: 'Retrieve all accounts (recommended: true)',
-              default: true
+            limit: {
+              type: 'number',
+              description: 'Number of items per page (1-100, default: 100)',
+              minimum: 1,
+              maximum: 100
+            },
+            starting_after: {
+              type: 'string',
+              description: 'Cursor for pagination - ID of the last item from previous page. Use the next_starting_after value from previous response.'
             }
           },
           additionalProperties: false
@@ -1320,12 +1340,42 @@ export const TOOLS_DEFINITION = [
       },
       {
         name: 'list_campaigns',
-        description: 'List campaigns with filtering and pagination',
+        description: 'List campaigns with filtering and cursor-based pagination. Returns up to 5 pages (500 items) by default. Use starting_after parameter to retrieve additional pages. Supports client-side date filtering via created_after and created_before parameters.',
         inputSchema: {
           type: 'object',
           properties: {
-            status: { type: 'string', description: 'Filter by campaign status' },
-            get_all: { type: 'boolean', description: 'Retrieve all campaigns', default: true }
+            status: {
+              type: 'string',
+              description: 'Filter by campaign status (optional)'
+            },
+            limit: {
+              type: 'number',
+              description: 'Number of items per page (1-100, default: 100)',
+              minimum: 1,
+              maximum: 100
+            },
+            starting_after: {
+              type: 'string',
+              description: 'Cursor for pagination - ID of the last item from previous page. Use the next_starting_after value from previous response.'
+            },
+            created_after: {
+              type: 'string',
+              description: 'Filter campaigns created after this date (YYYY-MM-DD format). Client-side filtering applied after retrieval. Example: "2025-09-01"',
+              pattern: '^\\d{4}-\\d{2}-\\d{2}$'
+            },
+            created_before: {
+              type: 'string',
+              description: 'Filter campaigns created before this date (YYYY-MM-DD format). Client-side filtering applied after retrieval. Example: "2025-09-30"',
+              pattern: '^\\d{4}-\\d{2}-\\d{2}$'
+            },
+            search: {
+              type: 'string',
+              description: 'Search campaigns by name (optional)'
+            },
+            tag_ids: {
+              type: 'string',
+              description: 'Filter by tag IDs, comma-separated (optional)'
+            }
           },
           additionalProperties: false
         }
@@ -1425,7 +1475,7 @@ export const TOOLS_DEFINITION = [
       },
       {
         name: 'list_leads',
-        description: 'List multiple leads with comprehensive filtering and pagination using POST /leads/list endpoint. **ULTRA-CONSERVATIVE**: get_all=true limited to 3 pages by default to prevent MCP timeouts. For large datasets, use filtered single-page requests instead of get_all=true.',
+        description: 'List multiple leads with comprehensive filtering and cursor-based pagination using POST /leads/list endpoint. Returns up to 5 pages (500 items) by default. Use starting_after parameter to retrieve additional pages. Supports client-side date filtering.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -1438,6 +1488,18 @@ export const TOOLS_DEFINITION = [
               description: 'Filter by multiple list IDs (optional). Example: ["list1", "list2"]'
             },
             status: { type: 'string', description: 'Filter by lead status (optional)' },
+
+            // Date filtering (client-side)
+            created_after: {
+              type: 'string',
+              description: 'Filter leads created after this date (YYYY-MM-DD format). Client-side filtering applied after retrieval. Example: "2025-09-01"',
+              pattern: '^\\d{4}-\\d{2}-\\d{2}$'
+            },
+            created_before: {
+              type: 'string',
+              description: 'Filter leads created before this date (YYYY-MM-DD format). Client-side filtering applied after retrieval. Example: "2025-09-30"',
+              pattern: '^\\d{4}-\\d{2}-\\d{2}$'
+            },
 
             // Search and filtering
             search: {
@@ -1503,32 +1565,18 @@ export const TOOLS_DEFINITION = [
             // Pagination parameters
             limit: {
               type: 'number',
-              description: 'Number of leads per page (1-100, default: 20). When get_all=true, this is automatically set to 100 for efficiency.',
+              description: 'Number of leads per page (1-100, default: 100)',
               minimum: 1,
               maximum: 100
             },
             skip: {
               type: 'number',
-              description: 'Number of leads to skip for pagination (default: 0). Only used when get_all=false.',
+              description: 'Number of leads to skip for pagination (default: 0)',
               minimum: 0
             },
             starting_after: {
               type: 'string',
-              description: 'Lead ID or email to start pagination after (from previous response next_starting_after field). Only used when get_all=false. Use email if distinct_contacts is true.'
-            },
-
-            // MCP-specific pagination controls
-            get_all: {
-              type: 'boolean',
-              description: 'When true: Automatically retrieves leads across multiple pages with timeout protection. When false: Returns single page only. Default: false',
-              default: false
-            },
-            max_pages: {
-              type: 'number',
-              description: 'Maximum number of pages to fetch when get_all=true (1-20, default: 3). Ultra-conservative default to prevent MCP timeouts. For large datasets, use filtered single-page requests instead.',
-              minimum: 1,
-              maximum: 20,
-              default: 3
+              description: 'Lead ID or email to start pagination after (from previous response next_starting_after field). Use email if distinct_contacts is true.'
             }
           },
           additionalProperties: false
@@ -1958,17 +2006,37 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
         console.error('[Instantly MCP] 📊 Parameters validated:', validatedData);
 
         console.error('[Instantly MCP] 🔍 DEBUG: About to call getAllAccounts()');
-        const allAccounts = await getAllAccounts(apiKey);
+        const result = await getAllAccounts(apiKey, args);
         console.error('[Instantly MCP] 🔍 DEBUG: getAllAccounts() completed successfully');
+
+        const metadata = result.metadata || {
+          returned_count: result.data.length,
+          has_more: false,
+          limit: args?.limit || 100,
+          pages_retrieved: 1,
+          request_time_ms: 0,
+          timeout_occurred: false,
+          note: 'No pagination metadata available'
+        };
 
         return {
           content: [
             {
               type: 'text',
               text: JSON.stringify({
-                data: allAccounts,
-                total_retrieved: allAccounts.length,
-                pagination_method: "reliable_complete",
+                data: result.data,
+                pagination: {
+                  returned_count: result.data.length,
+                  has_more: metadata.has_more,
+                  next_starting_after: metadata.next_starting_after,
+                  limit: metadata.limit,
+                  pages_retrieved: metadata.pages_retrieved
+                },
+                metadata: {
+                  request_time_ms: metadata.request_time_ms,
+                  note: metadata.note,
+                  timeout_occurred: metadata.timeout_occurred
+                },
                 success: true
               }, null, 2)
             }
@@ -1987,16 +2055,85 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
 
       const makeRequestWithKey = (endpoint: string, options: any = {}) =>
         makeInstantlyRequest(endpoint, options, apiKey);
-      const campaigns = await paginateInstantlyAPI('/campaigns', makeRequestWithKey);
+
+      // Build pagination parameters
+      const paginationParams: any = {};
+      if (args?.starting_after) {
+        paginationParams.starting_after = args.starting_after;
+      }
+      if (args?.limit) {
+        paginationParams.limit = args.limit;
+      }
+
+      // Build additional query parameters
+      const additionalParams: string[] = [];
+      if (args?.status) additionalParams.push('status');
+      if (args?.search) additionalParams.push('search');
+      if (args?.tag_ids) additionalParams.push('tag_ids');
+
+      const campaigns = await paginateInstantlyAPI('/campaigns', makeRequestWithKey, {
+        ...paginationParams,
+        ...args
+      }, {
+        maxPages: 5,
+        batchSize: args?.limit || 100,
+        additionalParams,
+        operationType: 'campaigns'
+      });
+
+      // Extract pagination metadata
+      const metadata = (campaigns as any).__pagination_metadata || {
+        returned_count: campaigns.length,
+        has_more: false,
+        limit: args?.limit || 100,
+        pages_retrieved: 1,
+        request_time_ms: 0,
+        timeout_occurred: false,
+        note: 'No pagination metadata available'
+      };
+
+      // Apply client-side date filtering if requested
+      let filteredCampaigns = campaigns;
+      const filtersApplied: any = {};
+
+      if (args?.created_after || args?.created_before) {
+        const { applyDateFilters } = await import('./pagination.js');
+        filteredCampaigns = applyDateFilters(
+          campaigns,
+          args.created_after,
+          args.created_before,
+          'created_at' // Try created_at first, will fallback if not present
+        );
+
+        if (args.created_after) filtersApplied.created_after = args.created_after;
+        if (args.created_before) filtersApplied.created_before = args.created_before;
+
+        console.error(`[Instantly MCP] Date filtering: ${campaigns.length} → ${filteredCampaigns.length} campaigns`);
+      }
+
+      if (args?.status) filtersApplied.status = args.status;
+      if (args?.search) filtersApplied.search = args.search;
+      if (args?.tag_ids) filtersApplied.tag_ids = args.tag_ids;
 
       return {
         content: [
           {
             type: 'text',
             text: JSON.stringify({
-              data: campaigns,
-              total_retrieved: campaigns.length,
-              pagination_method: "reliable_complete",
+              data: filteredCampaigns,
+              pagination: {
+                returned_count: filteredCampaigns.length,
+                has_more: metadata.has_more,
+                next_starting_after: metadata.next_starting_after,
+                limit: metadata.limit,
+                pages_retrieved: metadata.pages_retrieved
+              },
+              filters_applied: Object.keys(filtersApplied).length > 0 ? filtersApplied : undefined,
+              metadata: {
+                request_time_ms: metadata.request_time_ms,
+                note: metadata.note,
+                timeout_occurred: metadata.timeout_occurred
+              },
               success: true
             }, null, 2)
           }
@@ -2480,279 +2617,106 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
       console.error('[Instantly MCP] 📋 Executing list_leads...');
       console.error(`[Instantly MCP] 🔍 Request args: ${JSON.stringify(args, null, 2)}`);
 
-      // Balanced timeout settings based on performance testing
-      const requestTimeout = 120000; // 2 minutes total timeout (34x safety margin based on testing)
       const startTime = Date.now();
 
-      // Check if user wants all leads with automatic pagination
-      const getAllLeads = args?.get_all === true;
+      // Build request body for POST /leads/list
+      const requestBody: any = {};
 
-      console.error(`[Instantly MCP] ⏱️ Starting list_leads with ${getAllLeads ? 'automatic pagination' : 'single page'} (timeout: ${requestTimeout}ms)`);
+      // Basic filtering parameters (corrected API parameter names)
+      if (args?.campaign_id) requestBody.campaign = args.campaign_id;
+      if (args?.list_id) requestBody.list_id = args.list_id;
+      if (args?.list_ids && args.list_ids.length > 0) requestBody.list_ids = args.list_ids;
 
-      if (getAllLeads) {
-        console.error('[Instantly MCP] 🔄 get_all=true: Starting automatic pagination with timeout protection...');
+      // Search and filtering
+      if (args?.search) requestBody.search = args.search;
+      if (args?.filter) requestBody.filter = args.filter;
 
-        // Balanced pagination settings based on performance testing (3.5s for 167 leads across 2 pages)
-        const maxPages = Math.min(args?.max_pages || 10, 50); // Default 10, max 50 (balanced)
-        const pageTimeout = 15000; // 15 seconds per page (4x safety margin based on testing)
+      // ID-based filtering (corrected API parameter names)
+      if (args?.included_ids && args.included_ids.length > 0) requestBody.ids = args.included_ids;
+      if (args?.excluded_ids && args.excluded_ids.length > 0) requestBody.excluded_ids = args.excluded_ids;
+      if (args?.contacts && args.contacts.length > 0) requestBody.contacts = args.contacts;
+      if (args?.organization_user_ids && args.organization_user_ids.length > 0) requestBody.organization_user_ids = args.organization_user_ids;
+      if (args?.smart_view_id) requestBody.smart_view_id = args.smart_view_id;
+      if (args?.is_website_visitor !== undefined) requestBody.is_website_visitor = args.is_website_visitor;
+      if (args?.distinct_contacts !== undefined) requestBody.distinct_contacts = args.distinct_contacts;
+      if (args?.in_campaign !== undefined) requestBody.in_campaign = args.in_campaign;
+      if (args?.in_list !== undefined) requestBody.in_list = args.in_list;
+      if (args?.enrichment_status !== undefined) requestBody.enrichment_status = args.enrichment_status;
+      if (args?.queries && args.queries.length > 0) requestBody.queries = args.queries;
 
-        console.error(`[Instantly MCP] ⚙️ BALANCED pagination: max_pages=${maxPages}, page_timeout=${pageTimeout}ms, total_timeout=${requestTimeout}ms`);
+      // Pagination parameters
+      if (args?.limit) requestBody.limit = args.limit;
+      if (args?.skip !== undefined) requestBody.skip = args.skip;
+      if (args?.starting_after) requestBody.starting_after = args.starting_after;
 
-        // Build base request body for pagination with all supported parameters
-        const baseRequestBody: any = {};
+      console.error(`[Instantly MCP] 📤 POST body: ${JSON.stringify(requestBody, null, 2)}`);
+      console.error(`[Instantly MCP] 🌐 Making request to: POST /leads/list`);
 
-        // Basic filtering parameters (corrected API parameter names)
-        if (args?.campaign_id) baseRequestBody.campaign = args.campaign_id;
-        if (args?.list_id) baseRequestBody.list_id = args.list_id;
-        if (args?.list_ids && args.list_ids.length > 0) baseRequestBody.list_ids = args.list_ids;
+      try {
+        const result = await makeInstantlyRequest('/leads/list', {
+          method: 'POST',
+          body: requestBody
+        }, apiKey);
 
-        // Search and filtering
-        if (args?.search) baseRequestBody.search = args.search;
-        if (args?.filter) baseRequestBody.filter = args.filter;
+        const elapsed = Date.now() - startTime;
+        console.error(`[Instantly MCP] ✅ Request completed in ${elapsed}ms`);
 
-        // ID-based filtering (corrected API parameter names)
-        if (args?.included_ids && args.included_ids.length > 0) baseRequestBody.ids = args.included_ids;
-        if (args?.excluded_ids && args.excluded_ids.length > 0) baseRequestBody.excluded_ids = args.excluded_ids;
-        if (args?.contacts && args.contacts.length > 0) baseRequestBody.contacts = args.contacts;
-        if (args?.organization_user_ids && args.organization_user_ids.length > 0) baseRequestBody.organization_user_ids = args.organization_user_ids;
-        if (args?.smart_view_id) baseRequestBody.smart_view_id = args.smart_view_id;
-        if (args?.is_website_visitor !== undefined) baseRequestBody.is_website_visitor = args.is_website_visitor;
-        if (args?.distinct_contacts !== undefined) baseRequestBody.distinct_contacts = args.distinct_contacts;
-        if (args?.in_campaign !== undefined) baseRequestBody.in_campaign = args.in_campaign;
-        if (args?.in_list !== undefined) baseRequestBody.in_list = args.in_list;
-        if (args?.enrichment_status !== undefined) baseRequestBody.enrichment_status = args.enrichment_status;
-        if (args?.queries && args.queries.length > 0) baseRequestBody.queries = args.queries;
+        // Extract leads from response
+        let leads = result.items || result.data || [];
+        const filtersApplied: any = {};
 
-        // Use larger page size for efficiency (max 100)
-        baseRequestBody.limit = 100;
+        // Apply client-side date filtering if requested
+        if (args?.created_after || args?.created_before) {
+          const { applyDateFilters } = await import('./pagination.js');
+          const originalCount = leads.length;
+          leads = applyDateFilters(
+            leads,
+            args.created_after,
+            args.created_before,
+            'created_at' // Try created_at first
+          );
 
-        let allLeads: any[] = [];
-        let currentPage = 1;
-        let startingAfter: string | undefined = undefined;
-        let timeoutReached = false;
+          if (args.created_after) filtersApplied.created_after = args.created_after;
+          if (args.created_before) filtersApplied.created_before = args.created_before;
 
-        console.error(`[Instantly MCP] 📊 Starting pagination with filters: ${JSON.stringify(baseRequestBody, null, 2)}`);
+          console.error(`[Instantly MCP] Date filtering: ${originalCount} → ${leads.length} leads`);
+        }
 
-        try {
-          while (currentPage <= maxPages && !timeoutReached) {
-            const pageStartTime = Date.now();
-            const elapsedTotal = pageStartTime - startTime;
+        // Add other filters to metadata
+        if (args?.campaign_id) filtersApplied.campaign_id = args.campaign_id;
+        if (args?.list_id) filtersApplied.list_id = args.list_id;
+        if (args?.search) filtersApplied.search = args.search;
+        if (args?.filter) filtersApplied.filter = args.filter;
 
-            // TESTING MODE: Generous timeout detection for complete pagination testing
-            if (elapsedTotal > requestTimeout - 30000) { // Leave 30s buffer (generous for testing)
-              console.error(`[Instantly MCP] ⏰ TESTING MODE TIMEOUT: Stopping pagination at ${elapsedTotal}ms/${requestTimeout}ms to prevent timeout.`);
-              timeoutReached = true;
-              break;
-            }
-
-            const requestBody = { ...baseRequestBody };
-            if (startingAfter) {
-              requestBody.starting_after = startingAfter;
-            }
-
-            console.error(`[Instantly MCP] 📄 Fetching page ${currentPage}/${maxPages} (starting_after: ${startingAfter || 'none'})...`);
-
-            try {
-              // Add timeout for individual page request
-              const pagePromise = makeInstantlyRequest('/leads/list', {
-                method: 'POST',
-                body: requestBody
-              }, apiKey);
-
-              const pageTimeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error(`Page ${currentPage} timeout after ${pageTimeout}ms`)), pageTimeout);
-              });
-
-              const pageResult = await Promise.race([pagePromise, pageTimeoutPromise]);
-              const pageElapsed = Date.now() - pageStartTime;
-
-              // Add leads from this page
-              if (pageResult.items && Array.isArray(pageResult.items)) {
-                allLeads.push(...pageResult.items);
-                console.error(`[Instantly MCP] ✅ Page ${currentPage}: Retrieved ${pageResult.items.length} leads in ${pageElapsed}ms. Total: ${allLeads.length}`);
-              } else {
-                console.error(`[Instantly MCP] ⚠️ Page ${currentPage}: No items array found in response`);
-              }
-
-              // Check if there are more pages
-              if (pageResult.next_starting_after) {
-                startingAfter = pageResult.next_starting_after;
-                currentPage++;
-
-                // Add small delay to avoid rate limiting
-                await new Promise(resolve => setTimeout(resolve, 200));
-              } else {
-                console.error(`[Instantly MCP] 🏁 Pagination complete! No more pages. Total leads retrieved: ${allLeads.length}`);
-                break;
-              }
-            } catch (error: any) {
-              console.error(`[Instantly MCP] ❌ Error on page ${currentPage}:`, error.message);
-
-              if (error.message.includes('timeout')) {
-                console.error(`[Instantly MCP] ⏰ Page ${currentPage} timed out. Returning partial results.`);
-                timeoutReached = true;
-                break;
-              }
-
-              throw error;
-            }
-          }
-
-          const totalElapsed = Date.now() - startTime;
-          const status = timeoutReached ? 'partial_timeout' :
-                        currentPage > maxPages ? 'max_pages_reached' : 'complete';
-
-          console.error(`[Instantly MCP] 📊 Pagination finished: ${status}, ${allLeads.length} leads, ${currentPage - 1} pages, ${totalElapsed}ms`);
-
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  items: allLeads,
-                  total_retrieved: allLeads.length,
-                  pages_fetched: currentPage - 1,
-                  pagination_status: status,
-                  pagination_method: "automatic_with_timeout_protection",
-                  get_all: true,
-                  timeout_reached: timeoutReached,
-                  max_pages_limit: maxPages,
-                  total_time_ms: totalElapsed,
-                  success: true,
-                  _metadata: {
-                    note: timeoutReached ?
-                      "Partial results due to MCP timeout protection. RECOMMENDATION: Use filtered requests (campaign_id, list_id) instead of get_all=true for large datasets." :
-                      currentPage > maxPages ?
-                      "Reached max_pages limit. For large datasets, use filtered requests rather than increasing max_pages to avoid timeouts." :
-                      "Complete pagination successful.",
-                    usage_guidance: {
-                      for_large_datasets: "Use campaign_id or list_id filters instead of get_all=true",
-                      recommended_approach: "Single page requests with filters are more reliable than get_all=true",
-                      max_safe_pages: "10 pages (default) is the recommended maximum for get_all=true"
-                    }
-                  }
-                }, null, 2),
-              },
-            ],
-          };
-        } catch (error: any) {
-          const totalElapsed = Date.now() - startTime;
-          console.error(`[Instantly MCP] ❌ Pagination failed after ${totalElapsed}ms:`, error.message);
-
-          // Return partial results if we got some data
-          if (allLeads.length > 0) {
-            console.error(`[Instantly MCP] 🔄 Returning partial results: ${allLeads.length} leads from ${currentPage - 1} pages`);
-
-            return {
-              content: [
-                {
-                  type: 'text',
-                  text: JSON.stringify({
-                    items: allLeads,
-                    total_retrieved: allLeads.length,
-                    pages_fetched: currentPage - 1,
-                    pagination_status: 'error_partial',
-                    error: error.message,
-                    total_time_ms: totalElapsed,
-                    success: false,
-                    _metadata: {
-                      note: `Pagination failed but returning ${allLeads.length} leads from ${currentPage - 1} completed pages. Error: ${error.message}`
-                    }
-                  }, null, 2),
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                items: leads,
+                pagination: {
+                  returned_count: leads.length,
+                  has_more: !!result.next_starting_after,
+                  next_starting_after: result.next_starting_after,
+                  limit: args?.limit || 100
                 },
-              ],
-            };
-          }
-
-          throw error;
-        }
-      } else {
-        // Single page request with timeout handling
-        console.error('[Instantly MCP] 📄 Single page request...');
-
-        const requestBody: any = {};
-
-        // Basic filtering parameters (corrected API parameter names)
-        if (args?.campaign_id) requestBody.campaign = args.campaign_id;
-        if (args?.list_id) requestBody.list_id = args.list_id;
-        if (args?.list_ids && args.list_ids.length > 0) requestBody.list_ids = args.list_ids;
-
-        // Search and filtering
-        if (args?.search) requestBody.search = args.search;
-        if (args?.filter) requestBody.filter = args.filter;
-
-        // ID-based filtering (corrected API parameter names)
-        if (args?.included_ids && args.included_ids.length > 0) requestBody.ids = args.included_ids;
-        if (args?.excluded_ids && args.excluded_ids.length > 0) requestBody.excluded_ids = args.excluded_ids;
-        if (args?.contacts && args.contacts.length > 0) requestBody.contacts = args.contacts;
-        if (args?.organization_user_ids && args.organization_user_ids.length > 0) requestBody.organization_user_ids = args.organization_user_ids;
-        if (args?.smart_view_id) requestBody.smart_view_id = args.smart_view_id;
-        if (args?.is_website_visitor !== undefined) requestBody.is_website_visitor = args.is_website_visitor;
-        if (args?.distinct_contacts !== undefined) requestBody.distinct_contacts = args.distinct_contacts;
-        if (args?.in_campaign !== undefined) requestBody.in_campaign = args.in_campaign;
-        if (args?.in_list !== undefined) requestBody.in_list = args.in_list;
-        if (args?.enrichment_status !== undefined) requestBody.enrichment_status = args.enrichment_status;
-        if (args?.queries && args.queries.length > 0) requestBody.queries = args.queries;
-
-        // Pagination parameters
-        if (args?.limit) requestBody.limit = args.limit;
-        if (args?.skip !== undefined) requestBody.skip = args.skip;
-        if (args?.starting_after) requestBody.starting_after = args.starting_after;
-
-        console.error(`[Instantly MCP] 📤 Single page POST body: ${JSON.stringify(requestBody, null, 2)}`);
-        console.error(`[Instantly MCP] 🌐 Making request to: POST /leads/list`);
-
-        try {
-          // Add timeout wrapper for single request
-          const requestPromise = makeInstantlyRequest('/leads/list', {
-            method: 'POST',
-            body: requestBody
-          }, apiKey);
-
-          const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error(`Request timeout after ${requestTimeout}ms`)), requestTimeout);
-          });
-
-          console.error(`[Instantly MCP] ⏳ Waiting for API response (timeout: ${requestTimeout}ms)...`);
-          const result = await Promise.race([requestPromise, timeoutPromise]);
-
-          const elapsed = Date.now() - startTime;
-          console.error(`[Instantly MCP] ✅ Single page request completed in ${elapsed}ms`);
-
-          // Add timing metadata to response
-          const enhancedResult = {
-            ...result,
-            _metadata: {
-              request_time_ms: elapsed,
-              request_type: 'single_page',
-              timeout_limit_ms: requestTimeout,
-              success: true
-            }
-          };
-
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(enhancedResult, null, 2),
-              },
-            ],
-          };
-        } catch (error: any) {
-          const elapsed = Date.now() - startTime;
-          console.error(`[Instantly MCP] ❌ Single page request failed after ${elapsed}ms:`, error.message);
-
-          // Provide helpful error message with suggestions
-          if (error.message.includes('timeout')) {
-            throw new McpError(ErrorCode.InternalError,
-              `list_leads request timed out after ${elapsed}ms. The Instantly.ai API may be slow or unresponsive. ` +
-              `Try: 1) Reduce limit parameter (e.g., limit: 20), 2) Add filters (campaign_id, list_id), ` +
-              `3) Check API status, or 4) Try again later. Current request: ${JSON.stringify(requestBody)}`
-            );
-          }
-
-          throw error;
-        }
+                filters_applied: Object.keys(filtersApplied).length > 0 ? filtersApplied : undefined,
+                metadata: {
+                  request_time_ms: elapsed,
+                  note: result.next_starting_after
+                    ? `Retrieved ${leads.length} leads. More results available. To retrieve additional pages, call this tool again with starting_after parameter set to: ${result.next_starting_after}`
+                    : `Retrieved all available leads (${leads.length} items).`,
+                  timeout_occurred: false
+                },
+                success: true
+              }, null, 2),
+            },
+          ],
+        };
+      } catch (error: any) {
+        const elapsed = Date.now() - startTime;
+        console.error(`[Instantly MCP] ❌ Request failed after ${elapsed}ms:`, error.message);
+        throw error;
       }
     }
 
@@ -3976,21 +3940,42 @@ async function handleToolCall(params: any) {
         ]
       };
 
-    case 'list_accounts':
-      const accounts = await getAllAccounts(args.apiKey);
+    case 'list_accounts': {
+      const result = await getAllAccounts(args.apiKey, args);
+      const metadata = result.metadata || {
+        returned_count: result.data.length,
+        has_more: false,
+        limit: args?.limit || 100,
+        pages_retrieved: 1,
+        request_time_ms: 0,
+        timeout_occurred: false,
+        note: 'No pagination metadata available'
+      };
+
       return {
         content: [
           {
             type: 'text',
             text: JSON.stringify({
-              data: accounts,
-              total_retrieved: accounts.length,
-              pagination_method: "reliable_complete",
+              data: result.data,
+              pagination: {
+                returned_count: result.data.length,
+                has_more: metadata.has_more,
+                next_starting_after: metadata.next_starting_after,
+                limit: metadata.limit,
+                pages_retrieved: metadata.pages_retrieved
+              },
+              metadata: {
+                request_time_ms: metadata.request_time_ms,
+                note: metadata.note,
+                timeout_occurred: metadata.timeout_occurred
+              },
               success: true
             }, null, 2)
           }
         ]
       };
+    }
 
     // ===== NEW TIER 1 TOOLS - PRODUCTION VERIFIED =====
     case 'count_unread_emails': {
