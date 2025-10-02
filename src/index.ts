@@ -4095,7 +4095,7 @@ async function main() {
     
     if (process.env.NODE_ENV === 'production') {
       console.error('[Instantly MCP] 🏢 Production endpoints:');
-      console.error('[Instantly MCP] 🔗 URL auth: https://instantly-mcp-iyjln.ondigitalocean.app/mcp/{API_KEY}');
+      console.error('[Instantly MCP] 🔗 URL auth: https://instantly-mcp-5p4as.ondigitalocean.app/mcp/{API_KEY}');
     }
 
   } else {
