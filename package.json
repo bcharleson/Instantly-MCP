@@ -25,7 +25,7 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "npx tsc",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
     "start:stdio": "node dist/index.js",
