@@ -62,26 +62,9 @@ export class StreamingHttpTransport {
     this.setupMiddleware();
     // Initialize official streamable HTTP transport in stateless mode for better compatibility
     // Stateless mode (sessionIdGenerator: undefined) allows clients to connect without session management
-    // DNS rebinding protection is ENABLED for security with allowed hosts/origins configured
     this.transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined, // Stateless mode - no session management
-      enableDnsRebindingProtection: true, // Enable for security (required by Claude Desktop/Web)
-      allowedHosts: [
-        'mcp.instantly.ai',           // Production domain
-        'localhost',                   // Local development
-        '127.0.0.1',                  // Local development
-        'localhost:3000',             // Local development with port
-        '127.0.0.1:3000',            // Local development with port
-      ],
-      allowedOrigins: [
-        'https://claude.ai',          // Claude Web
-        'https://www.claude.ai',      // Claude Web (www)
-        'app://claude',               // Claude Desktop (Electron)
-        'capacitor://localhost',      // Claude iOS (Capacitor)
-        'http://localhost',           // Local development
-        'http://127.0.0.1',          // Local development
-        'https://mcp.instantly.ai',  // Self-origin
-      ],
+      enableDnsRebindingProtection: false, // Disable for remote access compatibility
     });
     this.setupRoutes();
   }
@@ -217,6 +200,16 @@ export class StreamingHttpTransport {
       const authMethod = req.params?.apiKey ? 'URL' : (req.headers.authorization ? 'Bearer' : (req.headers['x-instantly-api-key'] ? 'Header' : 'None'));
 
       console.error(`[HTTP] ${timestamp} ${req.method} ${req.path} - ${req.ip} - Auth: ${authMethod} - UA: ${userAgent.substring(0, 50)}`);
+
+      // Update client detection with user agent for HTTP requests
+      if (req.method === 'POST' && (req.path === '/mcp' || req.path.startsWith('/mcp/'))) {
+        import('./client-detection.js').then(({ globalClientManager }) => {
+          globalClientManager.updateClientInfo(undefined, userAgent);
+        }).catch(err => {
+          console.error('[HTTP] Client detection update failed:', err);
+        });
+      }
+
       next();
     });
 
