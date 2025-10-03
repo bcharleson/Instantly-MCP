@@ -200,6 +200,16 @@ export class StreamingHttpTransport {
       const authMethod = req.params?.apiKey ? 'URL' : (req.headers.authorization ? 'Bearer' : (req.headers['x-instantly-api-key'] ? 'Header' : 'None'));
 
       console.error(`[HTTP] ${timestamp} ${req.method} ${req.path} - ${req.ip} - Auth: ${authMethod} - UA: ${userAgent.substring(0, 50)}`);
+
+      // Update client detection with user agent for HTTP requests
+      if (req.method === 'POST' && (req.path === '/mcp' || req.path.startsWith('/mcp/'))) {
+        import('./client-detection.js').then(({ globalClientManager }) => {
+          globalClientManager.updateClientInfo(undefined, userAgent);
+        }).catch(err => {
+          console.error('[HTTP] Client detection update failed:', err);
+        });
+      }
+
       next();
     });
 

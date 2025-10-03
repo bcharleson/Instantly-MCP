@@ -31,6 +31,7 @@ export interface ReusablePaginationOptions {
   progressCallback?: (pageCount: number, totalItems: number) => void;
   enablePerformanceMonitoring?: boolean;
   operationType?: 'accounts' | 'campaigns' | 'emails' | 'leads';
+  useClientDetection?: boolean; // Enable automatic client-based timeout adjustment
 }
 
 export interface PaginationMetadata {
@@ -333,7 +334,7 @@ export function validatePaginationResults<T>(
 /**
  * Reusable pagination function for Instantly API endpoints
  * Handles the complete pagination flow with proper termination logic
- * NOW WITH: Timeout protection, delays between requests, conservative limits, partial results
+ * NOW WITH: Client-aware timeout protection, adaptive limits, partial results
  */
 export async function paginateInstantlyAPI(
   endpoint: string,
@@ -342,18 +343,38 @@ export async function paginateInstantlyAPI(
   options: ReusablePaginationOptions = {}
 ): Promise<any[]> {
   const {
-    maxPages = 5, // CHANGED: Conservative default (was 50)
+    maxPages: userMaxPages,
     batchSize = 100,
     additionalParams = [],
     progressCallback,
     enablePerformanceMonitoring = true,
-    operationType = 'accounts'
+    operationType = 'accounts',
+    useClientDetection = true // Enable by default
   } = options;
 
-  // ADDED: Timeout protection
-  const TOTAL_TIMEOUT_MS = 60000; // 60 seconds total
-  const TIMEOUT_BUFFER_MS = 10000; // Stop 10s before timeout to return partial results
-  const DELAY_BETWEEN_REQUESTS_MS = 200; // 200ms delay between pagination requests
+  // ADDED: Client-aware timeout protection
+  let TOTAL_TIMEOUT_MS = 25000; // Default: 25 seconds
+  let TIMEOUT_BUFFER_MS = 5000; // Default: 5 second buffer
+  let DELAY_BETWEEN_REQUESTS_MS = 100; // Default: 100ms delay
+  let maxPages = userMaxPages || 5; // Default: 5 pages
+
+  // Import and use client detection if enabled
+  if (useClientDetection) {
+    try {
+      const { globalClientManager } = await import('./client-detection.js');
+      const clientConfig = globalClientManager.getTimeoutConfig();
+
+      TOTAL_TIMEOUT_MS = clientConfig.totalTimeoutMs;
+      TIMEOUT_BUFFER_MS = clientConfig.bufferMs;
+      DELAY_BETWEEN_REQUESTS_MS = clientConfig.delayBetweenRequestsMs;
+      maxPages = userMaxPages || clientConfig.maxPages;
+
+      console.error(`[Pagination] Using ${clientConfig.clientName} config: ${TOTAL_TIMEOUT_MS}ms timeout, ${maxPages} max pages`);
+    } catch (error) {
+      console.error('[Pagination] Client detection unavailable, using defaults:', error);
+    }
+  }
+
   const startTime = Date.now();
 
   // Initialize performance monitoring if enabled

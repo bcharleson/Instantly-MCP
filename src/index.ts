@@ -143,7 +143,20 @@ console.error('[Instantly MCP] 🔑 API key configured:', INSTANTLY_API_KEY ? '�
 
 // Initialize handler - provides server info with icon for remote MCP connectors
 server.setRequestHandler(InitializeRequestSchema, async (request) => {
-  console.error('[Instantly MCP] 🔧 Initialize request received from:', request.params?.clientInfo?.name || 'unknown');
+  const clientName = request.params?.clientInfo?.name || 'unknown';
+  console.error('[Instantly MCP] 🔧 Initialize request received from:', clientName);
+
+  // Update client detection manager with client info
+  try {
+    const { globalClientManager } = await import('./client-detection.js');
+    globalClientManager.updateClientInfo(
+      request.params?.clientInfo,
+      undefined // User agent not available in stdio mode
+    );
+    console.error('[Instantly MCP] 📊 Client detection updated');
+  } catch (error) {
+    console.error('[Instantly MCP] ⚠️ Client detection unavailable:', error);
+  }
 
   // Ensure icons are loaded synchronously for Claude Desktop compatibility
   const icons = loadInstantlyIcons();
@@ -2075,7 +2088,7 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
         ...paginationParams,
         ...args
       }, {
-        maxPages: 5,
+        maxPages: 3, // Reduced from 5 for faster response in MCP clients (Gemini, ChatGPT)
         batchSize: args?.limit || 100,
         additionalParams,
         operationType: 'campaigns'
