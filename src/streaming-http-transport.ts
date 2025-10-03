@@ -174,14 +174,9 @@ export class StreamingHttpTransport {
       console.error(`[HTTP] ${timestamp} ${req.method} ${req.path} - ${req.ip} - Auth: ${authMethod} - UA: ${userAgent.substring(0, 50)}`);
 
       // Update client detection with user agent for HTTP requests
-      // Only update if we don't already have a good client detection
       if (req.method === 'POST' && (req.path === '/mcp' || req.path.startsWith('/mcp/'))) {
         import('./client-detection.js').then(({ globalClientManager }) => {
-          // Only update with user agent if we don't have a better detection already
-          const currentClient = globalClientManager.getClientName();
-          if (currentClient === 'Unknown' || !currentClient) {
-            globalClientManager.updateClientInfo(undefined, userAgent);
-          }
+          globalClientManager.updateClientInfo(undefined, userAgent);
         }).catch(err => {
           console.error('[HTTP] Client detection update failed:', err);
         });

@@ -127,22 +127,13 @@ export class ClientDetectionManager {
    * Update client information from initialize request
    */
   updateClientInfo(clientInfo?: ClientInfo, userAgent?: string): void {
-    // If we already have a detected client from initialize request, don't override with just user agent
-    const previouslyDetected = this.detectedClient;
-    const newDetection = detectClient(clientInfo, userAgent);
-
-    // Only update if we have new client info, or if we're upgrading from 'default' to a known client
-    if (clientInfo || !previouslyDetected || previouslyDetected === 'default' || newDetection !== 'default') {
-      this.clientInfo = clientInfo || this.clientInfo;
-      this.userAgent = userAgent || this.userAgent;
-      this.detectedClient = newDetection;
-      this.timeoutConfig = getClientTimeoutConfig(this.detectedClient);
-
-      console.error(`[Client Detection] Client updated: ${this.timeoutConfig.clientName}`);
-      console.error(`[Client Detection] Config: ${JSON.stringify(this.timeoutConfig, null, 2)}`);
-    } else {
-      console.error(`[Client Detection] Preserving existing client detection: ${this.timeoutConfig?.clientName || 'Unknown'}`);
-    }
+    this.clientInfo = clientInfo;
+    this.userAgent = userAgent;
+    this.detectedClient = detectClient(clientInfo, userAgent);
+    this.timeoutConfig = getClientTimeoutConfig(this.detectedClient);
+    
+    console.error(`[Client Detection] Client updated: ${this.timeoutConfig.clientName}`);
+    console.error(`[Client Detection] Config: ${JSON.stringify(this.timeoutConfig, null, 2)}`);
   }
   
   /**
