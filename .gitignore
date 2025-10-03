@@ -37,11 +37,14 @@ test-*.json
 *test*.js
 *test*.ts
 *test*.cjs
+*test*.sh
 debug-*.js
 diagnose-*.js
 check-*.sh
 verify-*.js
 validate-*.ts
+quick-test.sh
+stress-test*.sh
 
 # Development and build scripts
 build-and-test.sh
