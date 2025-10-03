@@ -84,39 +84,11 @@ export class StreamingHttpTransport {
       next();
     });
 
-    // Security: Origin header validation (required by MCP spec)
+    // Security: Origin header validation (TEMPORARILY DISABLED FOR DEBUGGING)
+    // TODO: Re-enable after we capture what origin Claude Web actually sends
     this.app.use((req, res, next) => {
       const origin = req.headers.origin;
-      
-      // Allow requests without origin (direct API calls, Postman, etc.)
-      if (!origin) {
-        next();
-        return;
-      }
-      
-      // Validate origin to prevent DNS rebinding attacks
-      const allowedOrigins = [
-        'https://claude.ai',
-        'https://claude.com', 
-        'http://localhost',
-        'https://localhost'
-      ];
-      
-      const isAllowed = allowedOrigins.some(allowed => 
-        origin === allowed || origin.startsWith(allowed + ':')
-      );
-      
-      if (!isAllowed) {
-        console.error(`[HTTP] 🚫 Blocked request from unauthorized origin: ${origin}`);
-        res.status(403).json({
-          error: 'Forbidden',
-          message: 'Origin not allowed',
-          origin: origin
-        });
-        return;
-      }
-      
-      console.error(`[HTTP] ✅ Allowed origin: ${origin}`);
+      console.error(`[HTTP] � DEBUG - Origin header received: ${origin || 'NO ORIGIN'}`);
       next();
     });
 

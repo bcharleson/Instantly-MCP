@@ -28,6 +28,9 @@ bug report/
 *.md
 !README.md
 
+# Workflow documentation (local only)
+WORKFLOW.md
+
 # Test scripts and testing files
 test-*.js
 test-*.ts
