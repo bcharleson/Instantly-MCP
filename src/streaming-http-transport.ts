@@ -307,6 +307,16 @@ export class StreamingHttpTransport {
 
     // Main MCP endpoint with header-based authentication
     this.app.post('/mcp', this.authMiddleware.bind(this), async (req, res) => {
+      // LOG ALL HEADERS FOR DEBUGGING
+      console.error('[HTTP] 🔍 INCOMING REQUEST HEADERS:', JSON.stringify({
+        origin: req.headers.origin,
+        host: req.headers.host,
+        referer: req.headers.referer,
+        'user-agent': req.headers['user-agent'],
+        'x-forwarded-for': req.headers['x-forwarded-for'],
+        'x-forwarded-proto': req.headers['x-forwarded-proto'],
+      }, null, 2));
+
       // Delegate to official StreamableHTTPServerTransport - it handles all MCP protocol details
       await this.transport.handleRequest(req, res, req.body);
     });
@@ -334,6 +344,17 @@ export class StreamingHttpTransport {
         return;
       }
 
+      // LOG ALL HEADERS FOR DEBUGGING - CAPTURE REAL CLIENT DATA
+      console.error('[HTTP] 🔍 INCOMING REQUEST HEADERS (with API key in URL):', JSON.stringify({
+        origin: req.headers.origin,
+        host: req.headers.host,
+        referer: req.headers.referer,
+        'user-agent': req.headers['user-agent'],
+        'x-forwarded-for': req.headers['x-forwarded-for'],
+        'x-forwarded-proto': req.headers['x-forwarded-proto'],
+        'x-real-ip': req.headers['x-real-ip'],
+      }, null, 2));
+
       // Use API key as-is from URL path (Instantly.ai expects base64-encoded format)
       console.error(`[HTTP] 🔑 Using API key from URL path as-is: ${apiKey.substring(0, 20)}...`);
 
@@ -341,13 +362,6 @@ export class StreamingHttpTransport {
       req.headers['x-instantly-api-key'] = apiKey;
       // Also store in request object as backup
       (req as any).instantlyApiKey = apiKey;
-
-      // Debug: Log headers before calling handleRequest
-      console.error(`[HTTP] 🔍 Headers before handleRequest:`, JSON.stringify({
-        'x-instantly-api-key': req.headers['x-instantly-api-key'] ? 'SET' : 'NOT SET',
-        'content-type': req.headers['content-type'],
-        'accept': req.headers['accept']
-      }));
       console.error(`[HTTP] 🔍 Request body:`, JSON.stringify(req.body));
 
       // Delegate to official StreamableHTTPServerTransport
