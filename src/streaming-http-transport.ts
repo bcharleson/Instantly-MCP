@@ -179,6 +179,14 @@ export class StreamingHttpTransport {
 
       console.error(`[HTTP] ${timestamp} ${req.method} ${req.path} - ${req.ip} - Auth: ${authMethod} - UA: ${userAgent.substring(0, 50)}`);
 
+      // DETAILED LOGGING FOR CLAUDE DESKTOP DEBUGGING
+      console.error(`[HTTP] 🔍 FULL REQUEST:`);
+      console.error(`[HTTP]    Origin: ${req.headers.origin || 'NONE'}`);
+      console.error(`[HTTP]    Referer: ${req.headers.referer || 'NONE'}`);
+      console.error(`[HTTP]    Accept: ${req.headers.accept || 'NONE'}`);
+      console.error(`[HTTP]    Content-Type: ${req.headers['content-type'] || 'NONE'}`);
+      console.error(`[HTTP]    All Headers: ${JSON.stringify(req.headers)}`);
+
       // Update client detection with user agent for HTTP requests
       if (req.method === 'POST' && (req.path === '/mcp' || req.path.startsWith('/mcp/'))) {
         import('./client-detection.js').then(({ globalClientManager }) => {
