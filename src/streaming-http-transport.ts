@@ -346,10 +346,101 @@ export class StreamingHttpTransport {
       await this.transport.handleRequest(req, res, req.body);
     });
 
+    // OAuth 2.1 Authorization Server Metadata (RFC 8414)
+    // Claude Desktop/Web checks this endpoint to discover auth capabilities
+    this.app.get('/.well-known/oauth-authorization-server', (req, res) => {
+      console.error('[HTTP] 🔍 OAuth discovery: /.well-known/oauth-authorization-server');
+
+      // Tell Claude this server uses API key auth, not OAuth
+      res.json({
+        issuer: 'https://mcp.instantly.ai',
+        authorization_endpoint: 'https://mcp.instantly.ai/authorize',
+        token_endpoint: 'https://mcp.instantly.ai/token',
+        grant_types_supported: ['client_credentials'],
+        token_endpoint_auth_methods_supported: ['none'],
+        response_types_supported: ['none'],
+        // Indicate this is an API key based service
+        service_documentation: 'https://github.com/Instantly-ai/instantly-mcp',
+        ui_locales_supported: ['en-US'],
+        // Custom field to indicate API key auth
+        api_key_auth: {
+          enabled: true,
+          methods: ['url_path', 'header'],
+          description: 'Use API key in URL path (/mcp/{API_KEY}) or Authorization header'
+        }
+      });
+    });
+
+    // OAuth 2.0 Protected Resource Metadata (RFC 8414)
+    this.app.get('/.well-known/oauth-protected-resource', (req, res) => {
+      console.error('[HTTP] 🔍 OAuth discovery: /.well-known/oauth-protected-resource');
+
+      res.json({
+        resource: 'https://mcp.instantly.ai',
+        authorization_servers: ['https://mcp.instantly.ai'],
+        bearer_methods_supported: ['header'],
+        resource_documentation: 'https://github.com/Instantly-ai/instantly-mcp',
+        // Indicate API key auth is used
+        api_key_auth: {
+          enabled: true,
+          header: 'Authorization',
+          url_parameter: 'api_key'
+        }
+      });
+    });
+
+    // OAuth 2.0 Protected Resource Metadata with path parameter
+    this.app.get('/.well-known/oauth-protected-resource/mcp/:apiKey', (req, res) => {
+      console.error('[HTTP] 🔍 OAuth discovery with API key in path');
+
+      res.json({
+        resource: 'https://mcp.instantly.ai',
+        authorization_servers: ['https://mcp.instantly.ai'],
+        bearer_methods_supported: ['header', 'url_path'],
+        resource_documentation: 'https://github.com/Instantly-ai/instantly-mcp',
+        api_key_provided: true,
+        ready: true
+      });
+    });
+
+    // OAuth 2.1 Authorization Server Metadata with path parameter
+    this.app.get('/.well-known/oauth-authorization-server/mcp/:apiKey', (req, res) => {
+      console.error('[HTTP] 🔍 OAuth authorization server discovery with API key in path');
+
+      res.json({
+        issuer: 'https://mcp.instantly.ai',
+        service_documentation: 'https://github.com/Instantly-ai/instantly-mcp',
+        api_key_provided: true,
+        ready: true,
+        // Indicate no OAuth flow needed - API key already provided
+        authorization_required: false
+      });
+    });
+
+    // OAuth Dynamic Client Registration (RFC 7591)
+    // Claude Desktop may try to register as a client
+    this.app.post('/register', (req, res) => {
+      console.error('[HTTP] 🔍 OAuth client registration attempted');
+
+      // Return success but indicate no registration needed for API key auth
+      res.json({
+        client_id: 'instantly-mcp-api-key-client',
+        client_name: 'Instantly MCP',
+        grant_types: ['client_credentials'],
+        token_endpoint_auth_method: 'none',
+        // Indicate API key auth is used instead
+        api_key_auth: {
+          enabled: true,
+          description: 'No OAuth registration needed. Use API key in URL or headers.',
+          methods: ['url_path', 'header']
+        }
+      });
+    });
+
     // Minimal /authorize endpoint for MCP clients that expect OAuth-style discovery
     this.app.get('/authorize', (req, res) => {
       console.error('[HTTP] 🔐 /authorize endpoint accessed - MCP client discovery');
-      
+
       // Return MCP server capabilities instead of OAuth flow
       res.json({
         server: 'instantly-mcp',
