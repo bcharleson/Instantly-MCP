@@ -668,70 +668,119 @@ export class StreamingHttpTransport {
     });
 
     // POST /messages endpoint for SSE transport (Claude.ai proxy compatibility)
+    // ENHANCED: Handle requests even without SSE session (SSE handshake sometimes fails)
     this.app.post('/messages', async (req, res) => {
       const sessionId = req.query.sessionId as string;
+      const apiKeyFromQuery = req.query.apiKey as string;
 
       console.error(`[HTTP] 📨 POST /messages request - Session ID: ${sessionId || 'Missing'}`);
+      console.error(`[HTTP] 📨 Request body:`, JSON.stringify(req.body, null, 2));
 
-      if (!sessionId) {
+      // Try to get API key from multiple sources
+      let apiKey: string | undefined;
+
+      // Source 1: Query parameter (explicit)
+      if (apiKeyFromQuery) {
+        apiKey = apiKeyFromQuery;
+        console.error(`[HTTP] 🔑 API key from query parameter`);
+      }
+
+      // Source 2: Session metadata (if SSE session exists)
+      if (!apiKey && sessionId) {
+        const sessionMetadata = this.sseSessionMetadata.get(sessionId);
+        if (sessionMetadata?.apiKey) {
+          apiKey = sessionMetadata.apiKey;
+          console.error(`[HTTP] 🔑 API key from SSE session metadata`);
+        }
+      }
+
+      // Source 3: Extract from sessionId if it looks like an API key
+      if (!apiKey && sessionId && sessionId.length > 20 && sessionId.startsWith('sk_')) {
+        // SessionId might actually be the API key (Claude.ai sometimes does this)
+        apiKey = sessionId;
+        console.error(`[HTTP] 🔑 Using sessionId as API key (fallback)`);
+      }
+
+      if (!apiKey) {
+        console.error(`[HTTP] ❌ No API key found in any source`);
         return res.status(400).json({
           jsonrpc: '2.0',
           error: {
             code: -32000,
-            message: 'Bad Request: sessionId query parameter required'
+            message: 'Bad Request: API key required (provide via sessionId or apiKey query parameter)'
           },
-          id: null
+          id: req.body?.id || null
         });
       }
 
+      // Inject API key into request headers for tool handlers
+      if (!req.headers) {
+        req.headers = {};
+      }
+      req.headers['x-instantly-api-key'] = apiKey;
+      console.error(`[HTTP] 🔑 Injected API key into request headers`);
+
+      // Try to use SSE transport if available, otherwise handle directly
       const transport = this.sseTransports.get(sessionId);
-      const sessionMetadata = this.sseSessionMetadata.get(sessionId);
 
-      if (!transport) {
-        console.error(`[HTTP] ❌ No SSE transport found for session ${sessionId}`);
-        return res.status(400).json({
-          jsonrpc: '2.0',
-          error: {
-            code: -32000,
-            message: 'Bad Request: Invalid session or session expired'
-          },
-          id: null
-        });
+      if (transport) {
+        console.error(`[HTTP] 📡 Using SSE transport for session ${sessionId}`);
+        try {
+          await transport.handlePostMessage(req, res, req.body);
+          console.error(`[HTTP] ✅ Message handled via SSE transport`);
+          return;
+        } catch (error) {
+          console.error(`[HTTP] ❌ SSE transport failed, falling back to direct handling:`, error);
+        }
       }
+
+      // FALLBACK: Handle the request directly without SSE transport
+      // This allows tools to work even if SSE handshake failed
+      console.error(`[HTTP] 🔄 No SSE transport available - handling request directly`);
 
       try {
-        // Log the incoming message for debugging
-        console.error(`[HTTP] 📨 SSE Message body:`, JSON.stringify(req.body, null, 2));
+        const { method, params, id } = req.body;
 
-        // CRITICAL FIX: Inject API key from session metadata into request headers
-        // This allows the tool handler to access the API key via extra.requestInfo.headers
-        if (sessionMetadata?.apiKey) {
-          if (!req.headers) {
-            req.headers = {};
-          }
-          req.headers['x-instantly-api-key'] = sessionMetadata.apiKey;
-          console.error(`[HTTP] 🔑 Injected API key from SSE session metadata into request headers`);
+        if (method === 'tools/call') {
+          const { name, arguments: args } = params;
+          console.error(`[HTTP] 🔧 Executing tool directly: ${name}`);
+
+          // Use the static import from top of file (no dynamic import!)
+          const result = await executeToolDirectly(name, args, apiKey);
+
+          return res.status(200).json({
+            jsonrpc: '2.0',
+            result,
+            id
+          });
+        } else if (method === 'tools/list') {
+          // Return the tools list using static import
+          console.error(`[HTTP] 📋 Returning tools list directly`);
+          return res.status(200).json({
+            jsonrpc: '2.0',
+            result: { tools: TOOLS_DEFINITION },
+            id
+          });
         } else {
-          console.error(`[HTTP] ⚠️ No API key found in SSE session metadata for session ${sessionId}`);
-        }
-
-        await transport.handlePostMessage(req, res, req.body);
-        console.error(`[HTTP] ✅ Message handled for session ${sessionId}`);
-      } catch (error) {
-        console.error(`[HTTP] ❌ Error handling SSE message for session ${sessionId}:`, error);
-        console.error(`[HTTP] ❌ Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
-        console.error(`[HTTP] ❌ Error details:`, JSON.stringify(error, null, 2));
-
-        if (!res.headersSent) {
-          res.status(500).json({
+          return res.status(200).json({
             jsonrpc: '2.0',
             error: {
-              code: -32603,
-              message: `Internal error processing SSE message: ${error instanceof Error ? error.message : String(error)}`
+              code: -32601,
+              message: `Method not found: ${method}`
             },
-            id: null
+            id
           });
         }
+      } catch (error) {
+        console.error(`[HTTP] ❌ Error handling request directly:`, error);
+        return res.status(200).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32603,
+            message: `Internal error: ${error instanceof Error ? error.message : String(error)}`
+          },
+          id: req.body?.id || null
+        });
       }
     });
 
