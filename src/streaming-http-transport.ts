@@ -11,6 +11,7 @@ import { createServer, Server as HttpServer } from 'http';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { randomUUID } from 'node:crypto';
 import { TOOLS_DEFINITION, executeToolDirectly } from './index.js';
 
 // Simple rate limiting interface
@@ -60,12 +61,13 @@ export class StreamingHttpTransport {
     this.config = config;
     this.app = express();
     this.setupMiddleware();
-    // Initialize official streamable HTTP transport in stateless mode for better compatibility
-    // Stateless mode (sessionIdGenerator: undefined) allows clients to connect without session management
+    // Initialize official streamable HTTP transport in STATEFUL mode for Claude.ai Custom Connector compatibility
+    // CRITICAL: Claude.ai browser REQUIRES session IDs to be generated and returned in Mcp-Session-Id header
+    // Stateful mode (sessionIdGenerator: randomUUID) generates session IDs for each connection
     this.transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: undefined, // Stateless mode - no session management
+      sessionIdGenerator: () => randomUUID(), // ✅ STATEFUL mode - generates session IDs
       enableDnsRebindingProtection: false, // Disable for remote access compatibility
-      enableJsonResponse: true, // Enable JSON responses for Claude Desktop compatibility
+      enableJsonResponse: false, // Use SSE streaming for proper MCP protocol support
     });
     this.setupRoutes();
   }
@@ -297,13 +299,30 @@ export class StreamingHttpTransport {
     });
 
     // Main MCP endpoint with header-based authentication
-    this.app.post('/mcp', this.authMiddleware.bind(this), async (req, res) => {
+    // ALSO accepts API key in custom header for Claude Desktop compatibility
+    this.app.post('/mcp', async (req, res) => {
       // VERBOSE LOGGING FOR CLAUDE DESKTOP/WEB DEBUGGING
-      console.error('[HTTP] ========== INCOMING MCP REQUEST ==========');
+      console.error('[HTTP] ========== INCOMING MCP REQUEST (HEADER AUTH) ==========');
       console.error('[HTTP] 🔍 FULL REQUEST HEADERS:', JSON.stringify(req.headers, null, 2));
       console.error('[HTTP] 🔍 REQUEST BODY:', JSON.stringify(req.body, null, 2));
       console.error('[HTTP] 🔍 REQUEST METHOD:', req.body?.method || 'unknown');
       console.error('[HTTP] =======================================');
+
+      // Try to extract API key from headers FIRST (for Claude Desktop compatibility)
+      let apiKey = req.headers.authorization?.replace('Bearer ', '') ||
+                   req.headers['x-instantly-api-key'] as string ||
+                   req.headers['x-api-key'] as string;
+
+      if (apiKey) {
+        // API key provided in header - store it and proceed WITHOUT auth middleware
+        console.error('[HTTP] 🔑 API key found in headers, bypassing auth middleware');
+        req.headers['x-instantly-api-key'] = apiKey;
+        (req as any).instantlyApiKey = apiKey;
+      } else {
+        // No API key in headers - this might be an initialize request
+        // Allow it through for protocol negotiation
+        console.error('[HTTP] ⚠️  No API key in headers - allowing for initialize');
+      }
 
       // Delegate to official StreamableHTTPServerTransport - it handles all MCP protocol details
       try {

@@ -26,7 +26,7 @@
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { TransportManager } from './transport-manager.js';
+import { TransportManager } from './transport-manager-new.js';
 
 // Ensure fetch is available (Node.js 18+ has it built-in)
 // Version: 1.1.0 - Parameter validation fixes deployed
