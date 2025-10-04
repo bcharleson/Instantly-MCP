@@ -5,6 +5,7 @@
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import express from 'express';
 import cors from 'cors';
 import { createServer, Server as HttpServer } from 'http';
@@ -48,6 +49,7 @@ export class StreamingHttpTransport {
   private httpServer?: HttpServer;
   private activeSessions = new Map<string, any>();
   private transports = new Map<string, StreamableHTTPServerTransport>(); // Store transports by session ID
+  private sseTransports = new Map<string, SSEServerTransport>(); // Store SSE transports by session ID
   private requestHandlers?: {
     toolsList: (id: any) => Promise<any>;
     toolCall: (params: any, id: any) => Promise<any>;
@@ -296,12 +298,18 @@ export class StreamingHttpTransport {
         status: 'healthy',
         service: 'instantly-mcp',
         version: '1.1.0',
-        transport: 'streaming-http',
+        transport: 'dual-protocol',
+        protocols: {
+          streamable_http: '2025-03-26',
+          sse: '2024-11-05'
+        },
         timestamp: new Date().toISOString(),
         activeSessions: this.activeSessions.size,
+        sseSessions: this.sseTransports.size,
         endpoints: {
-          mcp: '/mcp',
+          mcp: '/mcp (GET for SSE, POST for Streamable HTTP)',
           'mcp-with-key': '/mcp/:apiKey',
+          messages: '/messages (POST for SSE transport)',
           health: '/health',
           info: '/info',
           ping: '/ping'
@@ -580,16 +588,16 @@ export class StreamingHttpTransport {
       });
     });
 
-    // GET endpoint for MCP clients (supports SSE if needed)
-    this.app.get('/mcp/:apiKey?', (req, res) => {
+    // GET endpoint for MCP clients (supports SSE for Claude.ai proxy)
+    this.app.get('/mcp/:apiKey?', async (req, res) => {
       const apiKey = req.params.apiKey;
       const acceptHeader = req.headers.accept || '';
       const protocolVersion = req.headers['mcp-protocol-version'] as string;
-      
+
       console.error(`[HTTP] 🔍 GET /mcp request - API Key: ${apiKey ? '✅ Present' : '❌ Missing'}`);
       console.error(`[HTTP] 📋 Accept: ${acceptHeader}`);
       console.error(`[HTTP] 🔖 Protocol Version: ${protocolVersion || 'Not provided'}`);
-      
+
       // Validate MCP-Protocol-Version header (backward compatible)
       // Per MCP spec: if no header provided, assume 2025-03-26 for backward compatibility
       if (protocolVersion && !['2025-06-18', '2025-03-26', '2024-11-05'].includes(protocolVersion)) {
@@ -599,19 +607,34 @@ export class StreamingHttpTransport {
           message: `Unsupported MCP protocol version: ${protocolVersion}. Supported: 2025-06-18, 2025-03-26 (recommended), 2024-11-05`
         });
       }
-      
+
       if (acceptHeader.includes('text/event-stream')) {
-        // Client wants SSE stream - return 405 as we use Streamable HTTP
-        console.error('[HTTP] 🚫 SSE not supported - use Streamable HTTP POST');
-        res.status(405).json({
-          error: 'Method Not Allowed',
-          message: 'SSE not supported. Use POST for Streamable HTTP transport.',
-          transport: 'streamable-http',
-          endpoint: apiKey ? `/mcp/${apiKey}` : '/mcp'
-        });
+        // Client wants SSE stream - support for Claude.ai proxy
+        console.error('[HTTP] 📡 SSE connection requested - starting SSE transport');
+
+        try {
+          const transport = new SSEServerTransport('/messages', res);
+          this.sseTransports.set(transport.sessionId, transport);
+
+          res.on('close', () => {
+            console.error(`[HTTP] 📡 SSE connection closed for session ${transport.sessionId}`);
+            this.sseTransports.delete(transport.sessionId);
+          });
+
+          await this.server.connect(transport);
+          console.error(`[HTTP] ✅ SSE transport connected with session ID: ${transport.sessionId}`);
+        } catch (error) {
+          console.error('[HTTP] ❌ Failed to establish SSE connection:', error);
+          if (!res.headersSent) {
+            res.status(500).json({
+              error: 'Internal Server Error',
+              message: 'Failed to establish SSE connection'
+            });
+          }
+        }
         return;
       }
-      
+
       // Return server info for GET requests
       res.json({
         server: 'instantly-mcp',
@@ -620,6 +643,7 @@ export class StreamingHttpTransport {
         protocol: '2025-03-26',
         endpoints: {
           'mcp_post': apiKey ? `/mcp/${apiKey}` : '/mcp',
+          'messages_post': '/messages',
           'health': '/health',
           'info': '/info'
         },
@@ -628,6 +652,55 @@ export class StreamingHttpTransport {
           methods: ['path_parameter', 'header']
         }
       });
+    });
+
+    // POST /messages endpoint for SSE transport (Claude.ai proxy compatibility)
+    this.app.post('/messages', async (req, res) => {
+      const sessionId = req.query.sessionId as string;
+
+      console.error(`[HTTP] 📨 POST /messages request - Session ID: ${sessionId || 'Missing'}`);
+
+      if (!sessionId) {
+        return res.status(400).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32000,
+            message: 'Bad Request: sessionId query parameter required'
+          },
+          id: null
+        });
+      }
+
+      const transport = this.sseTransports.get(sessionId);
+
+      if (!transport) {
+        console.error(`[HTTP] ❌ No SSE transport found for session ${sessionId}`);
+        return res.status(400).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32000,
+            message: 'Bad Request: Invalid session or session expired'
+          },
+          id: null
+        });
+      }
+
+      try {
+        await transport.handlePostMessage(req, res, req.body);
+        console.error(`[HTTP] ✅ Message handled for session ${sessionId}`);
+      } catch (error) {
+        console.error(`[HTTP] ❌ Error handling message for session ${sessionId}:`, error);
+        if (!res.headersSent) {
+          res.status(500).json({
+            jsonrpc: '2.0',
+            error: {
+              code: -32603,
+              message: 'Internal error processing message'
+            },
+            id: null
+          });
+        }
+      }
     });
 
     // Server-Sent Events endpoint for streaming MCP clients
