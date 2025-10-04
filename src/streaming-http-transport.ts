@@ -73,13 +73,18 @@ export class StreamingHttpTransport {
    * Setup Express middleware
    */
   private setupMiddleware(): void {
-    // Claude Desktop compatibility: Inject Accept header if missing
-    // Claude Desktop's custom connector (BETA) doesn't send the required Accept header
-    // This middleware ensures compatibility while maintaining spec compliance for other clients
+    // Claude Desktop compatibility: Inject Accept header if missing or incomplete
+    // The MCP SDK requires BOTH 'application/json' AND 'text/event-stream' in the Accept header
+    // Claude Desktop/Web may send only 'application/json', while iOS sends '*/*' or no header
+    // This middleware ensures all clients get the required header combination
     this.app.use((req, res, next) => {
-      if (!req.headers.accept || req.headers.accept === '*/*') {
+      const accept = req.headers.accept || '';
+      const hasJson = accept.includes('application/json');
+      const hasEventStream = accept.includes('text/event-stream');
+
+      if (!hasJson || !hasEventStream) {
         req.headers.accept = 'application/json, text/event-stream';
-        console.error('[HTTP] 🔧 Injected Accept header for Claude Desktop compatibility');
+        console.error('[HTTP] 🔧 Injected Accept header for MCP compatibility (was: %s)', accept || 'missing');
       }
       next();
     });
