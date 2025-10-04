@@ -163,8 +163,9 @@ server.setRequestHandler(InitializeRequestSchema, async (request) => {
   console.error('[Instantly MCP] 🎨 Icons loaded:', icons.length > 0 ? `✅ ${icons.length} icon(s)` : '❌ Missing');
 
   // Enhanced initialization response matching HTTP transport
+  // Use 2025-03-26 for Claude Desktop/Web compatibility (supports authorization)
   const initResponse = {
-    protocolVersion: '2024-11-05',
+    protocolVersion: '2025-03-26',
     capabilities: {
       tools: {
         listChanged: true,

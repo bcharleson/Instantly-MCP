@@ -200,8 +200,9 @@ export class StreamingHttpTransport {
     });
 
     // MCP Protocol Version header (required by spec)
+    // Use 2025-03-26 for Claude Desktop/Web compatibility
     this.app.use((req, res, next) => {
-      res.setHeader('mcp-protocol-version', '2025-06-18');
+      res.setHeader('mcp-protocol-version', '2025-03-26');
       next();
     });
   }
@@ -251,7 +252,7 @@ export class StreamingHttpTransport {
         description: 'Official Instantly.ai MCP server with 22 email automation tools',
         transport: 'streaming-http',
         endpoint: 'https://mcp.instantly.ai/mcp',
-        protocol: '2025-06-18',
+        protocol: '2025-03-26',
         tools: 22,
         capabilities: {
           tools: true,
@@ -356,44 +357,38 @@ export class StreamingHttpTransport {
 
     // OAuth 2.1 Authorization Server Metadata (RFC 8414)
     // Claude Desktop/Web checks this endpoint to discover auth capabilities
+    // Return 404 to indicate no OAuth is supported - API key only
     this.app.get('/.well-known/oauth-authorization-server', (req, res) => {
-      console.error('[HTTP] 🔍 OAuth discovery: /.well-known/oauth-authorization-server');
+      console.error('[HTTP] 🔍 OAuth discovery: /.well-known/oauth-authorization-server - returning 404 (API key auth only)');
 
-      // Tell Claude this server uses API key auth, not OAuth
-      res.json({
-        issuer: 'https://mcp.instantly.ai',
-        authorization_endpoint: 'https://mcp.instantly.ai/authorize',
-        token_endpoint: 'https://mcp.instantly.ai/token',
-        grant_types_supported: ['client_credentials'],
-        token_endpoint_auth_methods_supported: ['none'],
-        response_types_supported: ['none'],
-        // Indicate this is an API key based service
-        service_documentation: 'https://github.com/Instantly-ai/instantly-mcp',
-        ui_locales_supported: ['en-US'],
-        // Custom field to indicate API key auth
-        api_key_auth: {
-          enabled: true,
+      // Return 404 to clearly indicate OAuth is not supported
+      // This tells Claude Desktop/Web to skip OAuth and allow direct connection
+      res.status(404).json({
+        error: 'OAuth not supported',
+        message: 'This server uses API key authentication only. No OAuth flow required.',
+        authentication: {
+          type: 'api_key',
           methods: ['url_path', 'header'],
-          description: 'Use API key in URL path (/mcp/{API_KEY}) or Authorization header'
-        }
+          url_format: '/mcp/{API_KEY}',
+          header_format: 'Authorization: Bearer {API_KEY} or x-instantly-api-key: {API_KEY}'
+        },
+        documentation: 'https://github.com/Instantly-ai/instantly-mcp'
       });
     });
 
     // OAuth 2.0 Protected Resource Metadata (RFC 8414)
+    // Return 404 to indicate no OAuth is supported
     this.app.get('/.well-known/oauth-protected-resource', (req, res) => {
-      console.error('[HTTP] 🔍 OAuth discovery: /.well-known/oauth-protected-resource');
+      console.error('[HTTP] 🔍 OAuth discovery: /.well-known/oauth-protected-resource - returning 404 (API key auth only)');
 
-      res.json({
-        resource: 'https://mcp.instantly.ai',
-        authorization_servers: ['https://mcp.instantly.ai'],
-        bearer_methods_supported: ['header'],
-        resource_documentation: 'https://github.com/Instantly-ai/instantly-mcp',
-        // Indicate API key auth is used
-        api_key_auth: {
-          enabled: true,
-          header: 'Authorization',
-          url_parameter: 'api_key'
-        }
+      res.status(404).json({
+        error: 'OAuth not supported',
+        message: 'This server uses API key authentication only. No OAuth flow required.',
+        authentication: {
+          type: 'api_key',
+          methods: ['url_path', 'header']
+        },
+        documentation: 'https://github.com/Instantly-ai/instantly-mcp'
       });
     });
 
@@ -426,20 +421,17 @@ export class StreamingHttpTransport {
     });
 
     // OAuth Dynamic Client Registration (RFC 7591)
-    // Claude Desktop may try to register as a client
+    // Return 404 to indicate OAuth registration is not supported
     this.app.post('/register', (req, res) => {
-      console.error('[HTTP] 🔍 OAuth client registration attempted');
+      console.error('[HTTP] 🔍 OAuth client registration attempted - returning 404 (not supported)');
 
-      // Return success but indicate no registration needed for API key auth
-      res.json({
-        client_id: 'instantly-mcp-api-key-client',
-        client_name: 'Instantly MCP',
-        grant_types: ['client_credentials'],
-        token_endpoint_auth_method: 'none',
-        // Indicate API key auth is used instead
-        api_key_auth: {
-          enabled: true,
-          description: 'No OAuth registration needed. Use API key in URL or headers.',
+      // Return 404 to clearly indicate OAuth registration is not supported
+      res.status(404).json({
+        error: 'OAuth registration not supported',
+        message: 'This server uses API key authentication only. No client registration required.',
+        authentication: {
+          type: 'api_key',
+          description: 'Provide your Instantly.ai API key via URL path or headers',
           methods: ['url_path', 'header']
         }
       });
@@ -487,7 +479,7 @@ export class StreamingHttpTransport {
         console.error(`[HTTP] ❌ Unsupported protocol version: ${protocolVersion}`);
         return res.status(400).json({
           error: 'Bad Request',
-          message: `Unsupported MCP protocol version: ${protocolVersion}. Supported: 2025-06-18, 2025-03-26, 2024-11-05`
+          message: `Unsupported MCP protocol version: ${protocolVersion}. Supported: 2025-06-18, 2025-03-26 (recommended), 2024-11-05`
         });
       }
       
@@ -508,7 +500,7 @@ export class StreamingHttpTransport {
         server: 'instantly-mcp',
         version: '1.1.0',
         transport: 'streamable-http',
-        protocol: '2025-06-18',
+        protocol: '2025-03-26',
         endpoints: {
           'mcp_post': apiKey ? `/mcp/${apiKey}` : '/mcp',
           'health': '/health',
@@ -602,7 +594,7 @@ export class StreamingHttpTransport {
         message: `Endpoint ${req.path} not found`,
         availableEndpoints: ['/mcp', '/mcp/{API_KEY}', '/authorize', '/health', '/info'],
         transport: 'streamable-http',
-        protocol: '2025-06-18'
+        protocol: '2025-03-26'
       });
     });
   }
