@@ -65,6 +65,7 @@ export class StreamingHttpTransport {
     this.transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined, // Stateless mode - no session management
       enableDnsRebindingProtection: false, // Disable for remote access compatibility
+      enableJsonResponse: true, // Enable JSON responses for Claude Desktop compatibility
     });
     this.setupRoutes();
   }
