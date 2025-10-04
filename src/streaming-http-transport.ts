@@ -67,8 +67,8 @@ export class StreamingHttpTransport {
   }
 
   /**
-   * Handle MCP request with session-based transport management
-   * Creates a new transport instance for each session (stateful mode)
+   * Handle MCP request with OPTIONAL session-based transport management
+   * Falls back to stateless mode if sessions aren't supported/available
    */
   private async handleMcpRequest(req: express.Request, res: express.Response): Promise<void> {
     try {
@@ -76,81 +76,45 @@ export class StreamingHttpTransport {
       const sessionId = req.headers['mcp-session-id'] as string | undefined;
       const isInitRequest = req.body?.method === 'initialize';
       let transport: StreamableHTTPServerTransport;
-      let effectiveSessionId: string;
+      let effectiveSessionId: string | undefined;
 
-      if (isInitRequest) {
-        // Initialize request: create new session
-        effectiveSessionId = randomUUID();
-        console.error(`[HTTP] 🆕 Creating new session: ${effectiveSessionId}`);
-
-        transport = new StreamableHTTPServerTransport({
-          sessionIdGenerator: () => effectiveSessionId, // Return the session ID we generated
-          enableDnsRebindingProtection: false,
-          enableJsonResponse: true, // Support both JSON and SSE responses
-        });
-
-        // Set up onclose handler for cleanup
-        transport.onclose = () => {
-          if (this.transports.has(effectiveSessionId)) {
-            console.error(`[HTTP] 🧹 Cleaning up closed session: ${effectiveSessionId}`);
-            this.transports.delete(effectiveSessionId);
-          }
-        };
-
-        // Store transport in map
-        this.transports.set(effectiveSessionId, transport);
-        console.error(`[HTTP] ✅ Session stored: ${effectiveSessionId}`);
-
-        // Connect the transport to the MCP server
-        await this.server.connect(transport);
-
-        // Return session ID in response header
-        res.setHeader('Mcp-Session-Id', effectiveSessionId);
-        console.error(`[HTTP] 📤 Returning session ID in header: ${effectiveSessionId}`);
-      } else if (sessionId && this.transports.has(sessionId)) {
-        // Subsequent request: reuse existing transport
+      if (sessionId && this.transports.has(sessionId)) {
+        // Subsequent request with valid session: reuse existing transport
         transport = this.transports.get(sessionId)!;
         effectiveSessionId = sessionId;
         console.error(`[HTTP] 🔄 Reusing existing session: ${sessionId}`);
 
-        // Always return session ID in response header
+        // Return session ID in response header
         res.setHeader('Mcp-Session-Id', sessionId);
-      } else if (sessionId) {
-        // Session ID provided but not found
-        console.error(`[HTTP] ❌ Session not found: ${sessionId}`);
-        res.status(404).json({
-          jsonrpc: '2.0',
-          error: {
-            code: -32001,
-            message: 'Session not found',
-            data: {
-              sessionId,
-              hint: 'Session may have expired or been cleaned up. Please reinitialize.'
-            }
-          },
-          id: req.body?.id || null,
+      } else if (sessionId && !this.transports.has(sessionId)) {
+        // Session ID provided but not found - fall back to stateless mode
+        console.error(`[HTTP] ⚠️  Session not found: ${sessionId} - falling back to stateless mode`);
+
+        // Create new stateless transport for this request
+        transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: undefined, // Stateless mode
+          enableDnsRebindingProtection: false,
+          enableJsonResponse: true,
         });
-        return;
+
+        await this.server.connect(transport);
       } else {
-        // No session ID and not an initialize request
-        console.error('[HTTP] ❌ No session ID provided for non-initialize request');
-        res.status(400).json({
-          jsonrpc: '2.0',
-          error: {
-            code: -32000,
-            message: 'Bad Request: Session ID required for non-initialize requests',
-            data: {
-              hint: 'Include Mcp-Session-Id header with the session ID from initialization'
-            }
-          },
-          id: req.body?.id || null,
+        // No session ID - use stateless mode (backward compatible)
+        console.error(`[HTTP] 🔓 Stateless request (no session ID)`);
+
+        // Create new stateless transport for this request
+        transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: undefined, // Stateless mode
+          enableDnsRebindingProtection: false,
+          enableJsonResponse: true,
         });
-        return;
+
+        await this.server.connect(transport);
       }
 
       // Handle the request with the transport
       await transport.handleRequest(req, res, req.body);
-      console.error(`[HTTP] ✅ Request handled successfully for session: ${effectiveSessionId}`);
+      console.error(`[HTTP] ✅ Request handled successfully${effectiveSessionId ? ` for session: ${effectiveSessionId}` : ' (stateless)'}`);
     } catch (error) {
       console.error('[HTTP] ❌ MCP request error:', error);
       if (!res.headersSent) {
