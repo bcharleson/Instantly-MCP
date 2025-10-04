@@ -301,9 +301,12 @@ async function gatherCampaignPrerequisites(args: any, apiKey?: string): Promise<
   let accountAnalysis: any = {};
 
   try {
-    accounts = await getAllAccounts(apiKey);
+    const accountsResult = await getAllAccounts(apiKey);
 
-    if (!accounts || accounts.length === 0) {
+    // FIX: getAllAccounts returns { data: [...], metadata: {...} }, not an array directly
+    accounts = accountsResult.data || accountsResult;
+
+    if (!accounts || !Array.isArray(accounts) || accounts.length === 0) {
       return {
         stage: 'prerequisite_check',
         status: 'no_accounts_found',
@@ -1134,9 +1137,12 @@ async function validateEmailListAgainstAccounts(emailList: string[], apiKey?: st
     });
 
     const accountsPromise = getAllAccounts(apiKey);
-    const accounts = await Promise.race([accountsPromise, timeoutPromise]) as any[];
+    const accountsResult = await Promise.race([accountsPromise, timeoutPromise]) as any;
 
-    if (!accounts || accounts.length === 0) {
+    // FIX: getAllAccounts returns { data: [...], metadata: {...} }, not an array directly
+    const accounts = accountsResult.data || accountsResult;
+
+    if (!accounts || !Array.isArray(accounts) || accounts.length === 0) {
       throw new McpError(
         ErrorCode.InvalidParams,
         'No accounts found in your workspace. Please add at least one account before creating campaigns.'
