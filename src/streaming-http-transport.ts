@@ -249,11 +249,11 @@ export class StreamingHttpTransport {
       res.json({
         name: 'Instantly MCP Server',
         version: '1.1.0',
-        description: 'Official Instantly.ai MCP server with 22 email automation tools',
+        description: 'Official Instantly.ai MCP server with 34 email automation tools',
         transport: 'streaming-http',
         endpoint: 'https://mcp.instantly.ai/mcp',
         protocol: '2025-03-26',
-        tools: 22,
+        tools: 34,
         capabilities: {
           tools: true,
           resources: false,
@@ -294,18 +294,21 @@ export class StreamingHttpTransport {
 
     // Main MCP endpoint with header-based authentication
     this.app.post('/mcp', this.authMiddleware.bind(this), async (req, res) => {
-      // LOG ALL HEADERS FOR DEBUGGING
-      console.error('[HTTP] 🔍 INCOMING REQUEST HEADERS:', JSON.stringify({
-        origin: req.headers.origin,
-        host: req.headers.host,
-        referer: req.headers.referer,
-        'user-agent': req.headers['user-agent'],
-        'x-forwarded-for': req.headers['x-forwarded-for'],
-        'x-forwarded-proto': req.headers['x-forwarded-proto'],
-      }, null, 2));
+      // VERBOSE LOGGING FOR CLAUDE DESKTOP/WEB DEBUGGING
+      console.error('[HTTP] ========== INCOMING MCP REQUEST ==========');
+      console.error('[HTTP] 🔍 FULL REQUEST HEADERS:', JSON.stringify(req.headers, null, 2));
+      console.error('[HTTP] 🔍 REQUEST BODY:', JSON.stringify(req.body, null, 2));
+      console.error('[HTTP] 🔍 REQUEST METHOD:', req.body?.method || 'unknown');
+      console.error('[HTTP] =======================================');
 
       // Delegate to official StreamableHTTPServerTransport - it handles all MCP protocol details
-      await this.transport.handleRequest(req, res, req.body);
+      try {
+        await this.transport.handleRequest(req, res, req.body);
+        console.error('[HTTP] ✅ MCP request handled successfully');
+      } catch (error) {
+        console.error('[HTTP] ❌ MCP request error:', error);
+        throw error;
+      }
     });
 
     // URL-based authentication endpoint: /mcp/{API_KEY}
@@ -331,28 +334,27 @@ export class StreamingHttpTransport {
         return;
       }
 
-      // LOG ALL HEADERS FOR DEBUGGING - CAPTURE REAL CLIENT DATA
-      console.error('[HTTP] 🔍 INCOMING REQUEST HEADERS (with API key in URL):', JSON.stringify({
-        origin: req.headers.origin,
-        host: req.headers.host,
-        referer: req.headers.referer,
-        'user-agent': req.headers['user-agent'],
-        'x-forwarded-for': req.headers['x-forwarded-for'],
-        'x-forwarded-proto': req.headers['x-forwarded-proto'],
-        'x-real-ip': req.headers['x-real-ip'],
-      }, null, 2));
-
-      // Use API key as-is from URL path (Instantly.ai expects base64-encoded format)
-      console.error(`[HTTP] 🔑 Using API key from URL path as-is: ${apiKey.substring(0, 20)}...`);
+      // VERBOSE LOGGING FOR CLAUDE DESKTOP/WEB DEBUGGING
+      console.error('[HTTP] ========== INCOMING MCP REQUEST (URL AUTH) ==========');
+      console.error('[HTTP] 🔑 API Key from URL:', apiKey.substring(0, 20) + '...');
+      console.error('[HTTP] 🔍 FULL REQUEST HEADERS:', JSON.stringify(req.headers, null, 2));
+      console.error('[HTTP] 🔍 REQUEST BODY:', JSON.stringify(req.body, null, 2));
+      console.error('[HTTP] 🔍 REQUEST METHOD:', req.body?.method || 'unknown');
+      console.error('[HTTP] =======================================');
 
       // Store the API key in request headers for SDK to pass through via extra.requestInfo.headers
       req.headers['x-instantly-api-key'] = apiKey;
       // Also store in request object as backup
       (req as any).instantlyApiKey = apiKey;
-      console.error(`[HTTP] 🔍 Request body:`, JSON.stringify(req.body));
 
       // Delegate to official StreamableHTTPServerTransport
-      await this.transport.handleRequest(req, res, req.body);
+      try {
+        await this.transport.handleRequest(req, res, req.body);
+        console.error('[HTTP] ✅ MCP request (URL auth) handled successfully');
+      } catch (error) {
+        console.error('[HTTP] ❌ MCP request (URL auth) error:', error);
+        throw error;
+      }
     });
 
     // OAuth 2.1 Authorization Server Metadata (RFC 8414)
