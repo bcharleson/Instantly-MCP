@@ -50,6 +50,7 @@ export class StreamingHttpTransport {
   private activeSessions = new Map<string, any>();
   private transports = new Map<string, StreamableHTTPServerTransport>(); // Store transports by session ID
   private sseTransports = new Map<string, SSEServerTransport>(); // Store SSE transports by session ID
+  private sseSessionMetadata = new Map<string, { apiKey?: string }>(); // Store API key and other metadata per SSE session
   private requestHandlers?: {
     toolsList: (id: any) => Promise<any>;
     toolCall: (params: any, id: any) => Promise<any>;
@@ -617,12 +618,17 @@ export class StreamingHttpTransport {
           const transport = new SSEServerTransport('/messages', res);
           this.sseTransports.set(transport.sessionId, transport);
 
+          // CRITICAL FIX: Store API key with SSE session so tool calls can access it
+          this.sseSessionMetadata.set(transport.sessionId, { apiKey });
+          console.error(`[HTTP] 📡 SSE session metadata stored - API Key: ${apiKey ? '✅ Present' : '❌ Missing'}`);
+
           console.error(`[HTTP] 📡 SSE transport created with session ID: ${transport.sessionId}`);
           console.error(`[HTTP] 📡 Active SSE sessions: ${this.sseTransports.size}`);
 
           res.on('close', () => {
             console.error(`[HTTP] 📡 SSE connection closed for session ${transport.sessionId}`);
             this.sseTransports.delete(transport.sessionId);
+            this.sseSessionMetadata.delete(transport.sessionId); // Clean up metadata
             console.error(`[HTTP] 📡 Remaining SSE sessions: ${this.sseTransports.size}`);
           });
 
@@ -679,6 +685,7 @@ export class StreamingHttpTransport {
       }
 
       const transport = this.sseTransports.get(sessionId);
+      const sessionMetadata = this.sseSessionMetadata.get(sessionId);
 
       if (!transport) {
         console.error(`[HTTP] ❌ No SSE transport found for session ${sessionId}`);
@@ -695,6 +702,18 @@ export class StreamingHttpTransport {
       try {
         // Log the incoming message for debugging
         console.error(`[HTTP] 📨 SSE Message body:`, JSON.stringify(req.body, null, 2));
+
+        // CRITICAL FIX: Inject API key from session metadata into request headers
+        // This allows the tool handler to access the API key via extra.requestInfo.headers
+        if (sessionMetadata?.apiKey) {
+          if (!req.headers) {
+            req.headers = {};
+          }
+          req.headers['x-instantly-api-key'] = sessionMetadata.apiKey;
+          console.error(`[HTTP] 🔑 Injected API key from SSE session metadata into request headers`);
+        } else {
+          console.error(`[HTTP] ⚠️ No API key found in SSE session metadata for session ${sessionId}`);
+        }
 
         await transport.handlePostMessage(req, res, req.body);
         console.error(`[HTTP] ✅ Message handled for session ${sessionId}`);
