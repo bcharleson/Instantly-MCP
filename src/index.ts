@@ -176,19 +176,13 @@ server.setRequestHandler(InitializeRequestSchema, async (request) => {
       prompts: {
         listChanged: false,
       },
-      // Claude Desktop expects explicit auth capability declaration
-      auth: {
-        required: false,
-      },
     },
     serverInfo: {
       name: 'instantly-mcp',
       version: '1.1.0',
       icons: icons,
-      // Add description for Claude Desktop
       description: 'Instantly.ai email automation and campaign management tools',
     },
-    // Add instructions for Claude Desktop
     instructions: 'Use these tools to manage Instantly.ai email campaigns, accounts, and automation workflows.',
   };
 
