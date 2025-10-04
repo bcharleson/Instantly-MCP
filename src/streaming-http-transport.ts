@@ -611,24 +611,31 @@ export class StreamingHttpTransport {
       if (acceptHeader.includes('text/event-stream')) {
         // Client wants SSE stream - support for Claude.ai proxy
         console.error('[HTTP] 📡 SSE connection requested - starting SSE transport');
+        console.error(`[HTTP] 📡 API Key: ${apiKey ? '✅ Present' : '❌ Missing'}`);
 
         try {
           const transport = new SSEServerTransport('/messages', res);
           this.sseTransports.set(transport.sessionId, transport);
 
+          console.error(`[HTTP] 📡 SSE transport created with session ID: ${transport.sessionId}`);
+          console.error(`[HTTP] 📡 Active SSE sessions: ${this.sseTransports.size}`);
+
           res.on('close', () => {
             console.error(`[HTTP] 📡 SSE connection closed for session ${transport.sessionId}`);
             this.sseTransports.delete(transport.sessionId);
+            console.error(`[HTTP] 📡 Remaining SSE sessions: ${this.sseTransports.size}`);
           });
 
           await this.server.connect(transport);
-          console.error(`[HTTP] ✅ SSE transport connected with session ID: ${transport.sessionId}`);
+          console.error(`[HTTP] ✅ SSE transport connected successfully - session ID: ${transport.sessionId}`);
         } catch (error) {
           console.error('[HTTP] ❌ Failed to establish SSE connection:', error);
+          console.error('[HTTP] ❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+
           if (!res.headersSent) {
             res.status(500).json({
               error: 'Internal Server Error',
-              message: 'Failed to establish SSE connection'
+              message: `Failed to establish SSE connection: ${error instanceof Error ? error.message : String(error)}`
             });
           }
         }
@@ -686,16 +693,22 @@ export class StreamingHttpTransport {
       }
 
       try {
+        // Log the incoming message for debugging
+        console.error(`[HTTP] 📨 SSE Message body:`, JSON.stringify(req.body, null, 2));
+
         await transport.handlePostMessage(req, res, req.body);
         console.error(`[HTTP] ✅ Message handled for session ${sessionId}`);
       } catch (error) {
-        console.error(`[HTTP] ❌ Error handling message for session ${sessionId}:`, error);
+        console.error(`[HTTP] ❌ Error handling SSE message for session ${sessionId}:`, error);
+        console.error(`[HTTP] ❌ Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
+        console.error(`[HTTP] ❌ Error details:`, JSON.stringify(error, null, 2));
+
         if (!res.headersSent) {
           res.status(500).json({
             jsonrpc: '2.0',
             error: {
               code: -32603,
-              message: 'Internal error processing message'
+              message: `Internal error processing SSE message: ${error instanceof Error ? error.message : String(error)}`
             },
             id: null
           });
