@@ -78,14 +78,18 @@ export class StreamingHttpTransport {
     // The MCP SDK requires BOTH 'application/json' AND 'text/event-stream' in the Accept header
     // Claude Desktop/Web may send only 'application/json', while iOS sends '*/*' or no header
     // This middleware ensures all clients get the required header combination
+    // IMPORTANT: Only inject for POST requests to /mcp, not GET requests (which are for discovery)
     this.app.use((req, res, next) => {
-      const accept = req.headers.accept || '';
-      const hasJson = accept.includes('application/json');
-      const hasEventStream = accept.includes('text/event-stream');
+      // Only inject Accept header for POST requests to MCP endpoints
+      if (req.method === 'POST' && req.path.startsWith('/mcp')) {
+        const accept = req.headers.accept || '';
+        const hasJson = accept.includes('application/json');
+        const hasEventStream = accept.includes('text/event-stream');
 
-      if (!hasJson || !hasEventStream) {
-        req.headers.accept = 'application/json, text/event-stream';
-        console.error('[HTTP] 🔧 Injected Accept header for MCP compatibility (was: %s)', accept || 'missing');
+        if (!hasJson || !hasEventStream) {
+          req.headers.accept = 'application/json, text/event-stream';
+          console.error('[HTTP] 🔧 Injected Accept header for MCP compatibility (was: %s)', accept || 'missing');
+        }
       }
       next();
     });
