@@ -353,10 +353,11 @@ export async function paginateInstantlyAPI(
   } = options;
 
   // ADDED: Client-aware timeout protection
-  let TOTAL_TIMEOUT_MS = 25000; // Default: 25 seconds
-  let TIMEOUT_BUFFER_MS = 5000; // Default: 5 second buffer
+  // REDUCED: Default timeout to 20 seconds to stay well under server 30s timeout
+  let TOTAL_TIMEOUT_MS = 20000; // Default: 20 seconds (was 25s)
+  let TIMEOUT_BUFFER_MS = 3000; // Default: 3 second buffer (was 5s)
   let DELAY_BETWEEN_REQUESTS_MS = 100; // Default: 100ms delay
-  let maxPages = userMaxPages || 5; // Default: 5 pages
+  let maxPages = userMaxPages || 2; // Default: 2 pages (was 5) for faster response
 
   // Import and use client detection if enabled
   if (useClientDetection) {

@@ -271,8 +271,9 @@ async function getAllAccounts(apiKey?: string, params?: any): Promise<any> {
     }
 
     // Use direct API call with pagination
+    // REDUCED: maxPages from 5 to 2 to prevent 504 Gateway Timeout errors
     const result = await paginateInstantlyAPI('/accounts', makeRequestWithKey, paginationParams, {
-      maxPages: 5,
+      maxPages: 2, // Reduced from 5 to stay under 30s server timeout
       batchSize: params?.limit || 100,
       operationType: 'accounts'
     });
@@ -2083,7 +2084,7 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
         ...paginationParams,
         ...args
       }, {
-        maxPages: 3, // Reduced from 5 for faster response in MCP clients (Gemini, ChatGPT)
+        maxPages: 2, // Reduced from 3 to prevent 504 Gateway Timeout errors
         batchSize: args?.limit || 100,
         additionalParams,
         operationType: 'campaigns'

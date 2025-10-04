@@ -169,7 +169,7 @@ export class StreamingHttpTransport {
     this.app.use((req, res, next) => {
       res.set({
         'Connection': 'keep-alive',
-        'Keep-Alive': 'timeout=30, max=100',
+        'Keep-Alive': 'timeout=60, max=100', // Increased from 30s to 60s
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         'X-Content-Type-Options': 'nosniff',
         'X-Frame-Options': 'DENY',
@@ -864,8 +864,9 @@ export class StreamingHttpTransport {
     return new Promise((resolve, reject) => {
       this.httpServer = createServer(this.app);
 
-      // Enhanced timeout and connection handling for Claude Desktop
-      this.httpServer.timeout = 30000; // 30 second timeout
+      // Enhanced timeout and connection handling for Claude Desktop and Claude.ai
+      // INCREASED: Timeout from 30s to 60s to accommodate pagination and prevent 504 errors
+      this.httpServer.timeout = 60000; // 60 second timeout (was 30s)
       this.httpServer.keepAliveTimeout = 65000; // 65 second keep-alive
       this.httpServer.headersTimeout = 66000; // 66 second headers timeout
 
@@ -893,12 +894,12 @@ export class StreamingHttpTransport {
         reject(error);
       });
 
-      // Enhanced connection handling for Claude Desktop
+      // Enhanced connection handling for Claude Desktop and Claude.ai
       this.httpServer.on('connection', (socket) => {
         socket.setKeepAlive(true, 30000);
-        socket.setTimeout(30000);
+        socket.setTimeout(60000); // Increased from 30s to 60s
         socket.on('timeout', () => {
-          console.error('[Instantly MCP] ⚠️ Socket timeout, closing connection');
+          console.error('[Instantly MCP] ⚠️ Socket timeout (60s), closing connection');
           socket.destroy();
         });
       });
