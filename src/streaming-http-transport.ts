@@ -11,6 +11,7 @@ import { createServer, Server as HttpServer } from 'http';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { randomUUID } from 'node:crypto';
 import { TOOLS_DEFINITION, executeToolDirectly } from './index.js';
 
 // Simple rate limiting interface
@@ -46,7 +47,7 @@ export class StreamingHttpTransport {
   private app: express.Application;
   private httpServer?: HttpServer;
   private activeSessions = new Map<string, any>();
-  private transport: StreamableHTTPServerTransport;
+  private transports = new Map<string, StreamableHTTPServerTransport>(); // Store transports by session ID
   private requestHandlers?: {
     toolsList: (id: any) => Promise<any>;
     toolCall: (params: any, id: any) => Promise<any>;
@@ -60,14 +61,110 @@ export class StreamingHttpTransport {
     this.config = config;
     this.app = express();
     this.setupMiddleware();
-    // Initialize official streamable HTTP transport in stateless mode for better compatibility
-    // Stateless mode (sessionIdGenerator: undefined) allows clients to connect without session management
-    this.transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: undefined, // Stateless mode - no session management
-      enableDnsRebindingProtection: false, // Disable for remote access compatibility
-      enableJsonResponse: true, // Enable JSON responses for Claude Desktop compatibility
-    });
+    // NOTE: We create transport instances per-request in stateful mode
+    // This allows multiple concurrent sessions with different session IDs
     this.setupRoutes();
+  }
+
+  /**
+   * Handle MCP request with session-based transport management
+   * Creates a new transport instance for each session (stateful mode)
+   */
+  private async handleMcpRequest(req: express.Request, res: express.Response): Promise<void> {
+    try {
+      // Check for existing session ID from request header
+      const sessionId = req.headers['mcp-session-id'] as string | undefined;
+      const isInitRequest = req.body?.method === 'initialize';
+      let transport: StreamableHTTPServerTransport;
+      let effectiveSessionId: string;
+
+      if (isInitRequest) {
+        // Initialize request: create new session
+        effectiveSessionId = randomUUID();
+        console.error(`[HTTP] 🆕 Creating new session: ${effectiveSessionId}`);
+
+        transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: () => effectiveSessionId, // Return the session ID we generated
+          enableDnsRebindingProtection: false,
+          enableJsonResponse: true, // Support both JSON and SSE responses
+        });
+
+        // Set up onclose handler for cleanup
+        transport.onclose = () => {
+          if (this.transports.has(effectiveSessionId)) {
+            console.error(`[HTTP] 🧹 Cleaning up closed session: ${effectiveSessionId}`);
+            this.transports.delete(effectiveSessionId);
+          }
+        };
+
+        // Store transport in map
+        this.transports.set(effectiveSessionId, transport);
+        console.error(`[HTTP] ✅ Session stored: ${effectiveSessionId}`);
+
+        // Connect the transport to the MCP server
+        await this.server.connect(transport);
+
+        // Return session ID in response header
+        res.setHeader('Mcp-Session-Id', effectiveSessionId);
+        console.error(`[HTTP] 📤 Returning session ID in header: ${effectiveSessionId}`);
+      } else if (sessionId && this.transports.has(sessionId)) {
+        // Subsequent request: reuse existing transport
+        transport = this.transports.get(sessionId)!;
+        effectiveSessionId = sessionId;
+        console.error(`[HTTP] 🔄 Reusing existing session: ${sessionId}`);
+
+        // Always return session ID in response header
+        res.setHeader('Mcp-Session-Id', sessionId);
+      } else if (sessionId) {
+        // Session ID provided but not found
+        console.error(`[HTTP] ❌ Session not found: ${sessionId}`);
+        res.status(404).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32001,
+            message: 'Session not found',
+            data: {
+              sessionId,
+              hint: 'Session may have expired or been cleaned up. Please reinitialize.'
+            }
+          },
+          id: req.body?.id || null,
+        });
+        return;
+      } else {
+        // No session ID and not an initialize request
+        console.error('[HTTP] ❌ No session ID provided for non-initialize request');
+        res.status(400).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32000,
+            message: 'Bad Request: Session ID required for non-initialize requests',
+            data: {
+              hint: 'Include Mcp-Session-Id header with the session ID from initialization'
+            }
+          },
+          id: req.body?.id || null,
+        });
+        return;
+      }
+
+      // Handle the request with the transport
+      await transport.handleRequest(req, res, req.body);
+      console.error(`[HTTP] ✅ Request handled successfully for session: ${effectiveSessionId}`);
+    } catch (error) {
+      console.error('[HTTP] ❌ MCP request error:', error);
+      if (!res.headersSent) {
+        res.status(500).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32603,
+            message: 'Internal server error',
+            data: (error as Error).message
+          },
+          id: req.body?.id || null,
+        });
+      }
+    }
   }
 
   /**
@@ -296,27 +393,83 @@ export class StreamingHttpTransport {
       });
     });
 
+    // DELETE /mcp - Session cleanup endpoint
+    // MUST be registered BEFORE .all('/mcp') to avoid being caught by it
+    this.app.delete('/mcp', async (req, res) => {
+      const sessionId = req.headers['mcp-session-id'] as string | undefined;
+
+      console.error('[HTTP] 🗑️  DELETE request received');
+      console.error('[HTTP] Session ID from header:', sessionId);
+
+      if (!sessionId) {
+        res.status(400).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32000,
+            message: 'Bad Request: Session ID required',
+            data: {
+              hint: 'Include Mcp-Session-Id header with the session ID to delete'
+            }
+          },
+          id: null,
+        });
+        return;
+      }
+
+      if (this.transports.has(sessionId)) {
+        // Clean up the session
+        this.transports.delete(sessionId);
+        console.error(`[HTTP] ✅ Session deleted: ${sessionId}`);
+        res.status(204).end();
+      } else {
+        console.error(`[HTTP] ❌ Session not found: ${sessionId}`);
+        res.status(404).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32001,
+            message: 'Session not found',
+            data: {
+              sessionId,
+              hint: 'Session may have already been cleaned up'
+            }
+          },
+          id: null,
+        });
+      }
+    });
+
     // Main MCP endpoint with header-based authentication
-    this.app.post('/mcp', this.authMiddleware.bind(this), async (req, res) => {
+    // ALSO accepts API key in custom header for Claude Desktop compatibility
+    this.app.all('/mcp', async (req, res) => {
       // VERBOSE LOGGING FOR CLAUDE DESKTOP/WEB DEBUGGING
-      console.error('[HTTP] ========== INCOMING MCP REQUEST ==========');
+      console.error('[HTTP] ========== INCOMING MCP REQUEST (HEADER AUTH) ==========');
       console.error('[HTTP] 🔍 FULL REQUEST HEADERS:', JSON.stringify(req.headers, null, 2));
       console.error('[HTTP] 🔍 REQUEST BODY:', JSON.stringify(req.body, null, 2));
       console.error('[HTTP] 🔍 REQUEST METHOD:', req.body?.method || 'unknown');
       console.error('[HTTP] =======================================');
 
-      // Delegate to official StreamableHTTPServerTransport - it handles all MCP protocol details
-      try {
-        await this.transport.handleRequest(req, res, req.body);
-        console.error('[HTTP] ✅ MCP request handled successfully');
-      } catch (error) {
-        console.error('[HTTP] ❌ MCP request error:', error);
-        throw error;
+      // Try to extract API key from headers FIRST (for Claude Desktop compatibility)
+      let apiKey = req.headers.authorization?.replace('Bearer ', '') ||
+                   req.headers['x-instantly-api-key'] as string ||
+                   req.headers['x-api-key'] as string;
+
+      if (apiKey) {
+        // API key provided in header - store it and proceed WITHOUT auth middleware
+        console.error('[HTTP] 🔑 API key found in headers, bypassing auth middleware');
+        req.headers['x-instantly-api-key'] = apiKey;
+        (req as any).instantlyApiKey = apiKey;
+      } else {
+        // No API key in headers - this might be an initialize request
+        // Allow it through for protocol negotiation
+        console.error('[HTTP] ⚠️  No API key in headers - allowing for initialize');
       }
+
+      // Handle session-based transport management (stateful mode)
+      await this.handleMcpRequest(req, res);
     });
 
     // URL-based authentication endpoint: /mcp/{API_KEY}
-    this.app.post('/mcp/:apiKey', async (req, res) => {
+    this.app.all('/mcp/:apiKey', async (req, res) => {
       // Extract API key from URL path
       let apiKey = req.params.apiKey;
 
@@ -351,14 +504,8 @@ export class StreamingHttpTransport {
       // Also store in request object as backup
       (req as any).instantlyApiKey = apiKey;
 
-      // Delegate to official StreamableHTTPServerTransport
-      try {
-        await this.transport.handleRequest(req, res, req.body);
-        console.error('[HTTP] ✅ MCP request (URL auth) handled successfully');
-      } catch (error) {
-        console.error('[HTTP] ❌ MCP request (URL auth) error:', error);
-        throw error;
-      }
+      // Handle session-based transport management (stateful mode)
+      await this.handleMcpRequest(req, res);
     });
 
     // OAuth 2.1 Authorization Server Metadata (RFC 8414)
@@ -685,10 +832,12 @@ export class StreamingHttpTransport {
       this.httpServer.keepAliveTimeout = 65000; // 65 second keep-alive
       this.httpServer.headersTimeout = 66000; // 66 second headers timeout
 
-      // Connect server to transport before listening
-      this.server.connect(this.transport).then(() => {
-        // eslint-disable-next-line @typescript-eslint/no-misused-promises
-        this.httpServer!.listen(this.config.port, this.config.host, () => {
+      // NOTE: In stateful mode, we don't pre-connect the server to a transport
+      // Instead, we create transport instances per-session in handleMcpRequest()
+      // This allows multiple concurrent sessions with different session IDs
+
+      // eslint-disable-next-line @typescript-eslint/no-misused-promises
+      this.httpServer!.listen(this.config.port, this.config.host, () => {
         console.error(`[Instantly MCP] 🌐 Streaming HTTP server running at http://${this.config.host}:${this.config.port}`);
         console.error(`[Instantly MCP] 📋 Health check: http://${this.config.host}:${this.config.port}/health`);
         console.error(`[Instantly MCP] 🔗 Ping endpoint: http://${this.config.host}:${this.config.port}/ping`);
@@ -700,10 +849,6 @@ export class StreamingHttpTransport {
           console.error(`[Instantly MCP] 🔗 URL auth: https://mcp.instantly.ai/mcp/{API_KEY}`);
         }
         resolve();
-        });
-      }).catch((error) => {
-        console.error('[Instantly MCP] ❌ Failed to connect streamable transport:', error);
-        reject(error);
       });
 
       this.httpServer.on('error', (error) => {
@@ -773,10 +918,11 @@ export class StreamingHttpTransport {
   }
 
   /**
-   * Get the underlying transport for server connection
+   * Get the active transports map (for debugging/monitoring)
+   * In stateful mode, we maintain multiple transport instances per session
    */
-  getTransport() {
-    return this.transport;
+  getTransports() {
+    return this.transports;
   }
 
   /**
