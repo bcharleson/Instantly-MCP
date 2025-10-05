@@ -4167,22 +4167,6 @@ async function handleToolCall(params: any) {
       // Return statement is now handled in the try block above
     }
 
-    case 'list_campaigns':
-      const campaigns = await makeInstantlyRequest('/campaigns', {}, args.apiKey);
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              data: campaigns,
-              total_retrieved: campaigns.length,
-              pagination_method: "reliable_complete",
-              success: true
-            }, null, 2)
-          }
-        ]
-      };
-
     case 'list_accounts': {
       const result = await getAllAccounts(args.apiKey, args);
       const metadata = result.metadata || {
