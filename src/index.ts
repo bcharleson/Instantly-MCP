@@ -1445,68 +1445,122 @@ export const TOOLS_DEFINITION = [
         }
       },
       {
-        name: 'update_campaign',
-        description: '⚠️ WRITE-ONLY TOOL - DO NOT USE FOR VIEWING/LISTING/SHOWING CAMPAIGNS. This tool MODIFIES campaign data. If user says "show", "list", "view", "get", "display", or "retrieve" campaigns, use list_campaigns instead. Only use update_campaign when user explicitly wants to CHANGE, MODIFY, UPDATE, or EDIT a campaign (e.g., "update campaign name", "change campaign settings"). Requires campaign_id parameter so you may need to call get_campaign first to get the campaign_id.',
+        name: 'modify_existing_campaign',
+        description: '⚠️ WRITE-ONLY MODIFICATION TOOL - DO NOT USE FOR VIEWING/LISTING/SHOWING CAMPAIGNS. This tool MODIFIES campaign data. If user says "show", "list", "view", "get", "display", or "retrieve" campaigns, use list_campaigns instead. Only use modify_existing_campaign when user explicitly wants to CHANGE, MODIFY, UPDATE, or EDIT a campaign (e.g., "update campaign name", "change campaign settings"). Requires campaign_id parameter so you may need to call get_campaign first to get the campaign_id.',
         inputSchema: {
           type: 'object',
           properties: {
-            campaign_id: { type: 'string', description: 'Campaign ID (required)' },
-
-            // Basic campaign settings
-            name: { type: 'string', description: 'Campaign name' },
-            pl_value: { type: 'number', description: 'Value of every positive lead' },
-            is_evergreen: { type: 'boolean', description: 'Whether the campaign is evergreen' },
-
-            // Campaign schedule
+            campaign_id: {
+              type: 'string',
+              description: 'REQUIRED: ID of the existing campaign to modify. This parameter is mandatory.'
+            },
+            name: {
+              type: 'string',
+              description: 'OPTIONAL: New campaign name to UPDATE the existing campaign name. Only provide this if you want to CHANGE the campaign name.'
+            },
+            pl_value: {
+              type: 'number',
+              description: 'OPTIONAL: New positive lead value to UPDATE. Only provide this if you want to MODIFY the pl_value setting.'
+            },
+            is_evergreen: {
+              type: 'boolean',
+              description: 'OPTIONAL: New evergreen status to UPDATE. Only provide this if you want to CHANGE whether the campaign is evergreen.'
+            },
             campaign_schedule: {
               type: 'object',
-              description: 'Campaign schedule configuration with schedules array, start_date, and end_date',
-              properties: {
-                schedules: { type: 'array', description: 'Array of schedule objects' },
-                start_date: { type: 'string', description: 'Campaign start date (ISO 8601)' },
-                end_date: { type: 'string', description: 'Campaign end date (ISO 8601)' }
-              }
+              description: 'OPTIONAL: New schedule configuration to UPDATE the existing campaign schedule. Only provide this if you want to MODIFY the schedule settings.',
+              additionalProperties: true
             },
-
-            // Email sequences
             sequences: {
               type: 'array',
-              description: 'List of email sequences with steps and variants'
+              description: 'OPTIONAL: New email sequences to UPDATE the existing sequences. Only provide this if you want to MODIFY the email sequences.',
+              additionalProperties: true
             },
-
-            // Email sending settings
-            email_gap: { type: 'number', description: 'Gap between emails in minutes' },
-            random_wait_max: { type: 'number', description: 'Maximum random wait time in minutes' },
-            text_only: { type: 'boolean', description: 'Whether the campaign is text only' },
-            email_list: { type: 'array', description: 'List of account emails to use for sending', items: { type: 'string' } },
-            daily_limit: { type: 'number', description: 'Daily limit for sending emails per account' },
-            stop_on_reply: { type: 'boolean', description: 'Whether to stop the campaign on reply' },
-            email_tag_list: { type: 'array', description: 'List of email tags (UUIDs)', items: { type: 'string' } },
-
-            // Tracking settings
-            link_tracking: { type: 'boolean', description: 'Whether to track links in emails' },
-            open_tracking: { type: 'boolean', description: 'Whether to track opens in emails' },
-
-            // Advanced settings
-            stop_on_auto_reply: { type: 'boolean', description: 'Whether to stop on auto-reply' },
-            daily_max_leads: { type: 'number', description: 'Daily maximum new leads to contact' },
-            prioritize_new_leads: { type: 'boolean', description: 'Whether to prioritize new leads' },
+            email_gap: {
+              type: 'number',
+              description: 'OPTIONAL: New email gap value (in minutes) to UPDATE. Only provide this if you want to CHANGE the gap between emails.'
+            },
+            random_wait_max: {
+              type: 'number',
+              description: 'OPTIONAL: New maximum random wait time (in minutes) to UPDATE. Only provide this if you want to MODIFY the random wait setting.'
+            },
+            text_only: {
+              type: 'boolean',
+              description: 'OPTIONAL: New text-only setting to UPDATE. Only provide this if you want to CHANGE whether the campaign is text only.'
+            },
+            email_list: {
+              type: 'array',
+              description: 'OPTIONAL: New list of account emails to UPDATE for sending. Only provide this if you want to MODIFY which email accounts are used.',
+              items: { type: 'string' }
+            },
+            daily_limit: {
+              type: 'number',
+              description: 'OPTIONAL: New daily sending limit to UPDATE per account. Only provide this if you want to CHANGE the daily limit.'
+            },
+            stop_on_reply: {
+              type: 'boolean',
+              description: 'OPTIONAL: New stop-on-reply setting to UPDATE. Only provide this if you want to MODIFY whether the campaign stops on reply.'
+            },
+            email_tag_list: {
+              type: 'array',
+              description: 'OPTIONAL: New list of email tag UUIDs to UPDATE. Only provide this if you want to CHANGE the email tags.',
+              items: { type: 'string' }
+            },
+            link_tracking: {
+              type: 'boolean',
+              description: 'OPTIONAL: New link tracking setting to UPDATE. Only provide this if you want to MODIFY whether links are tracked.'
+            },
+            open_tracking: {
+              type: 'boolean',
+              description: 'OPTIONAL: New open tracking setting to UPDATE. Only provide this if you want to MODIFY whether opens are tracked.'
+            },
+            stop_on_auto_reply: {
+              type: 'boolean',
+              description: 'OPTIONAL: New stop-on-auto-reply setting to UPDATE. Only provide this if you want to CHANGE whether to stop on auto-replies.'
+            },
+            daily_max_leads: {
+              type: 'number',
+              description: 'OPTIONAL: New daily maximum leads value to UPDATE. Only provide this if you want to MODIFY the daily max leads setting.'
+            },
+            prioritize_new_leads: {
+              type: 'boolean',
+              description: 'OPTIONAL: New prioritize-new-leads setting to UPDATE. Only provide this if you want to CHANGE the lead prioritization.'
+            },
             auto_variant_select: {
               type: 'object',
-              description: 'Auto variant selection settings',
-              properties: {
-                trigger: { type: 'string', description: 'Trigger condition for auto variant selection' }
-              }
+              description: 'OPTIONAL: New auto variant selection settings to UPDATE. Only provide this if you want to MODIFY the auto variant selection configuration.',
+              additionalProperties: true
             },
-            match_lead_esp: { type: 'boolean', description: 'Whether to match leads by ESP' },
-            stop_for_company: { type: 'boolean', description: 'Whether to stop campaign for entire company when a lead replies' },
-            insert_unsubscribe_header: { type: 'boolean', description: 'Whether to insert unsubscribe header in emails' },
-            allow_risky_contacts: { type: 'boolean', description: 'Whether to allow risky contacts' },
-            disable_bounce_protect: { type: 'boolean', description: 'Whether to disable bounce protection' },
-
-            // CC/BCC lists
-            cc_list: { type: 'array', description: 'List of email addresses to CC', items: { type: 'string' } },
-            bcc_list: { type: 'array', description: 'List of email addresses to BCC', items: { type: 'string' } }
+            match_lead_esp: {
+              type: 'boolean',
+              description: 'OPTIONAL: New match-lead-ESP setting to UPDATE. Only provide this if you want to CHANGE whether to match leads by ESP.'
+            },
+            stop_for_company: {
+              type: 'boolean',
+              description: 'OPTIONAL: New stop-for-company setting to UPDATE. Only provide this if you want to MODIFY whether to stop for entire company on reply.'
+            },
+            insert_unsubscribe_header: {
+              type: 'boolean',
+              description: 'OPTIONAL: New unsubscribe header setting to UPDATE. Only provide this if you want to CHANGE whether to insert unsubscribe headers.'
+            },
+            allow_risky_contacts: {
+              type: 'boolean',
+              description: 'OPTIONAL: New risky contacts setting to UPDATE. Only provide this if you want to MODIFY whether to allow risky contacts.'
+            },
+            disable_bounce_protect: {
+              type: 'boolean',
+              description: 'OPTIONAL: New bounce protection setting to UPDATE. Only provide this if you want to CHANGE whether bounce protection is disabled.'
+            },
+            cc_list: {
+              type: 'array',
+              description: 'OPTIONAL: New CC email addresses list to UPDATE. Only provide this if you want to MODIFY the CC list.',
+              items: { type: 'string' }
+            },
+            bcc_list: {
+              type: 'array',
+              description: 'OPTIONAL: New BCC email addresses list to UPDATE. Only provide this if you want to MODIFY the BCC list.',
+              items: { type: 'string' }
+            }
           },
           required: ['campaign_id'],
           additionalProperties: false
@@ -2547,7 +2601,7 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
       }
     }
 
-    case 'update_campaign': {
+    case 'modify_existing_campaign': {
       if (!args?.campaign_id) {
         throw new McpError(ErrorCode.InvalidParams, 'campaign_id is required');
       }
