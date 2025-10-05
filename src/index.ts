@@ -1469,7 +1469,15 @@ export const TOOLS_DEFINITION = [
             campaign_schedule: {
               type: 'object',
               description: 'OPTIONAL: New schedule configuration to UPDATE the existing campaign schedule. Only provide this if you want to MODIFY the schedule settings.',
-              properties: {},
+              properties: {
+                schedules: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    additionalProperties: true
+                  }
+                }
+              },
               additionalProperties: true
             },
             sequences: {
