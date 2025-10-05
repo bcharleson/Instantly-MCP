@@ -1446,13 +1446,67 @@ export const TOOLS_DEFINITION = [
       },
       {
         name: 'update_campaign',
-        description: 'Update an existing campaign',
+        description: 'Update an existing campaign with comprehensive parameter support matching Instantly.ai API v2 PATCH /api/v2/campaigns/{id} specification. Supports updating campaign settings, email configuration, tracking, and advanced options.',
         inputSchema: {
           type: 'object',
           properties: {
-            campaign_id: { type: 'string', description: 'Campaign ID' },
+            campaign_id: { type: 'string', description: 'Campaign ID (required)' },
+
+            // Basic campaign settings
             name: { type: 'string', description: 'Campaign name' },
-            status: { type: 'string', description: 'Campaign status' }
+            pl_value: { type: 'number', description: 'Value of every positive lead' },
+            is_evergreen: { type: 'boolean', description: 'Whether the campaign is evergreen' },
+
+            // Campaign schedule
+            campaign_schedule: {
+              type: 'object',
+              description: 'Campaign schedule configuration with schedules array, start_date, and end_date',
+              properties: {
+                schedules: { type: 'array', description: 'Array of schedule objects' },
+                start_date: { type: 'string', description: 'Campaign start date (ISO 8601)' },
+                end_date: { type: 'string', description: 'Campaign end date (ISO 8601)' }
+              }
+            },
+
+            // Email sequences
+            sequences: {
+              type: 'array',
+              description: 'List of email sequences with steps and variants'
+            },
+
+            // Email sending settings
+            email_gap: { type: 'number', description: 'Gap between emails in minutes' },
+            random_wait_max: { type: 'number', description: 'Maximum random wait time in minutes' },
+            text_only: { type: 'boolean', description: 'Whether the campaign is text only' },
+            email_list: { type: 'array', description: 'List of account emails to use for sending', items: { type: 'string' } },
+            daily_limit: { type: 'number', description: 'Daily limit for sending emails per account' },
+            stop_on_reply: { type: 'boolean', description: 'Whether to stop the campaign on reply' },
+            email_tag_list: { type: 'array', description: 'List of email tags (UUIDs)', items: { type: 'string' } },
+
+            // Tracking settings
+            link_tracking: { type: 'boolean', description: 'Whether to track links in emails' },
+            open_tracking: { type: 'boolean', description: 'Whether to track opens in emails' },
+
+            // Advanced settings
+            stop_on_auto_reply: { type: 'boolean', description: 'Whether to stop on auto-reply' },
+            daily_max_leads: { type: 'number', description: 'Daily maximum new leads to contact' },
+            prioritize_new_leads: { type: 'boolean', description: 'Whether to prioritize new leads' },
+            auto_variant_select: {
+              type: 'object',
+              description: 'Auto variant selection settings',
+              properties: {
+                trigger: { type: 'string', description: 'Trigger condition for auto variant selection' }
+              }
+            },
+            match_lead_esp: { type: 'boolean', description: 'Whether to match leads by ESP' },
+            stop_for_company: { type: 'boolean', description: 'Whether to stop campaign for entire company when a lead replies' },
+            insert_unsubscribe_header: { type: 'boolean', description: 'Whether to insert unsubscribe header in emails' },
+            allow_risky_contacts: { type: 'boolean', description: 'Whether to allow risky contacts' },
+            disable_bounce_protect: { type: 'boolean', description: 'Whether to disable bounce protection' },
+
+            // CC/BCC lists
+            cc_list: { type: 'array', description: 'List of email addresses to CC', items: { type: 'string' } },
+            bcc_list: { type: 'array', description: 'List of email addresses to BCC', items: { type: 'string' } }
           },
           required: ['campaign_id'],
           additionalProperties: false
