@@ -1827,13 +1827,53 @@ export const TOOLS_DEFINITION = [
       },
       {
         name: 'update_account',
-        description: 'Update a sending account settings',
+        description: 'Update a sending account settings with comprehensive parameter support matching Instantly.ai API v2 PATCH /api/v2/accounts/{email} specification. Supports updating account details, warmup configuration, tracking domains, and sending limits.',
         inputSchema: {
           type: 'object',
           properties: {
-            email: { type: 'string', description: 'Email address of the account to update' },
-            daily_limit: { type: 'number', description: 'New daily sending limit' },
-            warmup_enabled: { type: 'boolean', description: 'Enable/disable warmup' }
+            email: { type: 'string', description: 'Email address of the account to update (required)' },
+
+            // Basic account information
+            first_name: { type: 'string', description: 'First name associated with the account' },
+            last_name: { type: 'string', description: 'Last name associated with the account' },
+
+            // Warmup configuration
+            warmup: {
+              type: 'object',
+              description: 'Warmup configuration for the account',
+              properties: {
+                limit: { type: 'number', description: 'Warmup limit (number of warmup emails per day)' },
+                advanced: {
+                  type: 'object',
+                  description: 'Advanced warmup settings',
+                  properties: {
+                    warm_ctd: { type: 'boolean', description: 'Warm click-to-deliver' },
+                    open_rate: { type: 'number', description: 'Target open rate for warmup emails' },
+                    important_rate: { type: 'number', description: 'Rate of marking emails as important' },
+                    read_emulation: { type: 'boolean', description: 'Enable read emulation' },
+                    spam_save_rate: { type: 'number', description: 'Rate of saving emails from spam' },
+                    weekday_only: { type: 'boolean', description: 'Send warmup emails only on weekdays' }
+                  }
+                },
+                warmup_custom_ftag: { type: 'string', description: 'Custom warmup tag' },
+                increment: { type: 'string', description: 'Increment setting for warmup ramp-up' },
+                reply_rate: { type: 'number', description: 'Target reply rate for warmup emails' }
+              }
+            },
+
+            // Sending limits and configuration
+            daily_limit: { type: 'number', description: 'Daily email sending limit per account' },
+            sending_gap: { type: 'number', description: 'Gap between emails sent from this account in minutes (0-1440, minimum wait time when used with multiple campaigns)' },
+            enable_slow_ramp: { type: 'boolean', description: 'Enable slow ramp up for sending limits' },
+
+            // Tracking domain configuration
+            tracking_domain_name: { type: 'string', description: 'Tracking domain name' },
+            tracking_domain_status: { type: 'string', description: 'Tracking domain status' },
+            skip_cname_check: { type: 'boolean', description: 'Skip CNAME check for tracking domain' },
+            remove_tracking_domain: { type: 'boolean', description: 'Remove tracking domain from account' },
+
+            // Inbox placement testing
+            inbox_placement_test_limit: { type: 'number', description: 'Limit for inbox placement tests' }
           },
           required: ['email'],
           additionalProperties: false
