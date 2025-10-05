@@ -1237,7 +1237,7 @@ export const TOOLS_DEFINITION = [
       },
       {
         name: 'create_campaign',
-        description: '⚠️ CRITICAL PREREQUISITES - READ BEFORE CALLING:\n\n1️⃣ ALWAYS call list_accounts FIRST to get verified email addresses\n2️⃣ NEVER use placeholder emails like test@example.com or user@example.com\n3️⃣ ONLY use real, verified email addresses from list_accounts response\n4️⃣ To create ONE campaign with MULTIPLE sender emails, provide ALL emails in a SINGLE email_list array\n5️⃣ Do NOT create multiple separate campaigns when user provides multiple emails - create ONE campaign with all emails\n\n✨ MULTI-STEP CAMPAIGNS SUPPORTED:\n• Use sequence_steps parameter (2-10) to create follow-up sequences\n• Use step_delay_days parameter (1-30) to set delay between steps\n• Perfect for cold outreach, nurture campaigns, and follow-up workflows\n• Example: sequence_steps=3, step_delay_days=2 creates 3-step sequence with 2-day delays\n\nCreate a new email campaign with intelligent guidance and validation. Automatically provides comprehensive prerequisite checking, account validation, and user-friendly error messages.',
+        description: '🚀 INTELLIGENT CAMPAIGN CREATION WITH AUTOMATIC ACCOUNT DISCOVERY\n\n✨ AUTOMATIC WORKFLOW:\nThis tool automatically fetches and displays ONLY eligible sender accounts that meet these criteria:\n• Account is active (status = 1)\n• Setup is complete (no pending setup)\n• Warmup is complete (warmup_status = 1)\n\nYou will be shown the list of eligible accounts and prompted to select which ones to use as senders.\n\n⚠️ CRITICAL REQUIREMENTS:\n1️⃣ NEVER use placeholder emails like test@example.com or user@example.com\n2️⃣ ONLY use email addresses from the eligible accounts list shown to you\n3️⃣ To create ONE campaign with MULTIPLE sender emails, provide ALL emails in a SINGLE email_list array\n4️⃣ Do NOT create multiple separate campaigns when user provides multiple emails - create ONE campaign with all emails\n5️⃣ Instantly.ai\'s core value is multi-account sending - users typically have 10-100+ accounts for better deliverability\n\n✨ MULTI-STEP CAMPAIGNS SUPPORTED:\n• Use sequence_steps parameter (2-10) to create follow-up sequences\n• Use step_delay_days parameter (1-30) to set delay between steps\n• Perfect for cold outreach, nurture campaigns, and follow-up workflows\n• Example: sequence_steps=3, step_delay_days=2 creates 3-step sequence with 2-day delays\n\nCreate a new email campaign with intelligent guidance and validation. Automatically provides comprehensive prerequisite checking, account validation, and user-friendly error messages.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -1257,7 +1257,7 @@ export const TOOLS_DEFINITION = [
             email_list: {
               type: 'array',
               items: { type: 'string' },
-              description: '⚠️ CRITICAL - READ CAREFULLY:\n\n1️⃣ PREREQUISITE: You MUST call list_accounts FIRST to get available email addresses\n2️⃣ NEVER use fake/placeholder emails like:\n   ❌ test@example.com\n   ❌ user@example.com\n   ❌ email@test.com\n   ❌ Any email not from list_accounts\n\n3️⃣ ONLY use verified email addresses from list_accounts response\n\n4️⃣ MULTIPLE EMAILS = ONE CAMPAIGN:\n   ✅ CORRECT: ["email1@domain.com", "email2@domain.com", "email3@domain.com"] → Creates ONE campaign with 3 senders\n   ❌ WRONG: Creating 3 separate campaigns with one email each\n\n5️⃣ When user provides multiple emails, include ALL of them in THIS SINGLE email_list array\n\n6️⃣ Maximum 100 emails per campaign\n\nExample: If user says "use these 3 emails: a@x.com, b@x.com, c@x.com", you should:\n- Call list_accounts to verify they exist\n- Create ONE campaign with email_list: ["a@x.com", "b@x.com", "c@x.com"]\n- NOT create 3 separate campaigns',
+              description: '⚠️ SENDER EMAIL ADDRESSES - CRITICAL REQUIREMENTS:\n\n✨ AUTOMATIC ACCOUNT DISCOVERY:\nThis tool will automatically fetch and show you ONLY eligible sender accounts.\nYou will see a list of accounts that meet these criteria:\n• Active (status = 1)\n• Setup complete (no pending setup)\n• Warmup complete (warmup_status = 1)\n\n1️⃣ ONLY use email addresses from the eligible accounts list shown to you\n2️⃣ NEVER use fake/placeholder emails like:\n   ❌ test@example.com\n   ❌ user@example.com\n   ❌ email@test.com\n\n3️⃣ MULTIPLE EMAILS = ONE CAMPAIGN:\n   ✅ CORRECT: ["email1@domain.com", "email2@domain.com", "email3@domain.com"] → Creates ONE campaign with 3 senders\n   ❌ WRONG: Creating 3 separate campaigns with one email each\n\n4️⃣ When user provides multiple emails, include ALL of them in THIS SINGLE email_list array\n\n5️⃣ Maximum 100 emails per campaign\n\n6️⃣ Instantly.ai users typically have 10-100+ accounts for better deliverability - ask the user how many they want to use\n\nExample: If eligible accounts shown are [a@x.com, b@x.com, c@x.com] and user wants all 3:\n- Create ONE campaign with email_list: ["a@x.com", "b@x.com", "c@x.com"]\n- NOT 3 separate campaigns',
               example: ['john@yourcompany.com', 'jane@yourcompany.com']
             },
 
@@ -1785,21 +1785,7 @@ export const TOOLS_DEFINITION = [
           additionalProperties: false
         }
       },
-      {
-        name: 'validate_campaign_accounts',
-        description: 'Validate which accounts are eligible for campaign creation. Debug tool for campaign issues.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            email_list: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Optional: Specific email addresses to validate. If not provided, shows all account statuses.'
-            }
-          },
-          additionalProperties: false
-        }
-      },
+
       {
         name: 'get_account_details',
         description: 'Get detailed information about a specific account including warmup status and campaign eligibility',
@@ -2267,9 +2253,118 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
     }
 
     case 'create_campaign': {
-      console.error('[Instantly MCP] 🚀 Executing create_campaign with fixed API v2 payload...');
+      console.error('[Instantly MCP] 🚀 Executing create_campaign with automatic account discovery...');
 
       try {
+        // STEP 0: Automatic Account Discovery - Fetch and display eligible accounts
+        console.error('[Instantly MCP] 📋 Fetching eligible sender accounts...');
+
+        const skipValidation = process.env.SKIP_ACCOUNT_VALIDATION === 'true';
+        const isTestKey = apiKey?.includes('test') || apiKey?.includes('demo');
+
+        if (!skipValidation && !isTestKey) {
+          const accountsResult = await getAllAccounts(apiKey);
+          const accounts = accountsResult.data || accountsResult;
+
+          if (!accounts || !Array.isArray(accounts) || accounts.length === 0) {
+            throw new McpError(
+              ErrorCode.InvalidParams,
+              '❌ No accounts found in your workspace.\n\n' +
+              '📋 Required Action:\n' +
+              '1. Go to your Instantly.ai dashboard\n' +
+              '2. Navigate to Accounts section\n' +
+              '3. Add and verify email accounts\n' +
+              '4. Complete warmup process for each account\n' +
+              '5. Then retry campaign creation'
+            );
+          }
+
+          // Filter for eligible accounts (active, setup complete, warmup complete)
+          const eligibleAccounts = accounts.filter(account =>
+            account.status === 1 &&
+            !account.setup_pending &&
+            account.warmup_status === 1
+          );
+
+          if (eligibleAccounts.length === 0) {
+            const accountIssues = accounts.slice(0, 10).map(acc => ({
+              email: acc.email,
+              issues: [
+                ...(acc.status !== 1 ? ['❌ Account not active'] : []),
+                ...(acc.setup_pending ? ['⏳ Setup pending'] : []),
+                ...(acc.warmup_status !== 1 ? ['🔥 Warmup not complete'] : [])
+              ]
+            }));
+
+            throw new McpError(
+              ErrorCode.InvalidParams,
+              `❌ No eligible sender accounts found for campaign creation.\n\n` +
+              `📊 Account Status (showing first 10 of ${accounts.length} total):\n${
+                accountIssues.map(acc => `• ${acc.email}: ${acc.issues.join(', ')}`).join('\n')
+              }\n\n` +
+              `✅ Requirements for eligible accounts:\n` +
+              `• Account must be active (status = 1)\n` +
+              `• Setup must be complete (no pending setup)\n` +
+              `• Warmup must be complete (warmup_status = 1)\n\n` +
+              `📋 Next Steps:\n` +
+              `1. Complete setup for pending accounts\n` +
+              `2. Wait for warmup to complete\n` +
+              `3. Ensure accounts are active\n` +
+              `4. Then retry campaign creation`
+            );
+          }
+
+          // If email_list is NOT provided, return eligible accounts and ask user to select
+          if (!args.email_list || args.email_list.length === 0) {
+            const eligibleEmailsList = eligibleAccounts.map(acc => ({
+              email: acc.email,
+              warmup_score: acc.warmup_score || 0,
+              status: 'ready'
+            }));
+
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify({
+                    success: false,
+                    stage: 'account_selection_required',
+                    message: '📋 Eligible Sender Accounts Found',
+                    total_eligible_accounts: eligibleAccounts.length,
+                    total_accounts: accounts.length,
+                    eligible_accounts: eligibleEmailsList,
+                    instructions: [
+                      `✅ Found ${eligibleAccounts.length} eligible sender accounts (out of ${accounts.length} total)`,
+                      '',
+                      '📧 Eligible Sender Accounts:',
+                      ...eligibleEmailsList.map(acc => `  • ${acc.email} (warmup score: ${acc.warmup_score})`),
+                      '',
+                      '❓ How many of these accounts would you like to use as senders for this campaign?',
+                      '',
+                      '💡 Instantly.ai\'s core value is multi-account sending for better deliverability.',
+                      '   Most users use 10-100+ accounts per campaign.',
+                      '',
+                      '📝 Next Step:',
+                      '   Call create_campaign again with the email_list parameter containing the sender emails you want to use.',
+                      '',
+                      '   Example:',
+                      `   email_list: ["${eligibleEmailsList[0]?.email || 'email1@domain.com'}", "${eligibleEmailsList[1]?.email || 'email2@domain.com'}"]`
+                    ].join('\n'),
+                    required_action: {
+                      step: 'select_sender_accounts',
+                      description: 'Select which eligible accounts to use as senders',
+                      parameter: 'email_list',
+                      example: eligibleEmailsList.slice(0, 3).map(acc => acc.email)
+                    }
+                  }, null, 2)
+                }
+              ]
+            };
+          }
+
+          console.error(`[Instantly MCP] ✅ Found ${eligibleAccounts.length} eligible accounts, proceeding with validation...`);
+        }
+
         // Step 1: Clean up and validate parameters for API compatibility
         console.error('[Instantly MCP] 🧹 Cleaning up parameters for API compatibility...');
         const { cleanedArgs, warnings } = cleanupAndValidateParameters(args);
@@ -3155,26 +3250,7 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
       };
     }
 
-    case 'validate_campaign_accounts': {
-      console.error('[Instantly MCP] ✅ Executing validate_campaign_accounts...');
 
-      // This tool validates which accounts are eligible for campaigns
-      const accountsResult = await makeInstantlyRequest('/accounts', {}, apiKey);
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              message: 'Campaign account validation - checks which accounts are eligible for campaign creation',
-              total_accounts: Array.isArray(accountsResult) ? accountsResult.length : 0,
-              note: 'This diagnostic tool helps identify account eligibility issues for campaign creation'
-            }, null, 2)
-          }
-        ]
-      };
-    }
 
     case 'pause_account': {
       console.error('[Instantly MCP] ⏸️ Executing pause_account...');
