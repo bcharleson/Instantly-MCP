@@ -1355,7 +1355,7 @@ export const TOOLS_DEFINITION = [
       },
       {
         name: 'list_campaigns',
-        description: '[READ-ONLY] Get/retrieve/view/show/list all campaigns. Use this tool when user wants to SEE or VIEW campaigns (e.g., "show me campaigns", "get my campaigns", "list campaigns"). This is a read-only operation that returns campaign data without modifying anything. Supports filtering by status, search terms, tags, and date ranges (created_after/created_before). Returns up to 5 pages (500 items) by default. For MODIFYING campaigns, use update_campaign instead.',
+        description: 'Get/retrieve/view/show/list all campaigns. Use this tool when user wants to SEE or VIEW campaigns (e.g., "show me campaigns", "get my campaigns", "list campaigns"). This is a read-only operation that returns campaign data without modifying anything. Supports filtering by status, search terms, tags, and date ranges (created_after/created_before). Returns up to 5 pages (500 items) by default. For MODIFYING campaigns, use update_campaign instead.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -1446,7 +1446,7 @@ export const TOOLS_DEFINITION = [
       },
       {
         name: 'update_campaign',
-        description: '[WRITE] Modify/update/change/edit an existing campaign. Use ONLY when user wants to CHANGE or MODIFY a campaign (e.g., "update campaign name", "change campaign settings"). NEVER use for viewing/listing/showing/getting campaigns - use list_campaigns for that. Requires campaign_id parameter. This is a write operation that modifies campaign data.',
+        description: 'Use this tool to modify/update/change/edit an existing campaign. Use ONLY when user wants to CHANGE or MODIFY a campaign (e.g., "update campaign name", "change campaign settings"). NEVER use for viewing/listing/showing/getting campaigns - use list_campaigns for that. Requires campaign_id parameter so you may need to call get_campaign first to get the campaign_id. This is a write operation that modifies campaign data.',
         inputSchema: {
           type: 'object',
           properties: {
