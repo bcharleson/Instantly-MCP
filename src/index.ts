@@ -1816,7 +1816,8 @@ export const TOOLS_DEFINITION = [
           type: 'object',
           properties: {
             campaign_id: { type: 'string', description: 'Filter by campaign ID' },
-            get_all: { type: 'boolean', description: 'Retrieve all emails', default: true }
+            limit: { type: 'number', description: 'Maximum number of emails to retrieve (default: 50, max: 100)', default: 50 },
+            offset: { type: 'number', description: 'Number of emails to skip for pagination (default: 0)', default: 0 }
           },
           additionalProperties: false
         }
