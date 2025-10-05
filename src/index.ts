@@ -1717,11 +1717,14 @@ export const TOOLS_DEFINITION = [
       },
       {
         name: 'list_lead_lists',
-        description: 'List all lead lists',
+        description: 'List all lead lists with comprehensive filtering and pagination support matching Instantly.ai API v2 specification',
         inputSchema: {
           type: 'object',
           properties: {
-            get_all: { type: 'boolean', description: 'Retrieve all lead lists', default: true }
+            limit: { type: 'number', description: 'Number of items to return (1-100)', minimum: 1, maximum: 100 },
+            starting_after: { type: 'string', description: 'Timestamp to filter lead lists created after this date (ISO 8601 format, e.g., 2025-03-07T00:00:00.000Z)' },
+            has_enrichment_task: { type: 'boolean', description: 'Filter by enrichment task status - true returns only lists with enrichment enabled, false returns only lists without enrichment' },
+            search: { type: 'string', description: 'Search query to filter lead lists by name (e.g., "Summer 2025 List")' }
           },
           additionalProperties: false
         }
@@ -3222,7 +3225,21 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
     case 'list_lead_lists': {
       console.error('[Instantly MCP] 📋 Executing list_lead_lists...');
 
-      const listsResult = await makeInstantlyRequest('/lead-lists', {}, apiKey);
+      // Build query parameters from args
+      const queryParams: any = {};
+
+      if (args.limit !== undefined) queryParams.limit = args.limit;
+      if (args.starting_after !== undefined) queryParams.starting_after = args.starting_after;
+      if (args.has_enrichment_task !== undefined) queryParams.has_enrichment_task = args.has_enrichment_task;
+      if (args.search !== undefined) queryParams.search = args.search;
+
+      console.error(`[Instantly MCP] 📤 Fetching lead lists with params: ${JSON.stringify(queryParams, null, 2)}`);
+
+      const listsResult = await makeInstantlyRequest('/lead-lists', { params: queryParams }, apiKey);
+
+      // Extract items and pagination info
+      const items = listsResult.items || listsResult;
+      const nextStartingAfter = listsResult.next_starting_after;
 
       return {
         content: [
@@ -3230,7 +3247,10 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
             type: 'text',
             text: JSON.stringify({
               success: true,
-              lead_lists: listsResult,
+              lead_lists: items,
+              next_starting_after: nextStartingAfter,
+              total_returned: Array.isArray(items) ? items.length : 0,
+              has_more: !!nextStartingAfter,
               message: 'Lead lists retrieved successfully'
             }, null, 2)
           }
