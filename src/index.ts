@@ -1445,8 +1445,8 @@ export const TOOLS_DEFINITION = [
         }
       },
       {
-        name: 'modify_existing_campaign',
-        description: '⚠️ WRITE-ONLY MODIFICATION TOOL - DO NOT USE FOR VIEWING/LISTING/SHOWING CAMPAIGNS. This tool MODIFIES campaign data. If user says "show", "list", "view", "get", "display", or "retrieve" campaigns, use list_campaigns instead. Only use modify_existing_campaign when user explicitly wants to CHANGE, MODIFY, UPDATE, or EDIT a campaign (e.g., "update campaign name", "change campaign settings"). Requires campaign_id parameter so you may need to call get_campaign first to get the campaign_id.',
+        name: 'update_campaign',
+        description: '⚠️ WRITE-ONLY MODIFICATION TOOL - DO NOT USE FOR VIEWING/LISTING/SHOWING CAMPAIGNS. This tool MODIFIES campaign data. If user says "show", "list", "view", "get", "display", or "retrieve" campaigns, use list_campaigns instead. Only use update_campaign when user explicitly wants to CHANGE, MODIFY, UPDATE, or EDIT a campaign (e.g., "update campaign name", "change campaign settings"). Requires campaign_id parameter so you may need to call get_campaign first to get the campaign_id.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -1469,6 +1469,7 @@ export const TOOLS_DEFINITION = [
             campaign_schedule: {
               type: 'object',
               description: 'OPTIONAL: New schedule configuration to UPDATE the existing campaign schedule. Only provide this if you want to MODIFY the schedule settings.',
+              properties: {},
               additionalProperties: true
             },
             sequences: {
@@ -2604,7 +2605,7 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
       }
     }
 
-    case 'modify_existing_campaign': {
+    case 'update_campaign': {
       if (!args?.campaign_id) {
         throw new McpError(ErrorCode.InvalidParams, 'campaign_id is required');
       }
