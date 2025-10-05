@@ -1355,7 +1355,7 @@ export const TOOLS_DEFINITION = [
       },
       {
         name: 'list_campaigns',
-        description: 'List campaigns with filtering and cursor-based pagination. Returns up to 5 pages (500 items) by default. Use starting_after parameter to retrieve additional pages. Supports client-side date filtering via created_after and created_before parameters.',
+        description: 'Retrieve, view, show, get, or list all campaigns. Use this tool when the user wants to see their campaigns, view campaign data, or get a list of campaigns. Supports filtering by status, search terms, tags, and date ranges (created_after/created_before). Returns up to 5 pages (500 items) by default with cursor-based pagination.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -1397,7 +1397,7 @@ export const TOOLS_DEFINITION = [
       },
       {
         name: 'get_campaign_analytics',
-        description: 'Get detailed campaign performance analytics with optional date range filtering. Supports filtering by specific campaign ID and/or date range (start_date, end_date). Call without parameters to get analytics for all campaigns.',
+        description: 'Get campaign performance metrics, statistics, and analytics data (opens, clicks, replies, bounces, etc.). Use this tool when the user wants to see campaign performance, metrics, or statistics. NOT for listing campaigns themselves - use list_campaigns for that. Supports filtering by campaign ID and/or date range.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -1446,7 +1446,7 @@ export const TOOLS_DEFINITION = [
       },
       {
         name: 'update_campaign',
-        description: 'Update an existing campaign with comprehensive parameter support matching Instantly.ai API v2 PATCH /api/v2/campaigns/{id} specification. Supports updating campaign settings, email configuration, tracking, and advanced options.',
+        description: 'Update, modify, change, or edit an existing campaign. Use this tool ONLY when the user wants to change/update/modify campaign settings, NOT for viewing or listing campaigns. Requires campaign_id. Supports updating campaign settings, email configuration, tracking, and advanced options.',
         inputSchema: {
           type: 'object',
           properties: {
