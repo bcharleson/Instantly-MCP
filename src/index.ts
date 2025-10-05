@@ -1446,7 +1446,7 @@ export const TOOLS_DEFINITION = [
       },
       {
         name: 'update_campaign',
-        description: 'Use this tool to modify/update/change/edit an existing campaign. Use ONLY when user wants to CHANGE or MODIFY a campaign (e.g., "update campaign name", "change campaign settings"). NEVER use for viewing/listing/showing/getting campaigns - use list_campaigns for that. Requires campaign_id parameter so you may need to call get_campaign first to get the campaign_id. This is a write operation that modifies campaign data.',
+        description: '⚠️ WRITE-ONLY TOOL - DO NOT USE FOR VIEWING/LISTING/SHOWING CAMPAIGNS. This tool MODIFIES campaign data. If user says "show", "list", "view", "get", "display", or "retrieve" campaigns, use list_campaigns instead. Only use update_campaign when user explicitly wants to CHANGE, MODIFY, UPDATE, or EDIT a campaign (e.g., "update campaign name", "change campaign settings"). Requires campaign_id parameter so you may need to call get_campaign first to get the campaign_id.',
         inputSchema: {
           type: 'object',
           properties: {
