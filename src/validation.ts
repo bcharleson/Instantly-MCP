@@ -325,12 +325,81 @@ export const GetCampaignAnalyticsSchema = z.object({
 });
 
 /**
- * Update campaign validation schema
+ * Update campaign validation schema - Updated to match Instantly.ai API v2 PATCH /api/v2/campaigns/{id} specification
+ * Reference: https://developer.instantly.ai/api/v2/campaign/patchcampaign
  */
 export const UpdateCampaignSchema = z.object({
   campaign_id: z.string().min(1, { message: 'Campaign ID cannot be empty' }),
+
+  // Basic campaign settings
   name: z.string().min(1).max(255).optional(),
-  status: z.string().optional()
+  pl_value: z.number().nullable().optional(),
+  is_evergreen: z.boolean().nullable().optional(),
+
+  // Campaign schedule
+  campaign_schedule: z.object({
+    schedules: z.array(z.object({
+      name: z.string(),
+      timing: z.object({
+        from: z.string().regex(/^([01][0-9]|2[0-3]):([0-5][0-9])$/),
+        to: z.string().regex(/^([01][0-9]|2[0-3]):([0-5][0-9])$/)
+      }),
+      days: z.object({
+        0: z.boolean().optional(),
+        1: z.boolean().optional(),
+        2: z.boolean().optional(),
+        3: z.boolean().optional(),
+        4: z.boolean().optional(),
+        5: z.boolean().optional(),
+        6: z.boolean().optional()
+      }),
+      timezone: z.string()
+    })).optional(),
+    start_date: z.string().datetime().optional(),
+    end_date: z.string().datetime().optional()
+  }).optional(),
+
+  // Email sequences
+  sequences: z.array(z.object({
+    steps: z.array(z.object({
+      type: z.string(),
+      delay: z.number(),
+      variants: z.array(z.object({
+        subject: z.string(),
+        body: z.string()
+      }))
+    }))
+  })).optional(),
+
+  // Email sending settings
+  email_gap: z.number().nullable().optional(),
+  random_wait_max: z.number().nullable().optional(),
+  text_only: z.boolean().nullable().optional(),
+  email_list: z.array(z.string()).optional(),
+  daily_limit: z.number().nullable().optional(),
+  stop_on_reply: z.boolean().nullable().optional(),
+  email_tag_list: z.array(z.string()).optional(),
+
+  // Tracking settings
+  link_tracking: z.boolean().nullable().optional(),
+  open_tracking: z.boolean().nullable().optional(),
+
+  // Advanced settings
+  stop_on_auto_reply: z.boolean().nullable().optional(),
+  daily_max_leads: z.number().nullable().optional(),
+  prioritize_new_leads: z.boolean().nullable().optional(),
+  auto_variant_select: z.object({
+    trigger: z.string()
+  }).optional(),
+  match_lead_esp: z.boolean().nullable().optional(),
+  stop_for_company: z.boolean().nullable().optional(),
+  insert_unsubscribe_header: z.boolean().nullable().optional(),
+  allow_risky_contacts: z.boolean().nullable().optional(),
+  disable_bounce_protect: z.boolean().nullable().optional(),
+
+  // CC/BCC lists
+  cc_list: z.array(z.string().email()).optional(),
+  bcc_list: z.array(z.string().email()).optional()
 });
 
 

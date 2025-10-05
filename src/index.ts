@@ -2455,9 +2455,47 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
         throw new McpError(ErrorCode.InvalidParams, 'campaign_id is required');
       }
 
+      // Build update data with all provided parameters (excluding campaign_id from body)
       const updateData: any = {};
-      if (args.name) updateData.name = args.name;
-      if (args.status) updateData.status = args.status;
+
+      // Basic campaign settings
+      if (args.name !== undefined) updateData.name = args.name;
+      if (args.pl_value !== undefined) updateData.pl_value = args.pl_value;
+      if (args.is_evergreen !== undefined) updateData.is_evergreen = args.is_evergreen;
+
+      // Campaign schedule
+      if (args.campaign_schedule !== undefined) updateData.campaign_schedule = args.campaign_schedule;
+
+      // Email sequences
+      if (args.sequences !== undefined) updateData.sequences = args.sequences;
+
+      // Email sending settings
+      if (args.email_gap !== undefined) updateData.email_gap = args.email_gap;
+      if (args.random_wait_max !== undefined) updateData.random_wait_max = args.random_wait_max;
+      if (args.text_only !== undefined) updateData.text_only = args.text_only;
+      if (args.email_list !== undefined) updateData.email_list = args.email_list;
+      if (args.daily_limit !== undefined) updateData.daily_limit = args.daily_limit;
+      if (args.stop_on_reply !== undefined) updateData.stop_on_reply = args.stop_on_reply;
+      if (args.email_tag_list !== undefined) updateData.email_tag_list = args.email_tag_list;
+
+      // Tracking settings
+      if (args.link_tracking !== undefined) updateData.link_tracking = args.link_tracking;
+      if (args.open_tracking !== undefined) updateData.open_tracking = args.open_tracking;
+
+      // Advanced settings
+      if (args.stop_on_auto_reply !== undefined) updateData.stop_on_auto_reply = args.stop_on_auto_reply;
+      if (args.daily_max_leads !== undefined) updateData.daily_max_leads = args.daily_max_leads;
+      if (args.prioritize_new_leads !== undefined) updateData.prioritize_new_leads = args.prioritize_new_leads;
+      if (args.auto_variant_select !== undefined) updateData.auto_variant_select = args.auto_variant_select;
+      if (args.match_lead_esp !== undefined) updateData.match_lead_esp = args.match_lead_esp;
+      if (args.stop_for_company !== undefined) updateData.stop_for_company = args.stop_for_company;
+      if (args.insert_unsubscribe_header !== undefined) updateData.insert_unsubscribe_header = args.insert_unsubscribe_header;
+      if (args.allow_risky_contacts !== undefined) updateData.allow_risky_contacts = args.allow_risky_contacts;
+      if (args.disable_bounce_protect !== undefined) updateData.disable_bounce_protect = args.disable_bounce_protect;
+
+      // CC/BCC lists
+      if (args.cc_list !== undefined) updateData.cc_list = args.cc_list;
+      if (args.bcc_list !== undefined) updateData.bcc_list = args.bcc_list;
 
       const result = await makeInstantlyRequest(`/campaigns/${args.campaign_id}`, {
         method: 'PATCH',
