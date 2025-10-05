@@ -1237,7 +1237,7 @@ export const TOOLS_DEFINITION = [
       },
       {
         name: 'create_campaign',
-        description: '🚀 INTELLIGENT CAMPAIGN CREATION WITH AUTOMATIC ACCOUNT DISCOVERY\n\n✨ AUTOMATIC WORKFLOW:\nThis tool automatically fetches and displays ONLY eligible sender accounts that meet these criteria:\n• Account is active (status = 1)\n• Setup is complete (no pending setup)\n• Warmup is complete (warmup_status = 1)\n\nYou will be shown the list of eligible accounts and prompted to select which ones to use as senders.\n\n⚠️ CRITICAL REQUIREMENTS:\n1️⃣ NEVER use placeholder emails like test@example.com or user@example.com\n2️⃣ ONLY use email addresses from the eligible accounts list shown to you\n3️⃣ To create ONE campaign with MULTIPLE sender emails, provide ALL emails in a SINGLE email_list array\n4️⃣ Do NOT create multiple separate campaigns when user provides multiple emails - create ONE campaign with all emails\n5️⃣ Instantly.ai\'s core value is multi-account sending - users typically have 10-100+ accounts for better deliverability\n\n✨ MULTI-STEP CAMPAIGNS SUPPORTED:\n• Use sequence_steps parameter (2-10) to create follow-up sequences\n• Use step_delay_days parameter (1-30) to set delay between steps\n• Perfect for cold outreach, nurture campaigns, and follow-up workflows\n• Example: sequence_steps=3, step_delay_days=2 creates 3-step sequence with 2-day delays\n\nCreate a new email campaign with intelligent guidance and validation. Automatically provides comprehensive prerequisite checking, account validation, and user-friendly error messages.',
+        description: '🚀 INTELLIGENT CAMPAIGN CREATION WITH AUTOMATIC ACCOUNT DISCOVERY\n\n✨ AUTOMATIC WORKFLOW:\nThis tool automatically fetches and displays ONLY eligible sender accounts that meet these criteria:\n• Account is active (status = 1)\n• Setup is complete (no pending setup)\n• Warmup is complete (warmup_status = 1)\n\nYou will be shown the list of eligible accounts and prompted to select which ones to use as senders.\n\n⚠️ CRITICAL REQUIREMENTS:\n1️⃣ NEVER use placeholder emails like test@example.com or user@example.com\n2️⃣ ONLY use email addresses from the eligible accounts list shown to you\n3️⃣ To create ONE campaign with MULTIPLE sender emails, provide ALL emails in a SINGLE email_list array\n4️⃣ Do NOT create multiple separate campaigns when user provides multiple emails - create ONE campaign with all emails\n5️⃣ Instantly.ai\'s core value is multi-account sending - users typically have at least 1 to 100+ accounts for better scalability anddeliverability\n\n✨ MULTI-STEP CAMPAIGNS SUPPORTED:\n• Use sequence_steps parameter (2-10) to create follow-up sequences\n• Use step_delay_days parameter (1-30) to set delay between steps\n• Perfect for cold outreach, nurture campaigns, and follow-up workflows\n• Example: sequence_steps=3, step_delay_days=2 creates 3-step sequence with 2-day delays\n\nCreate a new email campaign with intelligent guidance and validation. Automatically provides comprehensive prerequisite checking, account validation, and user-friendly error messages.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -1252,7 +1252,7 @@ export const TOOLS_DEFINITION = [
             },
             body: {
               type: 'string',
-              description: 'Email body content. Use plain text with \\n for line breaks - they will be automatically converted to <br /> tags for HTML email rendering in Instantly.ai. Double line breaks (\\n\\n) create paragraphs. Personalization: {{firstName}}, {{lastName}}, {{companyName}}. Example: "Hi {{firstName}},\\n\\nI hope this finds you well.\\n\\nBest regards"'
+              description: 'Email body content. Use plain text with \\n for line breaks - they will be automatically converted to <br /> tags for HTML email rendering in Instantly.ai. Double line breaks (\\n\\n) create paragraphs. Personalization: {{firstName}}, {{lastName}}, {{companyName}}. Example: "Hi {{firstName}},\\n\\nI came across your website.\\n\\nBest regards" Never say "I hope this finds you well" or "I hope this email finds you well" or anything like that. Get straight to the point. The body of the email should be high-value and engaging.'
             },
             email_list: {
               type: 'array',
@@ -2259,6 +2259,7 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
         // STEP 0: Automatic Account Discovery - Fetch and display eligible accounts
         console.error('[Instantly MCP] 📋 Fetching eligible sender accounts...');
 
+        // Check if validation should be skipped (used throughout this handler)
         const skipValidation = process.env.SKIP_ACCOUNT_VALIDATION === 'true';
         const isTestKey = apiKey?.includes('test') || apiKey?.includes('demo');
 
@@ -2393,8 +2394,7 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
         const validatedData = await validateCampaignData(validationArgs);
 
         // Step 4: Validate sender email addresses against accounts (skip for test API keys or if disabled)
-        const skipValidation = process.env.SKIP_ACCOUNT_VALIDATION === 'true';
-        const isTestKey = apiKey?.includes('test') || apiKey?.includes('demo');
+        // Note: skipValidation and isTestKey are already declared at the top of this handler
 
         if (!skipValidation && !isTestKey && enhanced_args.email_list && enhanced_args.email_list.length > 0) {
           console.error('[Instantly MCP] 🔍 Validating sender email addresses...');
