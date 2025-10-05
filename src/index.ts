@@ -1474,7 +1474,10 @@ export const TOOLS_DEFINITION = [
             sequences: {
               type: 'array',
               description: 'OPTIONAL: New email sequences to UPDATE the existing sequences. Only provide this if you want to MODIFY the email sequences.',
-              additionalProperties: true
+              items: {
+                type: 'object',
+                additionalProperties: true
+              }
             },
             email_gap: {
               type: 'number',
