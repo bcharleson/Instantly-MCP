@@ -695,8 +695,9 @@ export class StreamingHttpTransport {
       }
 
       // Source 3: Extract from sessionId if it looks like an API key
-      if (!apiKey && sessionId && sessionId.length > 20 && sessionId.startsWith('sk_')) {
+      if (!apiKey && sessionId && sessionId.length > 20) {
         // SessionId might actually be the API key (Claude.ai sometimes does this)
+        // Accept any sessionId that's long enough (could be sk_xxx or base64 encoded)
         apiKey = sessionId;
         console.error(`[HTTP] 🔑 Using sessionId as API key (fallback)`);
       }
