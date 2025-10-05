@@ -1355,7 +1355,7 @@ export const TOOLS_DEFINITION = [
       },
       {
         name: 'list_campaigns',
-        description: 'Retrieve, view, show, get, or list all campaigns. Use this tool when the user wants to see their campaigns, view campaign data, or get a list of campaigns. Supports filtering by status, search terms, tags, and date ranges (created_after/created_before). Returns up to 5 pages (500 items) by default with cursor-based pagination.',
+        description: '[READ-ONLY] Get/retrieve/view/show/list all campaigns. Use this tool when user wants to SEE or VIEW campaigns (e.g., "show me campaigns", "get my campaigns", "list campaigns"). This is a read-only operation that returns campaign data without modifying anything. Supports filtering by status, search terms, tags, and date ranges (created_after/created_before). Returns up to 5 pages (500 items) by default. For MODIFYING campaigns, use update_campaign instead.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -1446,7 +1446,7 @@ export const TOOLS_DEFINITION = [
       },
       {
         name: 'update_campaign',
-        description: 'Update, modify, change, or edit an existing campaign. Use this tool ONLY when the user wants to change/update/modify campaign settings, NOT for viewing or listing campaigns. Requires campaign_id. Supports updating campaign settings, email configuration, tracking, and advanced options.',
+        description: '[WRITE] Modify/update/change/edit an existing campaign. Use ONLY when user wants to CHANGE or MODIFY a campaign (e.g., "update campaign name", "change campaign settings"). NEVER use for viewing/listing/showing/getting campaigns - use list_campaigns for that. Requires campaign_id parameter. This is a write operation that modifies campaign data.',
         inputSchema: {
           type: 'object',
           properties: {
