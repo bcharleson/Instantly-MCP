@@ -1217,7 +1217,7 @@ async function validateEmailListAgainstAccounts(emailList: string[], apiKey?: st
 export const TOOLS_DEFINITION = [
       {
         name: 'list_accounts',
-        description: 'List email accounts with cursor-based pagination. Returns up to 5 pages (500 items) by default. Use starting_after parameter to retrieve additional pages.',
+        description: 'List email accounts with cursor-based pagination. ⏱️ May take 10-30 seconds for large account lists (100+ accounts). Returns up to 2 pages (200 items) by default with 100 items per page. Use starting_after parameter to retrieve additional pages.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -2174,18 +2174,24 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
       console.error('[Instantly MCP] 📊 Executing list_accounts...');
 
       try {
+        // Ensure we always send proper pagination parameters (never empty payload)
+        const paginationParams = {
+          limit: args?.limit || 100, // Always include limit for optimal pagination
+          ...(args?.starting_after && { starting_after: args.starting_after })
+        };
+
         // Validate parameters (even though they're optional)
-        const validatedData = validateListAccountsData(args || {});
+        const validatedData = validateListAccountsData(paginationParams);
         console.error('[Instantly MCP] 📊 Parameters validated:', validatedData);
 
-        console.error('[Instantly MCP] 🔍 DEBUG: About to call getAllAccounts()');
-        const result = await getAllAccounts(apiKey, args);
+        console.error('[Instantly MCP] 🔍 DEBUG: About to call getAllAccounts() with params:', paginationParams);
+        const result = await getAllAccounts(apiKey, paginationParams);
         console.error('[Instantly MCP] 🔍 DEBUG: getAllAccounts() completed successfully');
 
         const metadata = result.metadata || {
           returned_count: result.data.length,
           has_more: false,
-          limit: args?.limit || 100,
+          limit: paginationParams.limit,
           pages_retrieved: 1,
           request_time_ms: 0,
           timeout_occurred: false,
