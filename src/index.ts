@@ -255,35 +255,57 @@ async function makeInstantlyRequest(endpoint: string, options: any = {}, apiKey?
   }
 }
 
-// UPDATED: Pagination for list_accounts with cursor support and metadata
+// SEQUENTIAL PAGINATION: Fetch ONE page at a time, let LLM control pagination
 async function getAllAccounts(apiKey?: string, params?: any): Promise<any> {
-  console.error('[Instantly MCP] 📊 Retrieving accounts with pagination...');
+  console.error('[Instantly MCP] 📊 Retrieving accounts (sequential pagination)...');
 
   try {
-    // Create a wrapper function that includes the API key
-    const makeRequestWithKey = (endpoint: string, options: any = {}) =>
-      makeInstantlyRequest(endpoint, options, apiKey);
+    const startTime = Date.now();
 
-    // Build pagination parameters
-    const paginationParams: any = {};
+    // Build query parameters for single page request
+    const queryParams: any = {
+      limit: params?.limit || 100, // Default to 100 items per page
+    };
+
+    // Add cursor if provided (for subsequent pages)
     if (params?.starting_after) {
-      paginationParams.starting_after = params.starting_after;
+      queryParams.starting_after = params.starting_after;
+      console.error(`[Instantly MCP] 📄 Fetching page with cursor: ${params.starting_after}`);
+    } else {
+      console.error('[Instantly MCP] 📄 Fetching first page');
     }
 
-    // Use direct API call with pagination
-    // REDUCED: maxPages from 5 to 2 to prevent 504 Gateway Timeout errors
-    const result = await paginateInstantlyAPI('/accounts', makeRequestWithKey, paginationParams, {
-      maxPages: 2, // Reduced from 5 to stay under 30s server timeout
-      batchSize: params?.limit || 100,
-      operationType: 'accounts'
-    });
+    // Make single API call to /accounts endpoint
+    const response = await makeInstantlyRequest('/accounts', {
+      method: 'GET',
+      params: queryParams
+    }, apiKey);
 
-    console.error(`[Instantly MCP] ✅ Successfully retrieved ${result.length} accounts`);
+    const elapsed = Date.now() - startTime;
 
-    // Return both data and metadata
+    // Extract data and pagination info from response
+    const data = Array.isArray(response) ? response : (response.data || []);
+    const nextCursor = response.next_starting_after || null;
+    const hasMore = !!nextCursor;
+
+    console.error(`[Instantly MCP] ✅ Retrieved ${data.length} accounts in ${elapsed}ms (has_more: ${hasMore})`);
+
+    // Return single page with clear pagination metadata
     return {
-      data: result,
-      metadata: (result as any).__pagination_metadata
+      data,
+      pagination: {
+        returned_count: data.length,
+        has_more: hasMore,
+        next_starting_after: nextCursor,
+        limit: queryParams.limit,
+        current_page_note: hasMore
+          ? `Retrieved ${data.length} accounts. More results available. To get next page, call list_accounts again with starting_after='${nextCursor}'`
+          : `Retrieved all available accounts (${data.length} items).`
+      },
+      metadata: {
+        request_time_ms: elapsed,
+        success: true
+      }
     };
   } catch (error) {
     console.error('[Instantly MCP] ❌ Error retrieving accounts:', error);
@@ -1217,7 +1239,7 @@ async function validateEmailListAgainstAccounts(emailList: string[], apiKey?: st
 export const TOOLS_DEFINITION = [
       {
         name: 'list_accounts',
-        description: 'List email accounts with cursor-based pagination. ⏱️ May take 10-30 seconds for large account lists (100+ accounts). Returns up to 2 pages (200 items) by default with 100 items per page. Use starting_after parameter to retrieve additional pages.',
+        description: 'List email accounts with sequential cursor-based pagination. ⚡ Returns ONE page per call (fast ~2-5 seconds). Use starting_after parameter to fetch subsequent pages. LLM controls pagination flow for transparency and error recovery.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -1229,7 +1251,7 @@ export const TOOLS_DEFINITION = [
             },
             starting_after: {
               type: 'string',
-              description: 'Cursor for pagination - ID of the last item from previous page. Use the next_starting_after value from previous response.'
+              description: 'Cursor for pagination - use the next_starting_after value from previous response to fetch next page. Omit for first page.'
             }
           },
           additionalProperties: false
@@ -2171,60 +2193,38 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
   // Execute the tool logic (this is the same logic from the main MCP handler)
   switch (name) {
     case 'list_accounts': {
-      console.error('[Instantly MCP] 📊 Executing list_accounts...');
+      console.error('[Instantly MCP] 📊 Executing list_accounts (sequential pagination)...');
 
       try {
-        // Ensure we always send proper pagination parameters (never empty payload)
+        // Build pagination parameters
         const paginationParams = {
-          limit: args?.limit || 100, // Always include limit for optimal pagination
+          limit: args?.limit || 100,
           ...(args?.starting_after && { starting_after: args.starting_after })
         };
 
-        // Validate parameters (even though they're optional)
+        // Validate parameters
         const validatedData = validateListAccountsData(paginationParams);
         console.error('[Instantly MCP] 📊 Parameters validated:', validatedData);
 
-        console.error('[Instantly MCP] 🔍 DEBUG: About to call getAllAccounts() with params:', paginationParams);
+        // Fetch ONE page of accounts
         const result = await getAllAccounts(apiKey, paginationParams);
-        console.error('[Instantly MCP] 🔍 DEBUG: getAllAccounts() completed successfully');
 
-        const metadata = result.metadata || {
-          returned_count: result.data.length,
-          has_more: false,
-          limit: paginationParams.limit,
-          pages_retrieved: 1,
-          request_time_ms: 0,
-          timeout_occurred: false,
-          note: 'No pagination metadata available'
-        };
-
+        // Return single page with clear pagination metadata
         return {
           content: [
             {
               type: 'text',
               text: JSON.stringify({
                 data: result.data,
-                pagination: {
-                  returned_count: result.data.length,
-                  has_more: metadata.has_more,
-                  next_starting_after: metadata.next_starting_after,
-                  limit: metadata.limit,
-                  pages_retrieved: metadata.pages_retrieved
-                },
-                metadata: {
-                  request_time_ms: metadata.request_time_ms,
-                  note: metadata.note,
-                  timeout_occurred: metadata.timeout_occurred
-                },
+                pagination: result.pagination,
+                metadata: result.metadata,
                 success: true
               }, null, 2)
             }
           ]
         };
       } catch (error: any) {
-        console.error('[Instantly MCP] ❌ FULL ERROR STACK in list_accounts:', error.stack);
-        console.error('[Instantly MCP] ❌ ERROR MESSAGE:', error.message);
-        console.error('[Instantly MCP] ❌ ERROR TYPE:', typeof error);
+        console.error('[Instantly MCP] ❌ Error in list_accounts:', error.message);
         throw error;
       }
     }
@@ -4249,16 +4249,8 @@ async function handleToolCall(params: any) {
     }
 
     case 'list_accounts': {
+      // Sequential pagination - fetch ONE page at a time
       const result = await getAllAccounts(args.apiKey, args);
-      const metadata = result.metadata || {
-        returned_count: result.data.length,
-        has_more: false,
-        limit: args?.limit || 100,
-        pages_retrieved: 1,
-        request_time_ms: 0,
-        timeout_occurred: false,
-        note: 'No pagination metadata available'
-      };
 
       return {
         content: [
@@ -4266,18 +4258,8 @@ async function handleToolCall(params: any) {
             type: 'text',
             text: JSON.stringify({
               data: result.data,
-              pagination: {
-                returned_count: result.data.length,
-                has_more: metadata.has_more,
-                next_starting_after: metadata.next_starting_after,
-                limit: metadata.limit,
-                pages_retrieved: metadata.pages_retrieved
-              },
-              metadata: {
-                request_time_ms: metadata.request_time_ms,
-                note: metadata.note,
-                timeout_occurred: metadata.timeout_occurred
-              },
+              pagination: result.pagination,
+              metadata: result.metadata,
               success: true
             }, null, 2)
           }
