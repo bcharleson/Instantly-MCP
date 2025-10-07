@@ -43,7 +43,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { handleInstantlyError, parseInstantlyResponse } from './error-handler.js';
 import { rateLimiter } from './rate-limiter.js';
-import { buildInstantlyPaginationQuery, buildQueryParams, parsePaginatedResponse, paginateInstantlyAPI } from './pagination.js';
+import { buildQueryParams } from './pagination.js';
 import { validateAndMapTimezone, DEFAULT_TIMEZONE, BUSINESS_PRIORITY_TIMEZONES } from './timezone-config.js';
 import {
   validateToolParameters,
@@ -1377,7 +1377,7 @@ export const TOOLS_DEFINITION = [
       },
       {
         name: 'list_campaigns',
-        description: '📋 LIST/VIEW MULTIPLE CAMPAIGNS - READ-ONLY OPERATION\n\n✨ WHEN TO USE THIS TOOL:\n\n✅ USE list_campaigns when user wants to:\n• "Show me my campaigns"\n• "List all campaigns"\n• "Get my campaigns"\n• "View campaigns"\n• "What campaigns do I have?"\n• "Find campaigns created last month"\n• "Show active campaigns"\n• See MULTIPLE campaigns or ALL campaigns\n\n❌ DO NOT USE list_campaigns when user wants to:\n• Get details of ONE specific campaign by ID → Use get_campaign instead\n• Modify/update a campaign → Use update_campaign instead\n• Create a new campaign → Use create_campaign instead\n\n⚠️ CRITICAL: This is READ-ONLY\n• Does NOT modify any campaign data\n• Safe to call anytime\n• Returns campaign summaries (not full details)\n• For full details of ONE campaign, use get_campaign with campaign_id\n\n📚 COMMON USER REQUEST EXAMPLES:\n\n1️⃣ "Show me all my campaigns":\n   → Call list_campaigns with no parameters\n   → Returns up to 500 campaigns (5 pages × 100 per page)\n   → Use starting_after for more pages\n\n2️⃣ "Show active campaigns":\n   → Call list_campaigns with status filter\n   → Status values: 0=Draft, 1=Active, 2=Paused, 3=Completed\n   → Example: {status: "1"} for active only\n\n3️⃣ "Find campaigns created last month":\n   → Use created_after and created_before parameters\n   → Format: YYYY-MM-DD\n   → Example: {created_after: "2025-09-01", created_before: "2025-09-30"}\n\n4️⃣ "Search for campaign by name":\n   → Use search parameter\n   → Example: {search: "Product Launch"}\n   → Returns campaigns matching the search term\n\n💡 FILTERING OPTIONS:\n• status: Filter by campaign status (0-3)\n• search: Search by campaign name\n• tag_ids: Filter by tag IDs (comma-separated)\n• created_after/created_before: Date range filtering\n• limit: Items per page (1-100, default 100)\n• starting_after: Pagination cursor\n\n⏱️ PERFORMANCE NOTE:\n• Returns up to 5 pages (500 campaigns) by default\n• Each page loads ~100 campaigns\n• Use pagination for more than 500 campaigns\n• Fast response time (< 2 seconds for 500 campaigns)\n\nList/view multiple campaigns with filtering and pagination. Read-only operation that returns campaign data without modifying anything. For single campaign details, use get_campaign. For modifications, use update_campaign.',
+        description: '📋 LIST/VIEW MULTIPLE CAMPAIGNS - READ-ONLY OPERATION with SEQUENTIAL PAGINATION\n\n✨ WHEN TO USE THIS TOOL:\n\n✅ USE list_campaigns when user wants to:\n• "Show me my campaigns"\n• "List all campaigns"\n• "Get my campaigns"\n• "View campaigns"\n• "What campaigns do I have?"\n• "Find campaigns created last month"\n• "Show active campaigns"\n• See MULTIPLE campaigns or ALL campaigns\n\n❌ DO NOT USE list_campaigns when user wants to:\n• Get details of ONE specific campaign by ID → Use get_campaign instead\n• Modify/update a campaign → Use update_campaign instead\n• Create a new campaign → Use create_campaign instead\n\n⚠️ CRITICAL: This is READ-ONLY\n• Does NOT modify any campaign data\n• Safe to call anytime\n• Returns campaign summaries (not full details)\n• For full details of ONE campaign, use get_campaign with campaign_id\n\n⚡ SEQUENTIAL PAGINATION (LLM-Controlled):\n• Returns ONE page per call (fast ~2-5 seconds)\n• Max 100 campaigns per page (controllable with limit parameter)\n• Use starting_after parameter to fetch subsequent pages\n• LLM controls pagination flow for transparency and error recovery\n• Each call is a checkpoint - if error occurs, you know exactly where you left off\n\n📚 COMMON USER REQUEST EXAMPLES:\n\n1️⃣ "Show me all my campaigns":\n   → First call: list_campaigns (no parameters) - gets first 100\n   → If has_more=true, next call: list_campaigns with starting_after from response\n   → Repeat until has_more=false\n\n2️⃣ "Show active campaigns":\n   → Call list_campaigns with status filter\n   → Status values: 0=Draft, 1=Active, 2=Paused, 3=Completed\n   → Example: {status: "1"} for active only\n\n3️⃣ "Find campaigns created last month":\n   → Use created_after and created_before parameters\n   → Format: YYYY-MM-DD\n   → Example: {created_after: "2025-09-01", created_before: "2025-09-30"}\n   → Note: Date filtering is applied client-side after retrieval\n\n4️⃣ "Search for campaign by name":\n   → Use search parameter\n   → Example: {search: "Product Launch"}\n   → Returns campaigns matching the search term\n\n💡 FILTERING OPTIONS:\n• status: Filter by campaign status (0-3)\n• search: Search by campaign name\n• tag_ids: Filter by tag IDs (comma-separated)\n• created_after/created_before: Date range filtering (client-side)\n• limit: Items per page (1-100, default 100)\n• starting_after: Pagination cursor from previous response\n\n⏱️ PERFORMANCE & PAGINATION:\n• Single page response: ~2-5 seconds\n• Controlled payload: max 100 items per call\n• No timeout risks: each call completes quickly\n• Error recovery: LLM knows exact page that failed\n• Context management: prevents LLM context window overload\n\nList/view multiple campaigns with filtering and sequential pagination. Read-only operation that returns campaign data without modifying anything. For single campaign details, use get_campaign. For modifications, use update_campaign.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -1632,7 +1632,7 @@ export const TOOLS_DEFINITION = [
       },
       {
         name: 'list_leads',
-        description: '📋 LIST LEADS WITH ADVANCED FILTERING - READ-ONLY OPERATION\n\n✨ WHAT THIS TOOL DOES:\n\nRetrieve leads with powerful filtering options:\n• Filter by campaign, list, status, dates\n• Search by name or email\n• Advanced filtering (contacted, interested, etc.)\n• Pagination support for large datasets\n• Returns up to 500 leads by default (5 pages × 100 per page)\n\n📚 COMMON USER REQUEST EXAMPLES:\n\n1️⃣ "Show leads in campaign X":\n   → Use campaign_id parameter\n   → Returns all leads associated with that campaign\n   → Example: {campaign_id: "campaign-uuid-here"}\n\n2️⃣ "Find leads that replied":\n   → Use filter parameter: "FILTER_VAL_CONTACTED"\n   → Returns leads that have been contacted/replied\n   → Example: {filter: "FILTER_VAL_CONTACTED"}\n\n3️⃣ "Search for lead by email":\n   → Use search parameter with email\n   → Example: {search: "john@acme.com"}\n   → Also searches first name and last name\n\n4️⃣ "Get leads created last month":\n   → Use created_after and created_before\n   → Format: YYYY-MM-DD\n   → Example: {created_after: "2025-09-01", created_before: "2025-09-30"}\n\n5️⃣ "Show interested leads":\n   → Use filter: "FILTER_LEAD_INTERESTED"\n   → Returns leads marked as interested\n   → Example: {filter: "FILTER_LEAD_INTERESTED"}\n\n💡 AVAILABLE FILTERS:\n\n**Contact Status**:\n• FILTER_VAL_CONTACTED - Leads that have been contacted\n• FILTER_VAL_NOT_CONTACTED - Leads not yet contacted\n• FILTER_VAL_COMPLETED - Leads that completed sequence\n• FILTER_VAL_UNSUBSCRIBED - Leads that unsubscribed\n• FILTER_VAL_ACTIVE - Currently active leads\n\n**Interest Status**:\n• FILTER_LEAD_INTERESTED - Leads marked as interested\n• FILTER_LEAD_NOT_INTERESTED - Leads marked as not interested\n• FILTER_LEAD_MEETING_BOOKED - Leads with meetings booked\n• FILTER_LEAD_MEETING_COMPLETED - Leads with completed meetings\n• FILTER_LEAD_CLOSED - Closed/won leads\n\n⚠️ PAGINATION FOR LARGE DATASETS:\n\n**Default Behavior**:\n• Returns up to 5 pages (500 leads) automatically\n• Each page has up to 100 leads (configurable with limit)\n• Use starting_after for additional pages\n\n**For More Than 500 Leads**:\n1. First call: {campaign_id: "X", limit: 100}\n2. Response includes: next_starting_after field\n3. Next call: {campaign_id: "X", limit: 100, starting_after: "value-from-response"}\n4. Repeat until next_starting_after is null\n\n⏱️ PERFORMANCE NOTE:\n• Fast for < 500 leads (< 2 seconds)\n• Larger datasets take longer (5-10 seconds for 1000+ leads)\n• Use specific filters to reduce result size\n• Pagination is automatic for first 500 leads\n\n🎯 BEST PRACTICES:\n\n1. **Use Specific Filters**: Narrow results with campaign_id, status, filter\n2. **Search Efficiently**: Use search for specific leads, not browsing\n3. **Date Ranges**: Use created_after/created_before to limit results\n4. **Pagination**: For large datasets, use starting_after for additional pages\n5. **Combine Filters**: Use multiple filters together for precise results\n\nList leads with comprehensive filtering and pagination. Read-only operation. Returns up to 500 leads by default.',
+        description: '📋 LIST LEADS WITH ADVANCED FILTERING - READ-ONLY OPERATION with SEQUENTIAL PAGINATION\n\n✨ WHAT THIS TOOL DOES:\n\nRetrieve leads with powerful filtering options:\n• Filter by campaign, list, status, dates\n• Search by name or email\n• Advanced filtering (contacted, interested, etc.)\n• Sequential pagination for large datasets\n• Returns ONE page per call (max 100 leads)\n\n⚡ SEQUENTIAL PAGINATION (LLM-Controlled):\n• Returns ONE page per call (fast ~2-5 seconds)\n• Max 100 leads per page (controllable with limit parameter)\n• Use starting_after parameter to fetch subsequent pages\n• LLM controls pagination flow for transparency and error recovery\n• Each call is a checkpoint - if error occurs, you know exactly where you left off\n\n📚 COMMON USER REQUEST EXAMPLES:\n\n1️⃣ "Show leads in campaign X":\n   → First call: {campaign_id: "X", limit: 100}\n   → If has_more=true, next call: {campaign_id: "X", limit: 100, starting_after: "value-from-response"}\n   → Repeat until has_more=false\n\n2️⃣ "Find leads that replied":\n   → Use filter parameter: "FILTER_VAL_CONTACTED"\n   → Returns leads that have been contacted/replied\n   → Example: {filter: "FILTER_VAL_CONTACTED"}\n\n3️⃣ "Search for lead by email":\n   → Use search parameter with email\n   → Example: {search: "john@acme.com"}\n   → Also searches first name and last name\n\n4️⃣ "Get leads created last month":\n   → Use created_after and created_before\n   → Format: YYYY-MM-DD\n   → Example: {created_after: "2025-09-01", created_before: "2025-09-30"}\n\n5️⃣ "Show interested leads":\n   → Use filter: "FILTER_LEAD_INTERESTED"\n   → Returns leads marked as interested\n   → Example: {filter: "FILTER_LEAD_INTERESTED"}\n\n💡 AVAILABLE FILTERS:\n\n**Contact Status**:\n• FILTER_VAL_CONTACTED - Leads that have been contacted\n• FILTER_VAL_NOT_CONTACTED - Leads not yet contacted\n• FILTER_VAL_COMPLETED - Leads that completed sequence\n• FILTER_VAL_UNSUBSCRIBED - Leads that unsubscribed\n• FILTER_VAL_ACTIVE - Currently active leads\n\n**Interest Status**:\n• FILTER_LEAD_INTERESTED - Leads marked as interested\n• FILTER_LEAD_NOT_INTERESTED - Leads marked as not interested\n• FILTER_LEAD_MEETING_BOOKED - Leads with meetings booked\n• FILTER_LEAD_MEETING_COMPLETED - Leads with completed meetings\n• FILTER_LEAD_CLOSED - Closed/won leads\n\n⚠️ PAGINATION FOR LARGE DATASETS:\n\n**Sequential Pagination Flow**:\n1. First call: {campaign_id: "X", limit: 100}\n2. Response includes: next_starting_after field\n3. Next call: {campaign_id: "X", limit: 100, starting_after: "value-from-response"}\n4. Repeat until next_starting_after is null/absent\n\n⏱️ PERFORMANCE & PAGINATION:\n• Single page response: ~2-5 seconds\n• Controlled payload: max 100 items per call\n• No timeout risks: each call completes quickly\n• Error recovery: LLM knows exact page that failed\n• Context management: prevents LLM context window overload\n\n🎯 BEST PRACTICES:\n\n1. **Use Specific Filters**: Narrow results with campaign_id, status, filter\n2. **Search Efficiently**: Use search for specific leads, not browsing\n3. **Date Ranges**: Use created_after/created_before to limit results\n4. **Pagination**: For large datasets, use starting_after for additional pages\n5. **Combine Filters**: Use multiple filters together for precise results\n\nList leads with comprehensive filtering and sequential pagination. Read-only operation.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -2230,94 +2230,97 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
     }
 
     case 'list_campaigns': {
-      console.error('[Instantly MCP] 📋 Executing list_campaigns...');
+      console.error('[Instantly MCP] 📋 Executing list_campaigns (sequential pagination)...');
 
-      const makeRequestWithKey = (endpoint: string, options: any = {}) =>
-        makeInstantlyRequest(endpoint, options, apiKey);
+      try {
+        const startTime = Date.now();
 
-      // Build pagination parameters
-      const paginationParams: any = {};
-      if (args?.starting_after) {
-        paginationParams.starting_after = args.starting_after;
+        // Build query parameters for single page request
+        const queryParams: any = {
+          limit: args?.limit || 100, // Default to 100 items per page
+        };
+
+        // Add cursor if provided (for subsequent pages)
+        if (args?.starting_after) {
+          queryParams.starting_after = args.starting_after;
+          console.error(`[Instantly MCP] 📄 Fetching page with cursor: ${args.starting_after}`);
+        } else {
+          console.error('[Instantly MCP] 📄 Fetching first page');
+        }
+
+        // Add filter parameters
+        if (args?.status) queryParams.status = args.status;
+        if (args?.search) queryParams.search = args.search;
+        if (args?.tag_ids) queryParams.tag_ids = args.tag_ids;
+
+        // Make single API call to /campaigns endpoint
+        const response = await makeInstantlyRequest('/campaigns', {
+          method: 'GET',
+          params: queryParams
+        }, apiKey);
+
+        const elapsed = Date.now() - startTime;
+
+        // Extract data and pagination info from response
+        const data = Array.isArray(response) ? response : (response.items || response.data || []);
+        const nextCursor = response.next_starting_after || null;
+        const hasMore = !!nextCursor;
+
+        console.error(`[Instantly MCP] ✅ Retrieved ${data.length} campaigns in ${elapsed}ms (has_more: ${hasMore})`);
+
+        // Apply client-side date filtering if requested
+        let filteredCampaigns = data;
+        const filtersApplied: any = {};
+
+        if (args?.created_after || args?.created_before) {
+          const { applyDateFilters } = await import('./pagination.js');
+          filteredCampaigns = applyDateFilters(
+            data,
+            args.created_after,
+            args.created_before,
+            'created_at'
+          );
+
+          if (args.created_after) filtersApplied.created_after = args.created_after;
+          if (args.created_before) filtersApplied.created_before = args.created_before;
+
+          console.error(`[Instantly MCP] Date filtering: ${data.length} → ${filteredCampaigns.length} campaigns`);
+        }
+
+        if (args?.status) filtersApplied.status = args.status;
+        if (args?.search) filtersApplied.search = args.search;
+        if (args?.tag_ids) filtersApplied.tag_ids = args.tag_ids;
+
+        // Return single page with clear pagination metadata
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                data: filteredCampaigns,
+                pagination: {
+                  returned_count: filteredCampaigns.length,
+                  has_more: hasMore,
+                  next_starting_after: nextCursor,
+                  limit: queryParams.limit,
+                  current_page_note: hasMore
+                    ? `Retrieved ${filteredCampaigns.length} campaigns. More results available. To get next page, call list_campaigns again with starting_after='${nextCursor}'`
+                    : `Retrieved all available campaigns (${filteredCampaigns.length} items).`
+                },
+                filters_applied: Object.keys(filtersApplied).length > 0 ? filtersApplied : undefined,
+                metadata: {
+                  request_time_ms: elapsed,
+                  success: true
+                },
+                success: true
+              }, null, 2)
+            }
+          ]
+        };
+      } catch (error: any) {
+        console.error('[Instantly MCP] ❌ Error in list_campaigns:', error.message);
+        throw error;
       }
-      if (args?.limit) {
-        paginationParams.limit = args.limit;
-      }
-
-      // Build additional query parameters
-      const additionalParams: string[] = [];
-      if (args?.status) additionalParams.push('status');
-      if (args?.search) additionalParams.push('search');
-      if (args?.tag_ids) additionalParams.push('tag_ids');
-
-      const campaigns = await paginateInstantlyAPI('/campaigns', makeRequestWithKey, {
-        ...paginationParams,
-        ...args
-      }, {
-        maxPages: 2, // Reduced from 3 to prevent 504 Gateway Timeout errors
-        batchSize: args?.limit || 100,
-        additionalParams,
-        operationType: 'campaigns'
-      });
-
-      // Extract pagination metadata
-      const metadata = (campaigns as any).__pagination_metadata || {
-        returned_count: campaigns.length,
-        has_more: false,
-        limit: args?.limit || 100,
-        pages_retrieved: 1,
-        request_time_ms: 0,
-        timeout_occurred: false,
-        note: 'No pagination metadata available'
-      };
-
-      // Apply client-side date filtering if requested
-      let filteredCampaigns = campaigns;
-      const filtersApplied: any = {};
-
-      if (args?.created_after || args?.created_before) {
-        const { applyDateFilters } = await import('./pagination.js');
-        filteredCampaigns = applyDateFilters(
-          campaigns,
-          args.created_after,
-          args.created_before,
-          'created_at' // Try created_at first, will fallback if not present
-        );
-
-        if (args.created_after) filtersApplied.created_after = args.created_after;
-        if (args.created_before) filtersApplied.created_before = args.created_before;
-
-        console.error(`[Instantly MCP] Date filtering: ${campaigns.length} → ${filteredCampaigns.length} campaigns`);
-      }
-
-      if (args?.status) filtersApplied.status = args.status;
-      if (args?.search) filtersApplied.search = args.search;
-      if (args?.tag_ids) filtersApplied.tag_ids = args.tag_ids;
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              data: filteredCampaigns,
-              pagination: {
-                returned_count: filteredCampaigns.length,
-                has_more: metadata.has_more,
-                next_starting_after: metadata.next_starting_after,
-                limit: metadata.limit,
-                pages_retrieved: metadata.pages_retrieved
-              },
-              filters_applied: Object.keys(filtersApplied).length > 0 ? filtersApplied : undefined,
-              metadata: {
-                request_time_ms: metadata.request_time_ms,
-                note: metadata.note,
-                timeout_occurred: metadata.timeout_occurred
-              },
-              success: true
-            }, null, 2)
-          }
-        ]
-      };
     }
 
     case 'get_campaign': {
