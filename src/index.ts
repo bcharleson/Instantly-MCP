@@ -284,7 +284,7 @@ async function getAllAccounts(apiKey?: string, params?: any): Promise<any> {
     const elapsed = Date.now() - startTime;
 
     // Extract data and pagination info from response
-    const data = Array.isArray(response) ? response : (response.data || []);
+    const data = Array.isArray(response) ? response : (response.items || response.data || []);
     const nextCursor = response.next_starting_after || null;
     const hasMore = !!nextCursor;
 
