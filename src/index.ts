@@ -1675,13 +1675,13 @@ export const TOOLS_DEFINITION = [
       },
       {
         name: 'list_leads',
-        description: '📊 LIST LEADS - Sequential Pagination with Smart Context Management\n\n⚠️ CRITICAL LLM BEHAVIOR INSTRUCTIONS:\n\n🛑 **ALWAYS** fetch FIRST PAGE ONLY (50 leads) on initial request\n🤔 **BEFORE** fetching more pages: ASK user if they want to narrow criteria or continue\n🎯 **SUGGEST** specific filtering criteria when user requests "all leads"\n⚡ **FOR CONFIRMED "get all"**: Show progress after each page (e.g., "Retrieved 150/2000+ leads...")\n\n⚠️ **CONTEXT WINDOW WARNING - HIGHEST RISK**:\nLead datasets can be MASSIVE (1000s-10000s+ leads). Each lead contains detailed contact data. ALWAYS suggest filtering before mass retrieval to avoid context overflow.\n\n🎯 **SMART FILTERING SUGGESTIONS** (ask user BEFORE fetching all):\n• Filter by campaign: campaign_id="X" for specific campaign leads\n• Filter by contact status: filter="FILTER_VAL_CONTACTED" (replied leads only)\n• Filter by interest: filter="FILTER_LEAD_INTERESTED" (interested leads only)\n• Search specific lead: search="john@acme.com" or search="John Smith"\n• Filter by list: list_id="X" for specific lead list\n• Filter by date: Use created_after/created_before parameters\n\n📚 **RECOMMENDED USER INTERACTION FLOW**:\n\n1️⃣ User: "List all my leads"\n   → LLM: Fetch first 50 leads\n   → LLM: Show results summary\n   → LLM: "Found 50 leads, and MANY more are available (potentially 1000s+). **Context warning**: Retrieving all may overflow context. Would you like to:\n      - Filter by specific campaign?\n      - Filter by contact status (contacted, interested, etc.)?\n      - Search for specific lead?\n      - Continue fetching (with caution)?"\n\n2️⃣ User: "Show leads that replied in campaign X"\n   → LLM: Fetch with campaign_id="X" AND filter="FILTER_VAL_CONTACTED"\n   → LLM: Show filtered contacted leads\n\n3️⃣ User: "Find lead john@acme.com"\n   → LLM: Use search="john@acme.com" parameter\n   → LLM: Show specific lead\n\n💡 **KEY FILTER OPTIONS**:\n\n**Contact Status Filters**:\n• FILTER_VAL_CONTACTED - Leads that replied\n• FILTER_VAL_NOT_CONTACTED - Not yet contacted\n• FILTER_VAL_COMPLETED - Completed sequence\n• FILTER_VAL_UNSUBSCRIBED - Unsubscribed\n• FILTER_VAL_ACTIVE - Currently active\n\n**Interest Status Filters**:\n• FILTER_LEAD_INTERESTED - Marked as interested\n• FILTER_LEAD_MEETING_BOOKED - Meeting scheduled\n• FILTER_LEAD_CLOSED - Closed/won\n\n**Other Filters**:\n• campaign_id: Filter by campaign\n• list_id: Filter by lead list\n• search: Search by name or email\n• created_after/created_before: Date range (YYYY-MM-DD)\n\n⚡ Returns ONE page per call (fast ~2-5 seconds). Max 50 leads per page. Use starting_after for pagination.',
+        description: '📊 LIST LEADS - Sequential Pagination with Smart Context Management\n\n⚠️ CRITICAL LLM BEHAVIOR INSTRUCTIONS:\n\n🛑 **ALWAYS** fetch FIRST PAGE ONLY (100 leads) on initial request\n🤔 **BEFORE** fetching more pages: ASK user if they want to narrow criteria or continue\n🎯 **SUGGEST** specific filtering criteria when user requests "all leads"\n⚡ **FOR CONFIRMED "get all"**: Show progress after each page (e.g., "Retrieved 200/2000+ leads...")\n\n⚠️ **CONTEXT WINDOW WARNING - HIGHEST RISK**:\nLead datasets can be MASSIVE (1000s-10000s+ leads). Each lead contains detailed contact data. ALWAYS suggest filtering before mass retrieval to avoid context overflow.\n\n🎯 **SMART FILTERING SUGGESTIONS** (ask user BEFORE fetching all):\n• Filter by campaign: campaign="X" for specific campaign leads\n• Filter by contact status: filter="FILTER_VAL_CONTACTED" (replied leads only)\n• Filter by interest: filter="FILTER_LEAD_INTERESTED" (interested leads only)\n• Search specific lead: search="john@acme.com" or search="John Smith"\n• Filter by list: list_id="X" for specific lead list\n• Filter by date: Use created_after/created_before parameters\n\n📚 **RECOMMENDED USER INTERACTION FLOW**:\n\n1️⃣ User: "List all my leads"\n   → LLM: Fetch first 100 leads\n   → LLM: Show results summary\n   → LLM: "Found 100 leads, and MANY more are available (potentially 1000s+). **Context warning**: Retrieving all may overflow context. Would you like to:\n      - Filter by specific campaign?\n      - Filter by contact status (contacted, interested, etc.)?\n      - Search for specific lead?\n      - Continue fetching (with caution)?"\n\n2️⃣ User: "Show leads that replied in campaign X"\n   → LLM: Fetch with campaign="X" AND filter="FILTER_VAL_CONTACTED"\n   → LLM: Show filtered contacted leads\n\n3️⃣ User: "Find lead john@acme.com"\n   → LLM: Use search="john@acme.com" parameter\n   → LLM: Show specific lead\n\n💡 **KEY FILTER OPTIONS**:\n\n**Contact Status Filters**:\n• FILTER_VAL_CONTACTED - Leads that replied\n• FILTER_VAL_NOT_CONTACTED - Not yet contacted\n• FILTER_VAL_COMPLETED - Completed sequence\n• FILTER_VAL_UNSUBSCRIBED - Unsubscribed\n• FILTER_VAL_ACTIVE - Currently active\n\n**Interest Status Filters**:\n• FILTER_LEAD_INTERESTED - Marked as interested\n• FILTER_LEAD_MEETING_BOOKED - Meeting scheduled\n• FILTER_LEAD_CLOSED - Closed/won\n\n**Other Filters**:\n• campaign: Filter by campaign\n• list_id: Filter by lead list\n• search: Search by name or email\n• created_after/created_before: Date range (YYYY-MM-DD)\n\n⚡ Returns ONE page per call (fast ~2-5 seconds). Max 100 leads per page. Use starting_after for pagination.',
         inputSchema: {
           type: 'object',
           properties: {
             // Basic filtering parameters
-            campaign_id: { type: 'string', description: 'Filter by campaign ID (optional)' },
-            list_id: { type: 'string', description: 'Filter by list ID (optional)' },
+            campaign: { type: 'string', description: 'Campaign ID to filter leads (UUID format)' },
+            list_id: { type: 'string', description: 'List ID to filter leads (UUID format)' },
             list_ids: {
               type: 'array',
               items: { type: 'string' },
@@ -1708,7 +1708,39 @@ export const TOOLS_DEFINITION = [
             },
             filter: {
               type: 'string',
-              description: 'Filter criteria for leads. Available values: FILTER_VAL_CONTACTED, FILTER_VAL_NOT_CONTACTED, FILTER_VAL_COMPLETED, FILTER_VAL_UNSUBSCRIBED, FILTER_VAL_ACTIVE, FILTER_LEAD_INTERESTED, FILTER_LEAD_NOT_INTERESTED, FILTER_LEAD_MEETING_BOOKED, FILTER_LEAD_MEETING_COMPLETED, FILTER_LEAD_CLOSED. Example: "FILTER_VAL_CONTACTED"'
+              description: `Filter criteria for leads. The LLM should understand natural language and map to these technical values (send technical value to API, but communicate human-readable description to user):
+
+**Contact Status Filters:**
+• FILTER_VAL_CONTACTED - "Leads that have been contacted (replied to emails)"
+• FILTER_VAL_NOT_CONTACTED - "Leads that have not been contacted yet"
+• FILTER_VAL_COMPLETED - "Leads that completed the email sequence"
+• FILTER_VAL_UNSUBSCRIBED - "Leads that unsubscribed from emails"
+• FILTER_VAL_ACTIVE - "Leads that are currently active in campaigns"
+
+**Interest Status Filters:**
+• FILTER_LEAD_INTERESTED - "Leads marked as interested"
+• FILTER_LEAD_NOT_INTERESTED - "Leads marked as not interested"
+• FILTER_LEAD_MEETING_BOOKED - "Leads with a meeting booked"
+• FILTER_LEAD_MEETING_COMPLETED - "Leads with a completed meeting"
+• FILTER_LEAD_CLOSED - "Leads marked as closed/won"
+
+**Additional Filters (26 total - API supports 16 more beyond the 10 listed above)**
+
+When user asks in natural language (e.g., "show me leads that replied"), map to technical value (FILTER_VAL_CONTACTED) for API call, but show user-friendly description in response.
+
+Example: "FILTER_VAL_CONTACTED"`,
+              enum: [
+                'FILTER_VAL_CONTACTED',
+                'FILTER_VAL_NOT_CONTACTED',
+                'FILTER_VAL_COMPLETED',
+                'FILTER_VAL_UNSUBSCRIBED',
+                'FILTER_VAL_ACTIVE',
+                'FILTER_LEAD_INTERESTED',
+                'FILTER_LEAD_NOT_INTERESTED',
+                'FILTER_LEAD_MEETING_BOOKED',
+                'FILTER_LEAD_MEETING_COMPLETED',
+                'FILTER_LEAD_CLOSED'
+              ]
             },
 
             // ID-based filtering (corrected parameter names per API docs)
@@ -1765,14 +1797,9 @@ export const TOOLS_DEFINITION = [
             // Pagination parameters
             limit: {
               type: 'number',
-              description: 'Number of leads per page (1-100, default: 50)',
+              description: 'Number of leads per page (1-100, default: 100)',
               minimum: 1,
               maximum: 100
-            },
-            skip: {
-              type: 'number',
-              description: 'Number of leads to skip for pagination (default: 0)',
-              minimum: 0
             },
             starting_after: {
               type: 'string',
@@ -3041,8 +3068,8 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
       // Build request body for POST /leads/list
       const requestBody: any = {};
 
-      // Basic filtering parameters (corrected API parameter names)
-      if (args?.campaign_id) requestBody.campaign = args.campaign_id;
+      // Basic filtering parameters (API parameter names)
+      if (args?.campaign) requestBody.campaign = args.campaign;
       if (args?.list_id) requestBody.list_id = args.list_id;
       if (args?.list_ids && args.list_ids.length > 0) requestBody.list_ids = args.list_ids;
 
@@ -3064,8 +3091,7 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
       if (args?.queries && args.queries.length > 0) requestBody.queries = args.queries;
 
       // Pagination parameters
-      requestBody.limit = args?.limit || 50; // Default to 50 items per page (safer for context window)
-      if (args?.skip !== undefined) requestBody.skip = args.skip;
+      requestBody.limit = args?.limit || 100; // Default to 100 items per page (max pagination)
       if (args?.starting_after) requestBody.starting_after = args.starting_after;
 
       console.error(`[Instantly MCP] 📤 POST body: ${JSON.stringify(requestBody, null, 2)}`);
@@ -3102,7 +3128,7 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
         }
 
         // Add other filters to metadata
-        if (args?.campaign_id) filtersApplied.campaign_id = args.campaign_id;
+        if (args?.campaign) filtersApplied.campaign = args.campaign;
         if (args?.list_id) filtersApplied.list_id = args.list_id;
         if (args?.search) filtersApplied.search = args.search;
         if (args?.filter) filtersApplied.filter = args.filter;
