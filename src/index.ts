@@ -264,7 +264,7 @@ async function getAllAccounts(apiKey?: string, params?: any): Promise<any> {
 
     // Build query parameters for single page request
     const queryParams: any = {
-      limit: params?.limit || 50, // Default to 50 items per page (safer for context window)
+      limit: params?.limit || 100, // Default to 100 items per page (max pagination)
     };
 
     // Add cursor if provided (for subsequent pages)
@@ -273,6 +273,24 @@ async function getAllAccounts(apiKey?: string, params?: any): Promise<any> {
       console.error(`[Instantly MCP] 📄 Fetching page with cursor: ${params.starting_after}`);
     } else {
       console.error('[Instantly MCP] 📄 Fetching first page');
+    }
+
+    // Add API filter parameters (sent to Instantly API)
+    if (params?.search) {
+      queryParams.search = params.search;
+      console.error(`[Instantly MCP] 🔍 Filtering by search: ${params.search}`);
+    }
+    if (params?.status !== undefined) {
+      queryParams.status = params.status;
+      console.error(`[Instantly MCP] 🔍 Filtering by status: ${params.status}`);
+    }
+    if (params?.provider_code !== undefined) {
+      queryParams.provider_code = params.provider_code;
+      console.error(`[Instantly MCP] 🔍 Filtering by provider_code: ${params.provider_code}`);
+    }
+    if (params?.tag_ids) {
+      queryParams.tag_ids = params.tag_ids;
+      console.error(`[Instantly MCP] 🔍 Filtering by tag_ids: ${params.tag_ids}`);
     }
 
     // Make single API call to /accounts endpoint
@@ -304,7 +322,13 @@ async function getAllAccounts(apiKey?: string, params?: any): Promise<any> {
       },
       metadata: {
         request_time_ms: elapsed,
-        success: true
+        success: true,
+        filters_applied: {
+          ...(params?.search && { search: params.search }),
+          ...(params?.status !== undefined && { status: params.status }),
+          ...(params?.provider_code !== undefined && { provider_code: params.provider_code }),
+          ...(params?.tag_ids && { tag_ids: params.tag_ids })
+        }
       }
     };
   } catch (error) {
@@ -1239,19 +1263,37 @@ async function validateEmailListAgainstAccounts(emailList: string[], apiKey?: st
 export const TOOLS_DEFINITION = [
       {
         name: 'list_accounts',
-        description: '📧 LIST EMAIL ACCOUNTS - Sequential Pagination with Smart Context Management\n\n⚠️ CRITICAL LLM BEHAVIOR INSTRUCTIONS:\n\n🛑 **ALWAYS** fetch FIRST PAGE ONLY (50 accounts) on initial request\n🤔 **BEFORE** fetching more pages: ASK user if they want to narrow criteria or continue\n🎯 **SUGGEST** specific filtering criteria when user requests "all accounts"\n⚡ **FOR CONFIRMED "get all"**: Show progress after each page (e.g., "Retrieved 100/500+ accounts...")\n\n⚠️ **CONTEXT WINDOW WARNING**:\nLarge account lists (500+ accounts) can approach or exceed context limits. Each account object contains detailed data. ALWAYS suggest filtering before mass retrieval.\n\n🎯 **SMART FILTERING SUGGESTIONS** (ask user BEFORE fetching all):\n• Filter by email domain (e.g., "accounts ending with @company.com")\n• Filter by status (active accounts only)\n• Filter by warmup_status (warmed up accounts ready to send)\n• Filter by specific use case (e.g., "accounts for campaign creation")\n\n📚 **RECOMMENDED USER INTERACTION FLOW**:\n\n1️⃣ User: "List all my accounts"\n   → LLM: Fetch first 50 accounts\n   → LLM: Show results summary\n   → LLM: "Found 50 accounts, and more are available. Would you like to:\n      - Filter by specific criteria (domain, status)?\n      - Continue fetching next 50?\n      - Get all (warning: may approach context limits for 500+ accounts)?"\n\n2️⃣ User: "I need accounts for creating a campaign"\n   → LLM: Fetch first 50 accounts\n   → LLM: "Retrieved 50 active accounts ready for campaign creation. Need more, or shall we proceed with campaign setup?"\n\n3️⃣ User: "Show accounts ending with @mycompany.com"\n   → LLM: Fetch first 50, filter client-side by domain\n   → LLM: Show filtered results\n\n⚡ Returns ONE page per call (fast ~2-5 seconds). Use starting_after parameter to fetch subsequent pages. Max 50 accounts per page.',
+        description: '📧 LIST EMAIL ACCOUNTS - Sequential Pagination with Smart Context Management\n\n⚠️ CRITICAL LLM BEHAVIOR INSTRUCTIONS:\n\n🛑 **ALWAYS** fetch FIRST PAGE ONLY (100 accounts) on initial request\n🤔 **BEFORE** fetching more pages: ASK user if they want to narrow criteria or continue\n🎯 **SUGGEST** specific filtering criteria when user requests "all accounts"\n⚡ **FOR CONFIRMED "get all"**: Show progress after each page (e.g., "Retrieved 100/500+ accounts...")\n\n⚠️ **CONTEXT WINDOW WARNING**:\nLarge account lists (500+ accounts) can approach or exceed context limits. Each account object contains detailed data. ALWAYS suggest filtering before mass retrieval.\n\n🎯 **SMART FILTERING SUGGESTIONS** (ask user BEFORE fetching all):\n• Filter by email domain using search parameter (e.g., "gmail.com")\n• Filter by status (1=Active, 2=Paused, -1=Connection Error, -2=Soft Bounce Error, -3=Sending Error)\n• Filter by provider_code (1=Custom IMAP/SMTP, 2=Google, 3=Microsoft, 4=AWS)\n• Filter by tag_ids (comma-separated tag IDs)\n• Filter by specific use case (e.g., "accounts for campaign creation")\n\n📚 **RECOMMENDED USER INTERACTION FLOW**:\n\n1️⃣ User: "List all my accounts"\n   → LLM: Fetch first 100 accounts\n   → LLM: Show results summary\n   → LLM: "Found 100 accounts, and more are available. Would you like to:\n      - Filter by specific criteria (domain, status, provider)?\n      - Continue fetching next 100?\n      - Get all (warning: may approach context limits for 500+ accounts)?"\n\n2️⃣ User: "I need accounts for creating a campaign"\n   → LLM: Fetch first 100 accounts with status=1 (Active)\n   → LLM: "Retrieved 100 active accounts ready for campaign creation. Need more, or shall we proceed with campaign setup?"\n\n3️⃣ User: "Show accounts ending with @gmail.com"\n   → LLM: Fetch accounts with search="gmail.com"\n   → LLM: Show filtered results\n\n⚡ Returns ONE page per call (fast ~2-5 seconds). Use starting_after parameter to fetch subsequent pages. Max 100 accounts per page.',
         inputSchema: {
           type: 'object',
           properties: {
             limit: {
               type: 'number',
-              description: 'Number of items per page (1-100, default: 50)',
+              description: 'Number of items per page (1-100, default: 100)',
               minimum: 1,
               maximum: 100
             },
             starting_after: {
               type: 'string',
               description: 'Cursor for pagination - use the next_starting_after value from previous response to fetch next page. Omit for first page.'
+            },
+            search: {
+              type: 'string',
+              description: 'Search accounts by email domain (e.g., "gmail.com", "company.com"). Filters accounts whose email addresses contain this string.'
+            },
+            status: {
+              type: 'number',
+              description: 'Filter by account status. Values: 1=Active, 2=Paused, -1=Connection Error, -2=Soft Bounce Error, -3=Sending Error',
+              enum: [1, 2, -1, -2, -3]
+            },
+            provider_code: {
+              type: 'number',
+              description: 'Filter by ESP provider. Values: 1=Custom IMAP/SMTP, 2=Google, 3=Microsoft, 4=AWS',
+              enum: [1, 2, 3, 4]
+            },
+            tag_ids: {
+              type: 'string',
+              description: 'Filter accounts by tag IDs (comma-separated, e.g., "tag1,tag2,tag3")'
             }
           },
           additionalProperties: false
@@ -2197,10 +2239,14 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
       console.error('[Instantly MCP] 📊 Executing list_accounts (sequential pagination)...');
 
       try {
-        // Build pagination parameters
+        // Build pagination and filter parameters
         const paginationParams = {
-          limit: args?.limit || 50,
-          ...(args?.starting_after && { starting_after: args.starting_after })
+          limit: args?.limit || 100,
+          ...(args?.starting_after && { starting_after: args.starting_after }),
+          ...(args?.search && { search: args.search }),
+          ...(args?.status !== undefined && { status: args.status }),
+          ...(args?.provider_code !== undefined && { provider_code: args.provider_code }),
+          ...(args?.tag_ids && { tag_ids: args.tag_ids })
         };
 
         // Validate parameters
