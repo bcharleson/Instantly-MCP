@@ -264,7 +264,7 @@ async function getAllAccounts(apiKey?: string, params?: any): Promise<any> {
 
     // Build query parameters for single page request
     const queryParams: any = {
-      limit: params?.limit || 100, // Default to 100 items per page
+      limit: params?.limit || 50, // Default to 50 items per page (safer for context window)
     };
 
     // Add cursor if provided (for subsequent pages)
@@ -1239,13 +1239,13 @@ async function validateEmailListAgainstAccounts(emailList: string[], apiKey?: st
 export const TOOLS_DEFINITION = [
       {
         name: 'list_accounts',
-        description: 'List email accounts with sequential cursor-based pagination. ⚡ Returns ONE page per call (fast ~2-5 seconds). Use starting_after parameter to fetch subsequent pages. LLM controls pagination flow for transparency and error recovery.',
+        description: '📧 LIST EMAIL ACCOUNTS - Sequential Pagination with Smart Context Management\n\n⚠️ CRITICAL LLM BEHAVIOR INSTRUCTIONS:\n\n🛑 **ALWAYS** fetch FIRST PAGE ONLY (50 accounts) on initial request\n🤔 **BEFORE** fetching more pages: ASK user if they want to narrow criteria or continue\n🎯 **SUGGEST** specific filtering criteria when user requests "all accounts"\n⚡ **FOR CONFIRMED "get all"**: Show progress after each page (e.g., "Retrieved 100/500+ accounts...")\n\n⚠️ **CONTEXT WINDOW WARNING**:\nLarge account lists (500+ accounts) can approach or exceed context limits. Each account object contains detailed data. ALWAYS suggest filtering before mass retrieval.\n\n🎯 **SMART FILTERING SUGGESTIONS** (ask user BEFORE fetching all):\n• Filter by email domain (e.g., "accounts ending with @company.com")\n• Filter by status (active accounts only)\n• Filter by warmup_status (warmed up accounts ready to send)\n• Filter by specific use case (e.g., "accounts for campaign creation")\n\n📚 **RECOMMENDED USER INTERACTION FLOW**:\n\n1️⃣ User: "List all my accounts"\n   → LLM: Fetch first 50 accounts\n   → LLM: Show results summary\n   → LLM: "Found 50 accounts, and more are available. Would you like to:\n      - Filter by specific criteria (domain, status)?\n      - Continue fetching next 50?\n      - Get all (warning: may approach context limits for 500+ accounts)?"\n\n2️⃣ User: "I need accounts for creating a campaign"\n   → LLM: Fetch first 50 accounts\n   → LLM: "Retrieved 50 active accounts ready for campaign creation. Need more, or shall we proceed with campaign setup?"\n\n3️⃣ User: "Show accounts ending with @mycompany.com"\n   → LLM: Fetch first 50, filter client-side by domain\n   → LLM: Show filtered results\n\n⚡ Returns ONE page per call (fast ~2-5 seconds). Use starting_after parameter to fetch subsequent pages. Max 50 accounts per page.',
         inputSchema: {
           type: 'object',
           properties: {
             limit: {
               type: 'number',
-              description: 'Number of items per page (1-100, default: 100)',
+              description: 'Number of items per page (1-100, default: 50)',
               minimum: 1,
               maximum: 100
             },
@@ -1377,7 +1377,7 @@ export const TOOLS_DEFINITION = [
       },
       {
         name: 'list_campaigns',
-        description: '📋 LIST/VIEW MULTIPLE CAMPAIGNS - READ-ONLY OPERATION with SEQUENTIAL PAGINATION\n\n✨ WHEN TO USE THIS TOOL:\n\n✅ USE list_campaigns when user wants to:\n• "Show me my campaigns"\n• "List all campaigns"\n• "Get my campaigns"\n• "View campaigns"\n• "What campaigns do I have?"\n• "Find campaigns created last month"\n• "Show active campaigns"\n• See MULTIPLE campaigns or ALL campaigns\n\n❌ DO NOT USE list_campaigns when user wants to:\n• Get details of ONE specific campaign by ID → Use get_campaign instead\n• Modify/update a campaign → Use update_campaign instead\n• Create a new campaign → Use create_campaign instead\n\n⚠️ CRITICAL: This is READ-ONLY\n• Does NOT modify any campaign data\n• Safe to call anytime\n• Returns campaign summaries (not full details)\n• For full details of ONE campaign, use get_campaign with campaign_id\n\n⚡ SEQUENTIAL PAGINATION (LLM-Controlled):\n• Returns ONE page per call (fast ~2-5 seconds)\n• Max 100 campaigns per page (controllable with limit parameter)\n• Use starting_after parameter to fetch subsequent pages\n• LLM controls pagination flow for transparency and error recovery\n• Each call is a checkpoint - if error occurs, you know exactly where you left off\n\n📚 COMMON USER REQUEST EXAMPLES:\n\n1️⃣ "Show me all my campaigns":\n   → First call: list_campaigns (no parameters) - gets first 100\n   → If has_more=true, next call: list_campaigns with starting_after from response\n   → Repeat until has_more=false\n\n2️⃣ "Show active campaigns":\n   → Call list_campaigns with status filter\n   → Status values: 0=Draft, 1=Active, 2=Paused, 3=Completed\n   → Example: {status: "1"} for active only\n\n3️⃣ "Find campaigns created last month":\n   → Use created_after and created_before parameters\n   → Format: YYYY-MM-DD\n   → Example: {created_after: "2025-09-01", created_before: "2025-09-30"}\n   → Note: Date filtering is applied client-side after retrieval\n\n4️⃣ "Search for campaign by name":\n   → Use search parameter\n   → Example: {search: "Product Launch"}\n   → Returns campaigns matching the search term\n\n💡 FILTERING OPTIONS:\n• status: Filter by campaign status (0-3)\n• search: Search by campaign name\n• tag_ids: Filter by tag IDs (comma-separated)\n• created_after/created_before: Date range filtering (client-side)\n• limit: Items per page (1-100, default 100)\n• starting_after: Pagination cursor from previous response\n\n⏱️ PERFORMANCE & PAGINATION:\n• Single page response: ~2-5 seconds\n• Controlled payload: max 100 items per call\n• No timeout risks: each call completes quickly\n• Error recovery: LLM knows exact page that failed\n• Context management: prevents LLM context window overload\n\nList/view multiple campaigns with filtering and sequential pagination. Read-only operation that returns campaign data without modifying anything. For single campaign details, use get_campaign. For modifications, use update_campaign.',
+        description: '📋 LIST CAMPAIGNS - Sequential Pagination with Smart Context Management\n\n⚠️ CRITICAL LLM BEHAVIOR INSTRUCTIONS:\n\n🛑 **ALWAYS** fetch FIRST PAGE ONLY (50 campaigns) on initial request\n🤔 **BEFORE** fetching more pages: ASK user if they want to narrow criteria or continue\n🎯 **SUGGEST** specific filtering criteria when user requests "all campaigns"\n⚡ **FOR CONFIRMED "get all"**: Show progress after each page (e.g., "Retrieved 100/300+ campaigns...")\n\n⚠️ **CONTEXT WINDOW WARNING**:\nLarge campaign lists (200+ campaigns) can approach context limits. ALWAYS suggest filtering before mass retrieval.\n\n🎯 **SMART FILTERING SUGGESTIONS** (ask user BEFORE fetching all):\n• Filter by status: status="1" for active campaigns only (0=Draft, 1=Active, 2=Paused, 3=Completed)\n• Filter by date range: created_after/created_before (YYYY-MM-DD)\n• Search by name: search="Product Launch"\n• Filter by tags: tag_ids for specific campaign categories\n\n📚 **RECOMMENDED USER INTERACTION FLOW**:\n\n1️⃣ User: "List all my campaigns"\n   → LLM: Fetch first 50 campaigns\n   → LLM: Show results summary\n   → LLM: "Found 50 campaigns, and more are available. Would you like to:\n      - Filter by status (e.g., active only)?\n      - Filter by date range?\n      - Search by specific name?\n      - Continue fetching next 50?"\n\n2️⃣ User: "Show active campaigns"\n   → LLM: Fetch with status="1" filter\n   → LLM: Show active campaigns\n\n3️⃣ User: "Find campaigns from last month"\n   → LLM: Use created_after/created_before date filters\n   → LLM: Show filtered results\n\n💡 **FILTERING OPTIONS**:\n• status: Campaign status (0=Draft, 1=Active, 2=Paused, 3=Completed)\n• search: Search by campaign name\n• tag_ids: Filter by tag IDs (comma-separated)\n• created_after/created_before: Date range (YYYY-MM-DD, client-side filtering)\n• limit: Items per page (1-100, default: 50)\n• starting_after: Pagination cursor\n\n⚠️ **CRITICAL**: This is READ-ONLY. For single campaign details use get_campaign. For modifications use update_campaign.\n\n⚡ Returns ONE page per call (fast ~2-5 seconds). Max 50 campaigns per page.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -1387,7 +1387,7 @@ export const TOOLS_DEFINITION = [
             },
             limit: {
               type: 'number',
-              description: 'Number of items per page (1-100, default: 100)',
+              description: 'Number of items per page (1-100, default: 50)',
               minimum: 1,
               maximum: 100
             },
@@ -1632,7 +1632,7 @@ export const TOOLS_DEFINITION = [
       },
       {
         name: 'list_leads',
-        description: '📋 LIST LEADS WITH ADVANCED FILTERING - READ-ONLY OPERATION with SEQUENTIAL PAGINATION\n\n✨ WHAT THIS TOOL DOES:\n\nRetrieve leads with powerful filtering options:\n• Filter by campaign, list, status, dates\n• Search by name or email\n• Advanced filtering (contacted, interested, etc.)\n• Sequential pagination for large datasets\n• Returns ONE page per call (max 100 leads)\n\n⚡ SEQUENTIAL PAGINATION (LLM-Controlled):\n• Returns ONE page per call (fast ~2-5 seconds)\n• Max 100 leads per page (controllable with limit parameter)\n• Use starting_after parameter to fetch subsequent pages\n• LLM controls pagination flow for transparency and error recovery\n• Each call is a checkpoint - if error occurs, you know exactly where you left off\n\n📚 COMMON USER REQUEST EXAMPLES:\n\n1️⃣ "Show leads in campaign X":\n   → First call: {campaign_id: "X", limit: 100}\n   → If has_more=true, next call: {campaign_id: "X", limit: 100, starting_after: "value-from-response"}\n   → Repeat until has_more=false\n\n2️⃣ "Find leads that replied":\n   → Use filter parameter: "FILTER_VAL_CONTACTED"\n   → Returns leads that have been contacted/replied\n   → Example: {filter: "FILTER_VAL_CONTACTED"}\n\n3️⃣ "Search for lead by email":\n   → Use search parameter with email\n   → Example: {search: "john@acme.com"}\n   → Also searches first name and last name\n\n4️⃣ "Get leads created last month":\n   → Use created_after and created_before\n   → Format: YYYY-MM-DD\n   → Example: {created_after: "2025-09-01", created_before: "2025-09-30"}\n\n5️⃣ "Show interested leads":\n   → Use filter: "FILTER_LEAD_INTERESTED"\n   → Returns leads marked as interested\n   → Example: {filter: "FILTER_LEAD_INTERESTED"}\n\n💡 AVAILABLE FILTERS:\n\n**Contact Status**:\n• FILTER_VAL_CONTACTED - Leads that have been contacted\n• FILTER_VAL_NOT_CONTACTED - Leads not yet contacted\n• FILTER_VAL_COMPLETED - Leads that completed sequence\n• FILTER_VAL_UNSUBSCRIBED - Leads that unsubscribed\n• FILTER_VAL_ACTIVE - Currently active leads\n\n**Interest Status**:\n• FILTER_LEAD_INTERESTED - Leads marked as interested\n• FILTER_LEAD_NOT_INTERESTED - Leads marked as not interested\n• FILTER_LEAD_MEETING_BOOKED - Leads with meetings booked\n• FILTER_LEAD_MEETING_COMPLETED - Leads with completed meetings\n• FILTER_LEAD_CLOSED - Closed/won leads\n\n⚠️ PAGINATION FOR LARGE DATASETS:\n\n**Sequential Pagination Flow**:\n1. First call: {campaign_id: "X", limit: 100}\n2. Response includes: next_starting_after field\n3. Next call: {campaign_id: "X", limit: 100, starting_after: "value-from-response"}\n4. Repeat until next_starting_after is null/absent\n\n⏱️ PERFORMANCE & PAGINATION:\n• Single page response: ~2-5 seconds\n• Controlled payload: max 100 items per call\n• No timeout risks: each call completes quickly\n• Error recovery: LLM knows exact page that failed\n• Context management: prevents LLM context window overload\n\n🎯 BEST PRACTICES:\n\n1. **Use Specific Filters**: Narrow results with campaign_id, status, filter\n2. **Search Efficiently**: Use search for specific leads, not browsing\n3. **Date Ranges**: Use created_after/created_before to limit results\n4. **Pagination**: For large datasets, use starting_after for additional pages\n5. **Combine Filters**: Use multiple filters together for precise results\n\nList leads with comprehensive filtering and sequential pagination. Read-only operation.',
+        description: '📊 LIST LEADS - Sequential Pagination with Smart Context Management\n\n⚠️ CRITICAL LLM BEHAVIOR INSTRUCTIONS:\n\n🛑 **ALWAYS** fetch FIRST PAGE ONLY (50 leads) on initial request\n🤔 **BEFORE** fetching more pages: ASK user if they want to narrow criteria or continue\n🎯 **SUGGEST** specific filtering criteria when user requests "all leads"\n⚡ **FOR CONFIRMED "get all"**: Show progress after each page (e.g., "Retrieved 150/2000+ leads...")\n\n⚠️ **CONTEXT WINDOW WARNING - HIGHEST RISK**:\nLead datasets can be MASSIVE (1000s-10000s+ leads). Each lead contains detailed contact data. ALWAYS suggest filtering before mass retrieval to avoid context overflow.\n\n🎯 **SMART FILTERING SUGGESTIONS** (ask user BEFORE fetching all):\n• Filter by campaign: campaign_id="X" for specific campaign leads\n• Filter by contact status: filter="FILTER_VAL_CONTACTED" (replied leads only)\n• Filter by interest: filter="FILTER_LEAD_INTERESTED" (interested leads only)\n• Search specific lead: search="john@acme.com" or search="John Smith"\n• Filter by list: list_id="X" for specific lead list\n• Filter by date: Use created_after/created_before parameters\n\n📚 **RECOMMENDED USER INTERACTION FLOW**:\n\n1️⃣ User: "List all my leads"\n   → LLM: Fetch first 50 leads\n   → LLM: Show results summary\n   → LLM: "Found 50 leads, and MANY more are available (potentially 1000s+). **Context warning**: Retrieving all may overflow context. Would you like to:\n      - Filter by specific campaign?\n      - Filter by contact status (contacted, interested, etc.)?\n      - Search for specific lead?\n      - Continue fetching (with caution)?"\n\n2️⃣ User: "Show leads that replied in campaign X"\n   → LLM: Fetch with campaign_id="X" AND filter="FILTER_VAL_CONTACTED"\n   → LLM: Show filtered contacted leads\n\n3️⃣ User: "Find lead john@acme.com"\n   → LLM: Use search="john@acme.com" parameter\n   → LLM: Show specific lead\n\n💡 **KEY FILTER OPTIONS**:\n\n**Contact Status Filters**:\n• FILTER_VAL_CONTACTED - Leads that replied\n• FILTER_VAL_NOT_CONTACTED - Not yet contacted\n• FILTER_VAL_COMPLETED - Completed sequence\n• FILTER_VAL_UNSUBSCRIBED - Unsubscribed\n• FILTER_VAL_ACTIVE - Currently active\n\n**Interest Status Filters**:\n• FILTER_LEAD_INTERESTED - Marked as interested\n• FILTER_LEAD_MEETING_BOOKED - Meeting scheduled\n• FILTER_LEAD_CLOSED - Closed/won\n\n**Other Filters**:\n• campaign_id: Filter by campaign\n• list_id: Filter by lead list\n• search: Search by name or email\n• created_after/created_before: Date range (YYYY-MM-DD)\n\n⚡ Returns ONE page per call (fast ~2-5 seconds). Max 50 leads per page. Use starting_after for pagination.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -1722,7 +1722,7 @@ export const TOOLS_DEFINITION = [
             // Pagination parameters
             limit: {
               type: 'number',
-              description: 'Number of leads per page (1-100, default: 100)',
+              description: 'Number of leads per page (1-100, default: 50)',
               minimum: 1,
               maximum: 100
             },
@@ -1813,7 +1813,7 @@ export const TOOLS_DEFINITION = [
       },
       {
         name: 'list_lead_lists',
-        description: 'List all lead lists with comprehensive filtering and pagination support matching Instantly.ai API v2 specification',
+        description: '📋 LIST LEAD LISTS - Sequential Pagination with Smart Context Management\n\n⚠️ CRITICAL LLM BEHAVIOR INSTRUCTIONS:\n\n🛑 **ALWAYS** fetch FIRST PAGE ONLY (50 lead lists) on initial request\n🤔 **BEFORE** fetching more pages: ASK user if they want to narrow criteria or continue\n🎯 **SUGGEST** specific filtering criteria when user requests "all lead lists"\n⚡ **FOR CONFIRMED "get all"**: Show progress after each page (e.g., "Retrieved 100/200+ lead lists...")\n\n⚠️ **CONTEXT WINDOW WARNING**:\nLead list datasets are usually moderate (10s-100s) but can grow large. ALWAYS suggest filtering before mass retrieval.\n\n🎯 **SMART FILTERING SUGGESTIONS** (ask user BEFORE fetching all):\n• Search by name: search="Q1 2025 Prospects"\n• Filter by enrichment: has_enrichment_task=true/false\n• Filter by creation date: starting_after (ISO 8601 timestamp)\n\n📚 **RECOMMENDED USER INTERACTION FLOW**:\n\n1️⃣ User: "List all my lead lists"\n   → LLM: Fetch first 50 lead lists\n   → LLM: Show results summary\n   → LLM: "Found 50 lead lists, and more are available. Would you like to:\n      - Search by specific name?\n      - Filter by enrichment status?\n      - Continue fetching next 50?"\n\n2️⃣ User: "Find lead list named Q1 Prospects"\n   → LLM: Use search="Q1 Prospects"\n   → LLM: Show matching lead lists\n\n3️⃣ User: "Show lists with enrichment enabled"\n   → LLM: Use has_enrichment_task=true\n   → LLM: Show enrichment-enabled lists\n\n💡 **FILTERING OPTIONS**:\n• limit: Items per page (1-100, default: 50)\n• starting_after: Timestamp for pagination (ISO 8601)\n• has_enrichment_task: Filter by enrichment status (true/false)\n• search: Search by lead list name\n\n⚡ Returns ONE page per call (fast ~2-5 seconds). Max 50 lead lists per page.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -1841,7 +1841,7 @@ export const TOOLS_DEFINITION = [
       },
       {
         name: 'list_emails',
-        description: 'List emails with filtering and pagination',
+        description: '📧 LIST EMAILS - Sequential Pagination with Smart Context Management\n\n⚠️ CRITICAL LLM BEHAVIOR INSTRUCTIONS:\n\n🛑 **ALWAYS** fetch FIRST PAGE ONLY (50 emails) on initial request\n🤔 **BEFORE** fetching more pages: ASK user if they want to narrow criteria or continue\n🎯 **SUGGEST** specific filtering criteria when user requests "all emails"\n⚡ **FOR CONFIRMED "get all"**: Show progress after each page (e.g., "Retrieved 150/5000+ emails...")\n\n⚠️ **CONTEXT WINDOW WARNING - EXTREME RISK**:\nEmail datasets are typically ENORMOUS (1000s-100000s+ emails). Each email contains full message data. ALWAYS suggest filtering before mass retrieval to avoid severe context overflow.\n\n🎯 **SMART FILTERING SUGGESTIONS** (ask user BEFORE fetching all):\n• Filter by campaign: campaign_id="X" for specific campaign emails only\n• Filter by date range: Use offset parameter for pagination through large sets\n• Limit results: Keep limit=50 (default) or lower for manageable payloads\n\n📚 **RECOMMENDED USER INTERACTION FLOW**:\n\n1️⃣ User: "List all my emails"\n   → LLM: Fetch first 50 emails\n   → LLM: Show results summary\n   → LLM: "Found 50 emails, and THOUSANDS more are available. **CRITICAL WARNING**: Email datasets are typically massive (10000s+). Retrieving all WILL overflow context. Would you like to:\n      - Filter by specific campaign ID?\n      - View summary statistics instead?\n      - Continue with extreme caution (not recommended)?"\n\n2️⃣ User: "Show emails from campaign X"\n   → LLM: Fetch with campaign_id="X" and limit=50\n   → LLM: Show campaign-specific emails\n\n3️⃣ User: "Get next page of emails"\n   → LLM: Use offset parameter (increment by 50 for each page)\n   → LLM: Show next batch\n\n💡 **FILTERING OPTIONS**:\n• campaign_id: Filter by campaign (HIGHLY RECOMMENDED)\n• limit: Items per page (1-100, default: 50) - keep low\n• offset: Pagination offset (increment by limit for next page)\n\n⚠️ **CRITICAL**: Email lists are the LARGEST datasets. ALWAYS filter by campaign_id or use extreme caution.\n\n⚡ Uses limit/offset pagination. Returns ONE page per call. Max 50 emails per page (default).',
         inputSchema: {
           type: 'object',
           properties: {
@@ -2198,7 +2198,7 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
       try {
         // Build pagination parameters
         const paginationParams = {
-          limit: args?.limit || 100,
+          limit: args?.limit || 50,
           ...(args?.starting_after && { starting_after: args.starting_after })
         };
 
@@ -2237,7 +2237,7 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
 
         // Build query parameters for single page request
         const queryParams: any = {
-          limit: args?.limit || 100, // Default to 100 items per page
+          limit: args?.limit || 50, // Default to 50 items per page (safer for context window)
         };
 
         // Add cursor if provided (for subsequent pages)
@@ -2974,7 +2974,7 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
       if (args?.queries && args.queries.length > 0) requestBody.queries = args.queries;
 
       // Pagination parameters
-      if (args?.limit) requestBody.limit = args.limit;
+      requestBody.limit = args?.limit || 50; // Default to 50 items per page (safer for context window)
       if (args?.skip !== undefined) requestBody.skip = args.skip;
       if (args?.starting_after) requestBody.starting_after = args.starting_after;
 
@@ -3027,7 +3027,7 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
                   returned_count: leads.length,
                   has_more: !!result.next_starting_after,
                   next_starting_after: result.next_starting_after,
-                  limit: args?.limit || 100
+                  limit: args?.limit || 50
                 },
                 filters_applied: Object.keys(filtersApplied).length > 0 ? filtersApplied : undefined,
                 metadata: {
@@ -3310,9 +3310,10 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
       console.error('[Instantly MCP] 📋 Executing list_lead_lists...');
 
       // Build query parameters from args
-      const queryParams: any = {};
+      const queryParams: any = {
+        limit: args.limit || 50 // Default to 50 items per page (safer for context window)
+      };
 
-      if (args.limit !== undefined) queryParams.limit = args.limit;
       if (args.starting_after !== undefined) queryParams.starting_after = args.starting_after;
       if (args.has_enrichment_task !== undefined) queryParams.has_enrichment_task = args.has_enrichment_task;
       if (args.search !== undefined) queryParams.search = args.search;
