@@ -45,7 +45,7 @@
     "test:timezones": "node scripts/test-timezones.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.15.1",
+    "@modelcontextprotocol/sdk": "^1.19.1",
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "node-fetch": "^3.3.2",
