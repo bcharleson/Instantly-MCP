@@ -1419,15 +1419,10 @@ export const TOOLS_DEFINITION = [
       },
       {
         name: 'list_campaigns',
-        description: '📋 LIST CAMPAIGNS - Sequential Pagination with Smart Context Management\n\n⚠️ CRITICAL LLM BEHAVIOR INSTRUCTIONS:\n\n🛑 **ALWAYS** fetch FIRST PAGE ONLY (100 campaigns) on initial request\n🤔 **BEFORE** fetching more pages: ASK user if they want to narrow criteria or continue\n🎯 **SUGGEST** specific filtering criteria when user requests "all campaigns"\n⚡ **FOR CONFIRMED "get all"**: Show progress after each page (e.g., "Retrieved 200/300+ campaigns...")\n\n⚠️ **CONTEXT WINDOW WARNING**:\nLarge campaign lists (200+ campaigns) can approach context limits. ALWAYS suggest filtering before mass retrieval.\n\n🎯 **SMART FILTERING SUGGESTIONS** (ask user BEFORE fetching all):\n• Filter by status: status="Active" for active campaigns only (Draft, Active, Paused, Completed, Running Subsequences, Account Suspended, Accounts Unhealthy, Bounce Protect)\n• Filter by date range: created_after/created_before (YYYY-MM-DD)\n• Search by name: search="Product Launch"\n• Filter by tags: tag_ids for specific campaign categories\n\n📚 **RECOMMENDED USER INTERACTION FLOW**:\n\n1️⃣ User: "List all my campaigns"\n   → LLM: Fetch first 100 campaigns\n   → LLM: Show results summary\n   → LLM: "Found 100 campaigns, and more are available. Would you like to:\n      - Filter by status (e.g., Active only)?\n      - Filter by date range?\n      - Search by specific name?\n      - Continue fetching next 100?"\n\n2️⃣ User: "Show active campaigns"\n   → LLM: Fetch all campaigns and filter by status="Active"\n   → LLM: Show active campaigns with human-readable status labels\n\n3️⃣ User: "Find campaigns from last month"\n   → LLM: Use created_after/created_before date filters\n   → LLM: Show filtered results\n\n💡 **FILTERING OPTIONS**:\n• status: Campaign status - use human-readable labels: "Draft", "Active", "Paused", "Completed", "Running Subsequences", "Account Suspended", "Accounts Unhealthy", "Bounce Protect" (client-side filtering)\n• search: Search by campaign name\n• tag_ids: Filter by tag IDs (comma-separated)\n• created_after/created_before: Date range (YYYY-MM-DD, client-side filtering)\n• limit: Items per page (1-100, default: 100)\n• starting_after: Pagination cursor\n\n⚠️ **CRITICAL STATUS MAPPING**:\nAPI returns numeric status codes. Tool automatically converts to human-readable labels:\n• 0 → "Draft"\n• 1 → "Active"\n• 2 → "Paused"\n• 3 → "Completed"\n• 4 → "Running Subsequences"\n• -99 → "Account Suspended"\n• -1 → "Accounts Unhealthy"\n• -2 → "Bounce Protect"\n\n⚠️ **CRITICAL**: This is READ-ONLY. For single campaign details use get_campaign. For modifications use update_campaign.\n\n⚡ Returns ONE page per call (fast ~2-5 seconds). Max 100 campaigns per page.',
+        description: '📋 LIST CAMPAIGNS - Sequential Pagination with Smart Context Management\n\n⚠️ CRITICAL LLM BEHAVIOR INSTRUCTIONS:\n\n🛑 **ALWAYS** fetch FIRST PAGE ONLY (100 campaigns) on initial request\n🤔 **BEFORE** fetching more pages: ASK user if they want to narrow criteria or continue\n🎯 **SUGGEST** specific filtering criteria when user requests "all campaigns"\n⚡ **FOR CONFIRMED "get all"**: Show progress after each page (e.g., "Retrieved 200/300+ campaigns...")\n\n⚠️ **CONTEXT WINDOW WARNING**:\nLarge campaign lists (200+ campaigns) can approach context limits. ALWAYS suggest filtering before mass retrieval.\n\n🎯 **SMART FILTERING SUGGESTIONS** (ask user BEFORE fetching all):\n• Search by name: search="Product Launch"\n• Filter by tags: tag_ids for specific campaign categories\n\n📚 **RECOMMENDED USER INTERACTION FLOW**:\n\n1️⃣ User: "List all my campaigns"\n   → LLM: Fetch first 100 campaigns\n   → LLM: Show results summary\n   → LLM: "Found 100 campaigns, and more are available. Would you like to:\n      - Search by specific name?\n      - Filter by tags?\n      - Continue fetching next 100?"\n\n2️⃣ User: "Find campaigns with name Product Launch"\n   → LLM: Use search="Product Launch"\n   → LLM: Show matching campaigns\n\n3️⃣ User: "Show campaigns with specific tags"\n   → LLM: Use tag_ids parameter\n   → LLM: Show filtered results\n\n💡 **FILTERING OPTIONS**:\n• search: Search by campaign name (API-level filtering)\n• tag_ids: Filter by tag IDs, comma-separated (API-level filtering)\n• limit: Items per page (1-100, default: 100)\n• starting_after: Pagination cursor\n\n⚠️ **STATUS INFORMATION**:\nAPI returns numeric status codes in the response. Status codes:\n• 0 → "Draft"\n• 1 → "Active"\n• 2 → "Paused"\n• 3 → "Completed"\n• 4 → "Running Subsequences"\n• -99 → "Account Suspended"\n• -1 → "Accounts Unhealthy"\n• -2 → "Bounce Protect"\n\n⚠️ **CRITICAL**: This is READ-ONLY. For single campaign details use get_campaign. For modifications use update_campaign.\n\n⚡ Returns ONE page per call (fast ~2-5 seconds). Max 100 campaigns per page.',
         inputSchema: {
           type: 'object',
           properties: {
-            status: {
-              type: 'string',
-              description: 'Filter by campaign status (optional). Use human-readable labels: "Draft", "Active", "Paused", "Completed", "Running Subsequences", "Account Suspended", "Accounts Unhealthy", "Bounce Protect". Client-side filtering applied after retrieval.',
-              enum: ['Draft', 'Active', 'Paused', 'Completed', 'Running Subsequences', 'Account Suspended', 'Accounts Unhealthy', 'Bounce Protect']
-            },
             limit: {
               type: 'number',
               description: 'Number of items per page (1-100, default: 100)',
@@ -1437,16 +1432,6 @@ export const TOOLS_DEFINITION = [
             starting_after: {
               type: 'string',
               description: 'Cursor for pagination - ID of the last item from previous page. Use the next_starting_after value from previous response.'
-            },
-            created_after: {
-              type: 'string',
-              description: 'Filter campaigns created after this date (YYYY-MM-DD format). Client-side filtering applied after retrieval. Example: "2025-09-01"',
-              pattern: '^\\d{4}-\\d{2}-\\d{2}$'
-            },
-            created_before: {
-              type: 'string',
-              description: 'Filter campaigns created before this date (YYYY-MM-DD format). Client-side filtering applied after retrieval. Example: "2025-09-30"',
-              pattern: '^\\d{4}-\\d{2}-\\d{2}$'
             },
             search: {
               type: 'string',
@@ -2321,18 +2306,6 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
           '-2': 'Bounce Protect'
         };
 
-        // Reverse mapping for filtering: human-readable label → numeric code
-        const REVERSE_STATUS_MAP: Record<string, number> = {
-          'Draft': 0,
-          'Active': 1,
-          'Paused': 2,
-          'Completed': 3,
-          'Running Subsequences': 4,
-          'Account Suspended': -99,
-          'Accounts Unhealthy': -1,
-          'Bounce Protect': -2
-        };
-
         // Build query parameters for single page request
         const queryParams: any = {
           limit: args?.limit || 100, // Default to 100 items per page (max pagination)
@@ -2346,7 +2319,7 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
           console.error('[Instantly MCP] 📄 Fetching first page');
         }
 
-        // Add filter parameters (NOTE: status is NOT sent to API, it's client-side filtered)
+        // Add API filter parameters
         if (args?.search) queryParams.search = args.search;
         if (args?.tag_ids) queryParams.tag_ids = args.tag_ids;
 
@@ -2366,44 +2339,14 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
         console.error(`[Instantly MCP] ✅ Retrieved ${data.length} campaigns in ${elapsed}ms (has_more: ${hasMore})`);
 
         // Apply status mapping to all campaigns (convert numeric status to human-readable labels)
-        let campaignsWithReadableStatus = data.map((campaign: any) => ({
+        const campaignsWithReadableStatus = data.map((campaign: any) => ({
           ...campaign,
           status_label: STATUS_MAP[campaign.status] || `Unknown (${campaign.status})`,
           status_code: campaign.status // Keep original numeric code for reference
         }));
 
-        // Apply client-side filtering
-        let filteredCampaigns = campaignsWithReadableStatus;
+        // Track applied filters
         const filtersApplied: any = {};
-
-        // Client-side status filtering (if requested)
-        if (args?.status) {
-          const requestedStatusCode = REVERSE_STATUS_MAP[args.status];
-          if (requestedStatusCode !== undefined) {
-            filteredCampaigns = filteredCampaigns.filter((c: any) => c.status_code === requestedStatusCode);
-            filtersApplied.status = args.status;
-            console.error(`[Instantly MCP] Status filtering: ${campaignsWithReadableStatus.length} → ${filteredCampaigns.length} campaigns (status: ${args.status})`);
-          } else {
-            console.error(`[Instantly MCP] ⚠️ Unknown status filter: ${args.status}`);
-          }
-        }
-
-        // Client-side date filtering (if requested)
-        if (args?.created_after || args?.created_before) {
-          const { applyDateFilters } = await import('./pagination.js');
-          filteredCampaigns = applyDateFilters(
-            filteredCampaigns,
-            args.created_after,
-            args.created_before,
-            'created_at'
-          );
-
-          if (args.created_after) filtersApplied.created_after = args.created_after;
-          if (args.created_before) filtersApplied.created_before = args.created_before;
-
-          console.error(`[Instantly MCP] Date filtering: ${campaignsWithReadableStatus.length} → ${filteredCampaigns.length} campaigns`);
-        }
-
         if (args?.search) filtersApplied.search = args.search;
         if (args?.tag_ids) filtersApplied.tag_ids = args.tag_ids;
 
@@ -2413,15 +2356,15 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
             {
               type: 'text',
               text: JSON.stringify({
-                data: filteredCampaigns,
+                data: campaignsWithReadableStatus,
                 pagination: {
-                  returned_count: filteredCampaigns.length,
+                  returned_count: campaignsWithReadableStatus.length,
                   has_more: hasMore,
                   next_starting_after: nextCursor,
                   limit: queryParams.limit,
                   current_page_note: hasMore
-                    ? `Retrieved ${filteredCampaigns.length} campaigns. More results available. To get next page, call list_campaigns again with starting_after='${nextCursor}'`
-                    : `Retrieved all available campaigns (${filteredCampaigns.length} items).`
+                    ? `Retrieved ${campaignsWithReadableStatus.length} campaigns. More results available. To get next page, call list_campaigns again with starting_after='${nextCursor}'`
+                    : `Retrieved all available campaigns (${campaignsWithReadableStatus.length} items).`
                 },
                 filters_applied: Object.keys(filtersApplied).length > 0 ? filtersApplied : undefined,
                 metadata: {
