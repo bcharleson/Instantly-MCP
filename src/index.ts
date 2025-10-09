@@ -2073,15 +2073,32 @@ Example: "FILTER_VAL_CONTACTED"`,
       },
       {
         name: 'get_daily_campaign_analytics',
-        description: 'Get daily campaign performance analytics with date filtering - Enhanced analytics capability',
+        description: 'Get daily campaign performance analytics with date filtering. Returns day-by-day analytics data for campaign performance tracking.',
         inputSchema: {
           type: 'object',
           properties: {
-            campaign_id: { type: 'string', description: 'Campaign ID (optional - leave empty for all campaigns)' },
-            start_date: { type: 'string', description: 'Start date in YYYY-MM-DD format' },
-            end_date: { type: 'string', description: 'End date in YYYY-MM-DD format' },
-            campaign_status: { type: 'number', description: 'Filter by campaign status (0=Draft, 1=Active, 2=Paused, 3=Completed)' }
+            campaign_id: {
+              type: 'string',
+              description: 'Campaign ID (optional - omit for all campaigns). Example: "0199c64d-6999-7801-82bd-cf5e06198b3f"',
+              pattern: '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$'
+            },
+            start_date: {
+              type: 'string',
+              description: 'Start date in YYYY-MM-DD format. Example: 2024-01-01',
+              pattern: '^\\d{4}-\\d{2}-\\d{2}$'
+            },
+            end_date: {
+              type: 'string',
+              description: 'End date in YYYY-MM-DD format. Example: 2024-01-01',
+              pattern: '^\\d{4}-\\d{2}-\\d{2}$'
+            },
+            campaign_status: {
+              type: 'number',
+              description: 'Filter by campaign status (optional). Values: 0=Draft, 1=Active, 2=Paused, 3=Completed, 4=Running Subsequences, -99=Account Suspended, -1=Accounts Unhealthy, -2=Bounce Protect',
+              enum: [0, 1, 2, 3, 4, -99, -1, -2]
+            }
           },
+          required: [],
           additionalProperties: false
         }
       },
