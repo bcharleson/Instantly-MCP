@@ -2414,15 +2414,18 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
           delete apiParams.campaign_id;
         }
 
-        const queryParams = buildQueryParams(apiParams, ['id', 'start_date', 'end_date']);
-        const endpoint = `/campaigns/analytics${queryParams.toString() ? `?${queryParams}` : ''}`;
+        // Build params object for makeInstantlyRequest (only include defined params)
+        const params: any = {};
+        if (apiParams.id) params.id = apiParams.id;
+        if (apiParams.start_date) params.start_date = apiParams.start_date;
+        if (apiParams.end_date) params.end_date = apiParams.end_date;
 
-        console.error(`[Instantly MCP] get_campaign_analytics endpoint (PARAMETER FIX): ${endpoint}`);
-        console.error(`[Instantly MCP] Full URL will be: ${INSTANTLY_API_URL}${endpoint}`);
+        console.error(`[Instantly MCP] get_campaign_analytics (PARAMETER FIX)`);
+        console.error(`[Instantly MCP] Endpoint: /campaigns/analytics`);
         console.error(`[Instantly MCP] Original parameters: ${JSON.stringify(validatedArgs, null, 2)}`);
-        console.error(`[Instantly MCP] API parameters (campaign_id->id): ${JSON.stringify(apiParams, null, 2)}`);
+        console.error(`[Instantly MCP] API parameters (campaign_id->id): ${JSON.stringify(params, null, 2)}`);
 
-        const result = await makeInstantlyRequest(endpoint, {}, apiKey);
+        const result = await makeInstantlyRequest('/campaigns/analytics', { params }, apiKey);
 
         // With the correct parameter names, server-side filtering should work natively
         // Add metadata about the parameter fix for transparency
@@ -2478,10 +2481,16 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
     }
 
     case 'get_campaign_analytics_overview': {
-      const queryParams = buildQueryParams(args, ['start_date', 'end_date']);
+      console.error('[Instantly MCP] 📊 Executing get_campaign_analytics_overview...');
+      
+      // Build params object for makeInstantlyRequest
+      const params: any = {};
+      if (args?.start_date) params.start_date = args.start_date;
+      if (args?.end_date) params.end_date = args.end_date;
 
-      const endpoint = `/campaigns/analytics/overview${queryParams.toString() ? `?${queryParams}` : ''}`;
-      const result = await makeInstantlyRequest(endpoint, {}, apiKey);
+      console.error('[Instantly MCP] Parameters:', JSON.stringify(params, null, 2));
+      
+      const result = await makeInstantlyRequest('/campaigns/analytics/overview', { params }, apiKey);
 
       return {
         content: [
