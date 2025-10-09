@@ -2433,7 +2433,7 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
           ...result,
           _metadata: {
             filtered_by_campaign_id: validatedArgs.campaign_id,
-            endpoint_used: endpoint,
+            endpoint_used: '/campaigns/analytics',
             filtering_method: "server_side",
             parameter_mapping: "campaign_id -> id",
             note: "Using correct Instantly.ai API endpoint /campaigns/analytics with proper parameter names (campaign_id mapped to id)"
