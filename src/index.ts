@@ -1961,7 +1961,7 @@ Example: "FILTER_VAL_CONTACTED"`,
       },
       {
         name: 'get_campaign_analytics_overview',
-        description: 'Get comprehensive analytics overview across all campaigns with optional date range filtering. Provides aggregated metrics and performance summaries. Both date parameters are optional - omit for all-time analytics.',
+        description: 'Get comprehensive analytics overview across all campaigns with optional date range and status filtering. Provides aggregated metrics and performance summaries. All parameters are optional - omit for all-time analytics across all campaigns.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -1974,6 +1974,11 @@ Example: "FILTER_VAL_CONTACTED"`,
               type: 'string',
               description: 'End date for analytics range in YYYY-MM-DD format (optional). Example: 2024-12-31',
               pattern: '^\\d{4}-\\d{2}-\\d{2}$'
+            },
+            campaign_status: {
+              type: 'number',
+              description: 'Filter by campaign status (optional). Values: 0=Draft, 1=Active, 2=Paused, 3=Completed, 4=Running Subsequences, -99=Account Suspended, -1=Accounts Unhealthy, -2=Bounce Protect',
+              enum: [0, 1, 2, 3, 4, -99, -1, -2]
             }
           },
           required: [],
@@ -2487,6 +2492,7 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
       const params: any = {};
       if (args?.start_date) params.start_date = args.start_date;
       if (args?.end_date) params.end_date = args.end_date;
+      if (args?.campaign_status !== undefined) params.campaign_status = args.campaign_status;
 
       console.error('[Instantly MCP] Parameters:', JSON.stringify(params, null, 2));
       
