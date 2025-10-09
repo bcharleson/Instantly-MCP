@@ -1447,13 +1447,18 @@ export const TOOLS_DEFINITION = [
       },
       {
         name: 'get_campaign_analytics',
-        description: 'Get campaign performance metrics, statistics, and analytics data (opens, clicks, replies, bounces, etc.). Use this tool when the user wants to see campaign performance, metrics, or statistics. NOT for listing campaigns themselves - use list_campaigns for that. Supports filtering by campaign ID and/or date range.',
+        description: 'Get campaign performance metrics, statistics, and analytics data (opens, clicks, replies, bounces, etc.). Use this tool when the user wants to see campaign performance, metrics, or statistics. NOT for listing campaigns themselves - use list_campaigns for that. Supports filtering by single campaign ID, multiple campaign IDs, and/or date range.',
         inputSchema: {
           type: 'object',
           properties: {
             campaign_id: {
               type: 'string',
-              description: 'Campaign ID to filter analytics (optional). Omit to get analytics for all campaigns.'
+              description: 'Single campaign ID to filter analytics (optional). API receives this as "id" parameter. Omit to get analytics for all campaigns. Use this OR campaign_ids, not both.'
+            },
+            campaign_ids: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Array of campaign IDs to filter analytics for multiple campaigns (optional). API receives this as "ids" parameter. Use this OR campaign_id, not both. Example: ["campaign-id-1", "campaign-id-2"]'
             },
             start_date: {
               type: 'string',
@@ -1464,6 +1469,10 @@ export const TOOLS_DEFINITION = [
               type: 'string',
               description: 'End date for analytics range in YYYY-MM-DD format (optional). Example: 2024-12-31',
               pattern: '^\\d{4}-\\d{2}-\\d{2}$'
+            },
+            exclude_total_leads_count: {
+              type: 'boolean',
+              description: 'Exclude total leads count from result to considerably decrease response time (optional). Default: false'
             }
           },
           required: [],
@@ -2412,36 +2421,47 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
 
         // Use the correct Instantly API endpoint from official documentation
         // Official endpoint: https://api.instantly.ai/api/v2/campaigns/analytics
-        // IMPORTANT: API uses 'id' parameter, not 'campaign_id'
-        const apiParams: any = { ...validatedArgs };
-        if (apiParams.campaign_id) {
-          apiParams.id = apiParams.campaign_id;
-          delete apiParams.campaign_id;
+        // IMPORTANT: API uses 'id'/'ids' parameters, not 'campaign_id'/'campaign_ids'
+        
+        // Build params object for makeInstantlyRequest
+        const params: any = {};
+        
+        // Handle campaign_id -> id mapping
+        if (validatedArgs.campaign_id) {
+          params.id = validatedArgs.campaign_id;
+        }
+        
+        // Handle campaign_ids -> ids mapping
+        if (validatedArgs.campaign_ids && Array.isArray(validatedArgs.campaign_ids)) {
+          params.ids = validatedArgs.campaign_ids.join(','); // API expects comma-separated string
+        }
+        
+        // Add date range parameters
+        if (validatedArgs.start_date) params.start_date = validatedArgs.start_date;
+        if (validatedArgs.end_date) params.end_date = validatedArgs.end_date;
+        
+        // Add exclude_total_leads_count parameter
+        if (validatedArgs.exclude_total_leads_count !== undefined) {
+          params.exclude_total_leads_count = validatedArgs.exclude_total_leads_count;
         }
 
-        // Build params object for makeInstantlyRequest (only include defined params)
-        const params: any = {};
-        if (apiParams.id) params.id = apiParams.id;
-        if (apiParams.start_date) params.start_date = apiParams.start_date;
-        if (apiParams.end_date) params.end_date = apiParams.end_date;
-
-        console.error(`[Instantly MCP] get_campaign_analytics (PARAMETER FIX)`);
+        console.error(`[Instantly MCP] get_campaign_analytics`);
         console.error(`[Instantly MCP] Endpoint: /campaigns/analytics`);
         console.error(`[Instantly MCP] Original parameters: ${JSON.stringify(validatedArgs, null, 2)}`);
-        console.error(`[Instantly MCP] API parameters (campaign_id->id): ${JSON.stringify(params, null, 2)}`);
+        console.error(`[Instantly MCP] API parameters: ${JSON.stringify(params, null, 2)}`);
 
         const result = await makeInstantlyRequest('/campaigns/analytics', { params }, apiKey);
 
-        // With the correct parameter names, server-side filtering should work natively
-        // Add metadata about the parameter fix for transparency
-        const enhancedResult = validatedArgs?.campaign_id ? {
+        // Add metadata about the parameter mapping for transparency
+        const enhancedResult = (validatedArgs?.campaign_id || validatedArgs?.campaign_ids) ? {
           ...result,
           _metadata: {
-            filtered_by_campaign_id: validatedArgs.campaign_id,
+            filtered_by_campaign: validatedArgs.campaign_id ? `Single: ${validatedArgs.campaign_id}` : `Multiple: ${validatedArgs.campaign_ids?.length} campaigns`,
             endpoint_used: '/campaigns/analytics',
             filtering_method: "server_side",
-            parameter_mapping: "campaign_id -> id",
-            note: "Using correct Instantly.ai API endpoint /campaigns/analytics with proper parameter names (campaign_id mapped to id)"
+            parameter_mapping: validatedArgs.campaign_id ? "campaign_id -> id" : "campaign_ids -> ids (comma-separated)",
+            exclude_total_leads_count: validatedArgs.exclude_total_leads_count || false,
+            note: "Using correct Instantly.ai API endpoint /campaigns/analytics with proper parameter names"
           }
         } : result;
 

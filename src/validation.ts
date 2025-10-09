@@ -320,8 +320,10 @@ export const GetCampaignSchema = z.object({
  */
 export const GetCampaignAnalyticsSchema = z.object({
   campaign_id: z.string().min(1, { message: 'Campaign ID cannot be empty' }).optional(),
+  campaign_ids: z.array(z.string()).optional(),
   start_date: DateFormatSchema.optional(),
-  end_date: DateFormatSchema.optional()
+  end_date: DateFormatSchema.optional(),
+  exclude_total_leads_count: z.boolean().optional()
 });
 
 /**
