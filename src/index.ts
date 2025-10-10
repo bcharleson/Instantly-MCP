@@ -1905,13 +1905,27 @@ Example: "FILTER_VAL_CONTACTED"`,
       },
       {
         name: 'list_emails',
-        description: '📧 LIST EMAILS - Offset-Based Pagination\n\nReturns emails with offset-based pagination. Each call returns one page of results (default 100 emails, max 100). Email datasets are typically very large (10000s-100000s+), so filtering by campaign is strongly recommended.\n\n**Pagination:**\n- Uses offset-based pagination (not cursor-based)\n- Set `offset` parameter to skip items (e.g., offset=0 for page 1, offset=100 for page 2)\n- Increment offset by limit value for each subsequent page\n- Fast response: ~2-5 seconds per page\n\n**Filtering Options:**\n- `campaign_id`: Filter by campaign ID (HIGHLY RECOMMENDED for large datasets)\n- `limit`: Items per page (1-100, default: 100)\n- `offset`: Number of items to skip (default: 0)\n\n**Common Usage:**\n- List campaign emails: Use `campaign_id` parameter to get emails for specific campaign\n- List all emails: Call repeatedly, incrementing `offset` by 100 each time\n- Count emails: Iterate through all pages, sum the counts\n- Paginate through emails: Start with offset=0, then offset=100, offset=200, etc.\n\n**Note:** Email datasets are typically massive. Filtering by `campaign_id` significantly improves performance and reduces response size.',
+        description: '📧 LIST EMAILS - Sequential Pagination\n\nReturns emails with sequential pagination support. Each call returns one page of results (default 100 emails, max 100). Email datasets are typically very large (10000s-100000s+), so filtering by campaign is strongly recommended.\n\n**Pagination:**\n- Response includes `next_starting_after` cursor if more results available\n- To get next page: Use the EXACT cursor value from `response.next_starting_after` as `starting_after` parameter\n- CRITICAL: Do NOT use email IDs from the data - only use the cursor from next_starting_after field\n- The API returns the cursor in the response, not in a separate pagination object\n- Fast response: ~2-5 seconds per page\n\n**Filtering Options:**\n- `campaign_id`: Filter by campaign ID (HIGHLY RECOMMENDED for large datasets)\n- `search`: Search by email address or thread (use "thread:UUID" format for thread search)\n- `eaccount`: Filter by sender email account(s) - comma-separated for multiple\n- `is_unread`: Filter unread emails (true/false)\n- `email_type`: Filter by type - "received", "sent", or "manual"\n- `i_status`: Filter by interest status (number)\n- `mode`: Filter by mode - "emode_focused", "emode_others", or "emode_all"\n- `limit`: Items per page (1-100, default: 100)\n- `starting_after`: Pagination cursor from previous response\n\n**Common Usage:**\n- List campaign emails: Use `campaign_id` parameter to get emails for specific campaign\n- List all emails: Call repeatedly with `starting_after` cursor from each response\n- Search thread: Use `search` parameter with "thread:UUID" format\n- Filter unread: Use `is_unread=true` parameter\n\n**Note:** Email datasets are typically massive. Filtering by `campaign_id` significantly improves performance and reduces response size.',
         inputSchema: {
           type: 'object',
           properties: {
-            campaign_id: { type: 'string', description: 'Filter by campaign ID' },
-            limit: { type: 'number', description: 'Maximum number of emails to retrieve (default: 100, max: 100)', default: 100 },
-            offset: { type: 'number', description: 'Number of emails to skip for pagination (default: 0)', default: 0 }
+            limit: { type: 'number', description: 'Number of items per page (1-100, default: 100)', minimum: 1, maximum: 100 },
+            starting_after: { type: 'string', description: 'Pagination cursor from previous response (use value from next_starting_after field)' },
+            search: { type: 'string', description: 'Search by email address or thread. Use "thread:UUID" format to search specific thread' },
+            campaign_id: { type: 'string', description: 'Filter by campaign ID (UUID format)' },
+            i_status: { type: 'number', description: 'Filter by interest status' },
+            eaccount: { type: 'string', description: 'Filter by sender email account. Comma-separated for multiple accounts' },
+            is_unread: { type: 'boolean', description: 'Filter unread emails (true/false)' },
+            has_reminder: { type: 'boolean', description: 'Filter emails with reminders (true/false)' },
+            mode: { type: 'string', description: 'Filter by mode', enum: ['emode_focused', 'emode_others', 'emode_all'] },
+            preview_only: { type: 'boolean', description: 'Return only email previews (true/false)' },
+            sort_order: { type: 'string', description: 'Sort order by creation date', enum: ['asc', 'desc'] },
+            scheduled_only: { type: 'boolean', description: 'Filter scheduled emails only (true/false)' },
+            assigned_to: { type: 'string', description: 'Filter by assigned user ID (UUID format)' },
+            lead: { type: 'string', description: 'Filter by lead email address' },
+            company_domain: { type: 'string', description: 'Filter by company domain' },
+            marked_as_done: { type: 'boolean', description: 'Filter emails marked as done (true/false)' },
+            email_type: { type: 'string', description: 'Filter by email type', enum: ['received', 'sent', 'manual'] }
           },
           additionalProperties: false
         }
@@ -3458,20 +3472,50 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
       console.error('[Instantly MCP] 📧 Executing list_emails...');
 
       const emailsParams: any = {};
-      if (args.campaign_id) emailsParams.campaign_id = args.campaign_id;
+
+      // Pagination parameters
       emailsParams.limit = args.limit || 100; // Default to 100 items per page (API maximum)
-      if (args.offset) emailsParams.offset = args.offset;
+      if (args.starting_after) emailsParams.starting_after = args.starting_after;
+
+      // Filtering parameters
+      if (args.campaign_id) emailsParams.campaign_id = args.campaign_id;
+      if (args.search) emailsParams.search = args.search;
+      if (args.i_status !== undefined) emailsParams.i_status = args.i_status;
+      if (args.eaccount) emailsParams.eaccount = args.eaccount;
+      if (args.is_unread !== undefined) emailsParams.is_unread = args.is_unread;
+      if (args.has_reminder !== undefined) emailsParams.has_reminder = args.has_reminder;
+      if (args.mode) emailsParams.mode = args.mode;
+      if (args.preview_only !== undefined) emailsParams.preview_only = args.preview_only;
+      if (args.sort_order) emailsParams.sort_order = args.sort_order;
+      if (args.scheduled_only !== undefined) emailsParams.scheduled_only = args.scheduled_only;
+      if (args.assigned_to) emailsParams.assigned_to = args.assigned_to;
+      if (args.lead) emailsParams.lead = args.lead;
+      if (args.company_domain) emailsParams.company_domain = args.company_domain;
+      if (args.marked_as_done !== undefined) emailsParams.marked_as_done = args.marked_as_done;
+      if (args.email_type) emailsParams.email_type = args.email_type;
 
       const emailsResult = await makeInstantlyRequest('/emails', { params: emailsParams }, apiKey);
+
+      // Add metadata about pagination
+      const metadata: any = {
+        request_time_ms: Date.now(),
+        note: `Retrieved ${emailsResult.items?.length || 0} emails.`
+      };
+
+      if (emailsResult.next_starting_after) {
+        metadata.note += ` More results available. To retrieve additional pages, call this tool again with starting_after parameter set to: ${emailsResult.next_starting_after}`;
+      } else {
+        metadata.note += ' All results retrieved (no more pages available).';
+      }
 
       return {
         content: [
           {
             type: 'text',
             text: JSON.stringify({
-              success: true,
-              emails: emailsResult,
-              message: 'Emails retrieved successfully'
+              ...emailsResult,
+              metadata,
+              success: true
             }, null, 2)
           }
         ]
