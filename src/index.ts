@@ -1911,6 +1911,33 @@ Example: "FILTER_VAL_CONTACTED"`,
         }
       },
       {
+        name: 'update_lead_list',
+        description: '✏️ UPDATE LEAD LIST - MODIFY EXISTING LEAD LIST\n\n**What this tool does:**\nUpdates properties of an existing lead list (name, enrichment settings, owner).\n\n**Required:**\n- `list_id`: Lead list UUID (get from list_lead_lists)\n\n**Optional parameters (only provide what you want to change):**\n- `name`: New name for the list\n- `has_enrichment_task`: Enable/disable automatic enrichment (true/false)\n- `owned_by`: Transfer ownership to different user (user UUID)\n\n**Common use cases:**\n1️⃣ "Rename a lead list":\n   → Call update_lead_list with list_id and new name\n   → Example: {list_id: "uuid", name: "Q1 2025 Prospects"}\n\n2️⃣ "Enable enrichment for existing list":\n   → Call update_lead_list with list_id and has_enrichment_task: true\n   → All future leads added to this list will be auto-enriched\n\n3️⃣ "Transfer list ownership":\n   → Call update_lead_list with list_id and owned_by: "user-uuid"\n   → List ownership transfers to specified user\n\n**Performance:**\n- Update is instant (< 1 second)\n- Changes take effect immediately\n- Does not affect existing leads in the list\n\nUpdate an existing lead list. Only provide the fields you want to change.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            list_id: { type: 'string', description: 'Lead list ID (UUID) to update - REQUIRED. Get from list_lead_lists. Example: "0199cf87-d1a7-7533-8218-782cda8d4e68"' },
+            name: { type: 'string', description: 'New name for the lead list (OPTIONAL). Only provide if you want to rename the list. Example: "Updated List Name"' },
+            has_enrichment_task: { type: 'boolean', description: 'Enable/disable automatic enrichment (OPTIONAL). Only provide if you want to change enrichment setting. true = enable, false = disable.' },
+            owned_by: { type: 'string', description: 'User ID (UUID) to transfer ownership to (OPTIONAL). Only provide if you want to change the owner. Example: "0199cf87-b33d-766b-833d-e326bc17066a"' }
+          },
+          required: ['list_id'],
+          additionalProperties: false
+        }
+      },
+      {
+        name: 'get_verification_stats_for_lead_list',
+        description: '📊 GET VERIFICATION STATS FOR LEAD LIST - EMAIL QUALITY ANALYTICS\n\n**What this tool does:**\nReturns email verification statistics for all leads in a specific lead list.\n\n**Required:**\n- `list_id`: Lead list UUID (get from list_lead_lists)\n\n**Returns:**\n- `stats` object with verification breakdown:\n  - `verified`: Count of verified/deliverable emails\n  - `invalid`: Count of invalid/undeliverable emails\n  - `risky`: Count of risky emails (might bounce)\n  - `catch_all`: Count of catch-all domain emails\n  - `job_change`: Count of leads with job changes detected\n  - `verification_job_pending_leadfinder`: Pending verification (leadfinder)\n  - `verification_job_pending_user`: Pending verification (user-initiated)\n- `total_leads`: Total number of leads in the list\n\n**Common use cases:**\n1️⃣ "Check email quality of my lead list":\n   → Call get_verification_stats_for_lead_list with list_id\n   → Review verified vs invalid counts\n   → High verified % = good quality list\n\n2️⃣ "See how many leads need verification":\n   → Check verification_job_pending counts\n   → These leads are queued for verification\n\n3️⃣ "Assess list deliverability before campaign":\n   → Get stats before launching campaign\n   → Remove/fix invalid emails to improve deliverability\n\n**Performance:**\n- Fast response (< 2 seconds)\n- Read-only operation (no changes to data)\n- Stats are real-time\n\n**Example response:**\n```json\n{\n  "stats": {\n    "verified": 150,\n    "invalid": 25,\n    "risky": 10,\n    "catch_all": 5,\n    "job_change": 2,\n    "verification_job_pending_leadfinder": 11,\n    "verification_job_pending_user": 12\n  },\n  "total_leads": 203\n}\n```\n\nGet email verification statistics for a lead list to assess email quality and deliverability.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            list_id: { type: 'string', description: 'Lead list ID (UUID) to get verification stats for - REQUIRED. Get from list_lead_lists. Example: "0199cf87-d1a8-7400-afe3-dec7f9ab214e"' }
+          },
+          required: ['list_id'],
+          additionalProperties: false
+        }
+      },
+      {
         name: 'list_emails',
         description: '📧 LIST EMAILS - Sequential Pagination\n\nReturns emails with sequential pagination support. Each call returns one page of results (default 100 emails, max 100). Email datasets are typically very large (10000s-100000s+), so filtering by campaign is strongly recommended.\n\n**Pagination:**\n- Response includes `next_starting_after` cursor if more results available\n- To get next page: Use the EXACT cursor value from `response.next_starting_after` as `starting_after` parameter\n- CRITICAL: Do NOT use email IDs from the data - only use the cursor from next_starting_after field\n- The API returns the cursor in the response, not in a separate pagination object\n- Fast response: ~2-5 seconds per page\n\n**Filtering Options:**\n- `campaign_id`: Filter by campaign ID (HIGHLY RECOMMENDED for large datasets)\n- `search`: Search by email address or thread (use "thread:UUID" format for thread search)\n- `eaccount`: Filter by sender email account(s) - comma-separated for multiple\n- `is_unread`: Filter unread emails (true/false)\n- `email_type`: Filter by type - "received", "sent", or "manual"\n- `i_status`: Filter by interest status (number)\n- `mode`: Filter by mode - "emode_focused", "emode_others", or "emode_all"\n- `limit`: Items per page (1-100, default: 100)\n- `starting_after`: Pagination cursor from previous response\n\n**Common Usage:**\n- List campaign emails: Use `campaign_id` parameter to get emails for specific campaign\n- List all emails: Call repeatedly with `starting_after` cursor from each response\n- Search thread: Use `search` parameter with "thread:UUID" format\n- Filter unread: Use `is_unread=true` parameter\n\n**Note:** Email datasets are typically massive. Filtering by `campaign_id` significantly improves performance and reduces response size.',
         inputSchema: {
@@ -3433,6 +3460,62 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
               success: true,
               lead_list: createResult,
               message: 'Lead list created successfully'
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
+    case 'update_lead_list': {
+      console.error('[Instantly MCP] ✏️ Executing update_lead_list...');
+
+      if (!args.list_id) {
+        throw new McpError(ErrorCode.InvalidParams, 'list_id is required for update_lead_list');
+      }
+
+      // Build update data - only include fields that are provided
+      const updateData: any = {};
+      if (args.name !== undefined) updateData.name = args.name;
+      if (args.has_enrichment_task !== undefined) updateData.has_enrichment_task = args.has_enrichment_task;
+      if (args.owned_by !== undefined) updateData.owned_by = args.owned_by;
+
+      console.error(`[Instantly MCP] 📤 Updating lead list ${args.list_id} with data: ${JSON.stringify(updateData, null, 2)}`);
+
+      const updateResult = await makeInstantlyRequest(`/lead-lists/${args.list_id}`, { method: 'PATCH', body: updateData }, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              lead_list: updateResult,
+              message: 'Lead list updated successfully'
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
+    case 'get_verification_stats_for_lead_list': {
+      console.error('[Instantly MCP] 📊 Executing get_verification_stats_for_lead_list...');
+
+      if (!args.list_id) {
+        throw new McpError(ErrorCode.InvalidParams, 'list_id is required for get_verification_stats_for_lead_list');
+      }
+
+      console.error(`[Instantly MCP] 📤 Getting verification stats for lead list ${args.list_id}`);
+
+      const statsResult = await makeInstantlyRequest(`/lead-lists/${args.list_id}/verification-stats`, { method: 'GET' }, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              ...statsResult,
+              message: 'Verification stats retrieved successfully'
             }, null, 2)
           }
         ]
