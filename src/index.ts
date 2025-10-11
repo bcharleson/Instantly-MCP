@@ -221,7 +221,14 @@ async function makeInstantlyRequest(endpoint: string, options: any = {}, apiKey?
     const searchParams = new URLSearchParams();
     Object.entries(options.params).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
-        searchParams.append(key, String(value));
+        // Handle array parameters - append each value separately
+        if (Array.isArray(value)) {
+          value.forEach((item) => {
+            searchParams.append(key, String(item));
+          });
+        } else {
+          searchParams.append(key, String(value));
+        }
       }
     });
     const queryString = searchParams.toString();
@@ -2461,10 +2468,11 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
         if (validatedArgs.campaign_id) {
           params.id = validatedArgs.campaign_id;
         }
-        
+
         // Handle campaign_ids -> ids mapping
+        // API expects array of UUIDs - URLSearchParams will handle multiple values
         if (validatedArgs.campaign_ids && Array.isArray(validatedArgs.campaign_ids)) {
-          params.ids = validatedArgs.campaign_ids.join(','); // API expects comma-separated string
+          params.ids = validatedArgs.campaign_ids; // Pass array directly
         }
         
         // Add date range parameters
@@ -2490,7 +2498,7 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
             filtered_by_campaign: validatedArgs.campaign_id ? `Single: ${validatedArgs.campaign_id}` : `Multiple: ${validatedArgs.campaign_ids?.length} campaigns`,
             endpoint_used: '/campaigns/analytics',
             filtering_method: "server_side",
-            parameter_mapping: validatedArgs.campaign_id ? "campaign_id -> id" : "campaign_ids -> ids (comma-separated)",
+            parameter_mapping: validatedArgs.campaign_id ? "campaign_id -> id" : "campaign_ids -> ids (array of UUIDs)",
             exclude_total_leads_count: validatedArgs.exclude_total_leads_count || false,
             note: "Using correct Instantly.ai API endpoint /campaigns/analytics with proper parameter names"
           }
