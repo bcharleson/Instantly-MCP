@@ -1488,7 +1488,7 @@ export const TOOLS_DEFINITION = [
       },
       {
         name: 'verify_email',
-        description: '✅ VERIFY EMAIL ADDRESS DELIVERABILITY\n\nVerifies email address deliverability with comprehensive validation checks. Takes 2-5 seconds per email.\n\n**Validation Checks:**\n- Syntax validation (proper email format)\n- Domain validation (MX records exist)\n- Mailbox validation (mailbox exists, when possible)\n- Deliverability score (0-100)\n\n**Returns:**\n- `status`: "valid", "invalid", "risky", "unknown", "catch-all"\n- `score`: Quality score 0-100 (higher is better)\n- `reason`: Explanation of verification result\n- `is_disposable`: True if temporary/disposable email service\n- `is_role_based`: True if role-based email (info@, support@, etc.)\n\n**Status Meanings:**\n- "valid" or "deliverable": Email is good, safe to use\n- "risky" or "unknown": Email might work, use with caution\n- "invalid" or "undeliverable": Email will bounce\n- "catch-all": Domain accepts all emails, cannot verify mailbox\n\n**Performance:**\n- 2-5 seconds per verification\n- Real-time check against mail servers\n\n**Note:** For bulk verification (10+ emails), use `verify_leads_on_import` parameter in `create_lead` instead of verifying individually.',
+        description: '✅ VERIFY EMAIL ADDRESS DELIVERABILITY\n\nVerifies email address deliverability with comprehensive validation checks. Uses robust polling to wait for complete verification results.\n\n**Validation Checks:**\n- Syntax validation (proper email format)\n- Domain validation (MX records exist)\n- Mailbox validation (mailbox exists, when possible)\n- Deliverability score (0-100)\n\n**Returns:**\n- `status`: "valid", "invalid", "risky", "unknown", "catch-all"\n- `score`: Quality score 0-100 (higher is better)\n- `reason`: Explanation of verification result\n- `is_disposable`: True if temporary/disposable email service\n- `is_role_based`: True if role-based email (info@, support@, etc.)\n\n**Status Meanings:**\n- "valid" or "deliverable": Email is good, safe to use\n- "risky" or "unknown": Email might work, use with caution\n- "invalid" or "undeliverable": Email will bounce\n- "catch-all": Domain accepts all emails, cannot verify mailbox\n\n**Performance:**\n- Most emails: 5-15 seconds (waits for complete verification)\n- Slow domains (gmail.com, outlook.com, instantly.ai, etc.): Up to 45 seconds\n- Uses intelligent polling with 2-second intervals\n- Real-time check against mail servers\n\n**Timeout Handling:**\n- If verification exceeds timeout (30-45s depending on domain), returns timeout status\n- Verification continues on Instantly servers - retry after 1-2 minutes\n\n**Note:** For bulk verification (10+ emails), use `verify_leads_on_import` parameter in `create_lead` instead of verifying individually.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -2983,19 +2983,20 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
 
         // Domain-specific timeout handling for known slow-verifying domains
         const emailDomain = email.split('@')[1]?.toLowerCase();
-        const slowDomains = ['creatorbuzz.com', 'techrecruiterpro.net', 'topoffunnel.com', 'gmail.com', 'outlook.com', 'yahoo.com', 'lead411.io'];
+        const slowDomains = ['creatorbuzz.com', 'techrecruiterpro.net', 'topoffunnel.com', 'gmail.com', 'outlook.com', 'yahoo.com', 'lead411.io', 'instantly.ai'];
         const isSlowDomain = slowDomains.includes(emailDomain);
 
-        // EXTREME timeout safety for MCP constraints - addresses intermittent delays
-        const baseMaxPollingTime = 5000; // 5 seconds base maximum (extreme safety)
-        const slowDomainReduction = 2000; // Reduce by 2 seconds for slow domains
-        const maxPollingTime = isSlowDomain ? (baseMaxPollingTime - slowDomainReduction) : baseMaxPollingTime; // 3s for slow domains, 5s for others
-        const pollingInterval = 1000; // 1 second between polls (maximum responsiveness)
+        // ROBUST polling configuration - wait for complete verification
+        // Increased timeout to allow slow domains to complete verification
+        const baseMaxPollingTime = 30000; // 30 seconds base maximum (allows most verifications to complete)
+        const slowDomainExtension = 15000; // Add 15 seconds for slow domains
+        const maxPollingTime = isSlowDomain ? (baseMaxPollingTime + slowDomainExtension) : baseMaxPollingTime; // 45s for slow domains, 30s for others
+        const pollingInterval = 2000; // 2 seconds between polls (balance between responsiveness and API load)
         const startTime = Date.now();
         let attempts = 0;
-        const maxAttempts = Math.floor(maxPollingTime / pollingInterval); // ~3-5 attempts
+        const maxAttempts = Math.floor(maxPollingTime / pollingInterval); // ~15-22 attempts
 
-        console.error(`[Instantly MCP] 🎯 EXTREME SAFETY config: ${emailDomain} (slow: ${isSlowDomain}) - max time: ${maxPollingTime}ms, max attempts: ${maxAttempts}, interval: ${pollingInterval}ms`);
+        console.error(`[Instantly MCP] 🎯 ROBUST polling config: ${emailDomain} (slow: ${isSlowDomain}) - max time: ${maxPollingTime}ms (${maxPollingTime/1000}s), max attempts: ${maxAttempts}, interval: ${pollingInterval}ms`);
 
         while (Date.now() - startTime < maxPollingTime && attempts < maxAttempts) {
           attempts++;
@@ -3045,34 +3046,32 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
           }
         }
 
-        // Step 4: Handle timeout scenario with "quick verification" partial results
-        console.error('[Instantly MCP] ⏰ Verification polling timed out - providing quick verification results');
+        // Step 4: Handle timeout scenario - verification still pending after extended polling
+        console.error(`[Instantly MCP] ⏰ Verification polling timed out after ${Math.round((Date.now() - startTime) / 1000)}s - verification still in progress`);
 
         return {
           content: [
             {
               type: 'text',
               text: JSON.stringify({
-                success: true, // Changed to true - we provide partial results
+                success: false, // Changed to false - verification incomplete
                 email: email,
-                verification_status: 'quick_verification_timeout',
+                verification_status: 'timeout',
                 deliverability: 'verification_in_progress',
-                catch_all: initialResult.catch_all || 'unknown',
+                catch_all: initialResult.catch_all || 'pending',
                 credits: initialResult.credits,
                 credits_used: initialResult.credits_used,
                 polling_attempts: attempts,
                 total_time_seconds: Math.round((Date.now() - startTime) / 1000),
                 max_polling_time_seconds: Math.round(maxPollingTime / 1000),
                 polling_interval_seconds: Math.round(pollingInterval / 1000),
-                message: `Quick verification completed - full verification still processing after ${Math.round((Date.now() - startTime) / 1000)} seconds`,
-                verification_mode: 'quick_verification',
+                message: `Verification timed out after ${Math.round((Date.now() - startTime) / 1000)} seconds of polling. The verification is still processing on Instantly's servers.`,
+                verification_mode: 'extended_polling_timeout',
                 domain: emailDomain,
                 is_slow_domain: isSlowDomain,
                 initial_result: initialResult,
-                note: `This email domain (${emailDomain}) requires extended verification time. Partial results provided to avoid MCP timeout. Full verification may complete later.`,
-                recommendation: isSlowDomain ?
-                  `Domain ${emailDomain} is known to require extended verification. Consider using a background verification service for this domain.` :
-                  'For domains requiring extended verification, consider using a background verification service.'
+                note: `This email domain (${emailDomain}) requires exceptionally long verification time (>${Math.round(maxPollingTime / 1000)}s). The verification was initiated successfully but has not completed yet.`,
+                recommendation: 'Try verifying this email again in 1-2 minutes, or use the Instantly.ai web dashboard to check verification status.'
               }, null, 2)
             }
           ]
