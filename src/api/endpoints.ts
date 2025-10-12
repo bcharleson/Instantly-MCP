@@ -31,6 +31,7 @@ export const ENDPOINTS = {
   // Lead endpoints
   LEADS: '/leads',
   LEADS_LIST: '/leads/list',
+  LEADS_BULK_ADD: '/leads/add',
   LEAD_BY_ID: (id: string) => `/leads/${id}`,
   
   // Lead List endpoints

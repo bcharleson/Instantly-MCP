@@ -1,8 +1,8 @@
 /**
  * Instantly MCP Server - Lead Tools
- * 
+ *
  * Tool definitions for lead and lead list management operations.
- * Total: 8 lead tools
+ * Total: 9 lead tools (includes bulk import)
  */
 
 export const leadTools = [
@@ -194,6 +194,60 @@ export const leadTools = [
         list_id: { type: 'string', description: 'Lead list ID (UUID) - REQUIRED. Get from list_lead_lists. Example: "0199cf87-d1a7-7533-8218-782cda8d4e68"' }
       },
       required: ['list_id'],
+      additionalProperties: false
+    }
+  },
+
+  {
+    name: 'add_leads_to_campaign_or_list_bulk',
+    description: '📦 ADD LEADS IN BULK TO CAMPAIGN OR LIST - BATCH IMPORT UP TO 1,000 LEADS\n\n✨ WHAT THIS TOOL DOES:\n\nAdds up to 1,000 leads to either a campaign or a list in a single API call. This is the RECOMMENDED way to import multiple leads, as it:\n• ✅ Avoids rate limiting issues from concurrent requests\n• ✅ Provides detailed success/failure breakdown\n• ✅ Validates emails and checks blocklists automatically\n• ✅ Handles duplicates intelligently with skip flags\n• ✅ Supports custom variables for personalization\n• ✅ Is 10-100x faster than individual create_lead calls\n\n⚠️ CRITICAL REQUIREMENTS:\n\n1️⃣ CAMPAIGN OR LIST (MUTUALLY EXCLUSIVE):\n• Must provide EITHER campaign_id OR list_id (NOT both)\n• campaign_id: Adds leads to a campaign for outreach\n• list_id: Adds leads to a list for organization\n\n2️⃣ LEAD REQUIREMENTS:\n• For campaigns: Each lead MUST have an email address\n• For lists: Each lead MUST have at least one of: email, first_name, or last_name\n• Maximum 1,000 leads per request\n• Minimum 1 lead per request\n\n3️⃣ CUSTOM VARIABLES:\n• ALWAYS check existing campaign custom variables FIRST\n• Align custom_variables with campaign\'s existing fields\n• Example: If campaign uses {{headcount}}, include headcount in custom_variables\n• Custom variables update the campaign schema for ALL leads\n\n📚 COMMON USER REQUEST EXAMPLES:\n\n1️⃣ "Add multiple leads to campaign X":\n   → Get campaign_id from list_campaigns\n   → Build leads array with email, first_name, last_name, company_name\n   → Set skip_if_in_campaign: true to avoid duplicates\n   → Call add_leads_to_campaign_or_list_bulk\n\n2️⃣ "Import 100 leads with custom variables":\n   → Ask: "What custom variables does your campaign use?"\n   → Build leads array with custom_variables for each lead\n   → Example: {"headcount": "50-100", "revenue": "$1M-$5M"}\n   → Set campaign_id and call tool\n\n3️⃣ "Add leads and verify emails":\n   → Set verify_leads_on_import: true\n   → Background job will verify all emails\n   → Check response for verification job status\n\n4️⃣ "Import to list for later use":\n   → Use list_id instead of campaign_id\n   → Leads stored in list without sending\n   → Can add to campaign later\n\n💡 WHEN TO USE BULK vs INDIVIDUAL create_lead:\n\n**Use add_leads_to_campaign_or_list_bulk when:**\n• ✅ Adding 2+ leads at once\n• ✅ Importing from CSV or external source\n• ✅ Need detailed success/failure reporting\n• ✅ Want to avoid rate limiting\n• ✅ Batch operations in n8n or automation tools\n\n**Use create_lead when:**\n• ❌ Adding only 1 lead\n• ❌ Interactive lead-by-lead creation\n• ❌ Need immediate per-lead feedback\n\n📊 RESPONSE FORMAT:\n\nThe response provides detailed breakdown:\n```json\n{\n  "status": "success",\n  "total_sent": 10,\n  "leads_uploaded": 7,\n  "in_blocklist": 1,\n  "blocklist_used": "blocklist-uuid",\n  "duplicated_leads": 0,\n  "skipped_count": 1,\n  "invalid_email_count": 1,\n  "incomplete_count": 0,\n  "duplicate_email_count": 0,\n  "remaining_in_plan": 9993\n}\n```\n\n**Response Fields:**\n• total_sent: Total leads in request\n• leads_uploaded: Successfully created leads ✅\n• in_blocklist: Leads skipped (on blocklist) 🚫\n• duplicated_leads: Leads already in campaign/list 🔄\n• skipped_count: Leads skipped due to skip_if_* flags ⏭️\n• invalid_email_count: Invalid email format ❌\n• incomplete_count: Missing required fields (lists only) ⚠️\n• duplicate_email_count: Duplicate emails within request 🔁\n• remaining_in_plan: Remaining lead quota (campaigns only) 📊\n\n⚠️ IMPORTANT LIMITS:\n\n• Maximum 1,000 leads per request\n• For larger imports, split into multiple batches\n• Use skip_if_in_campaign to avoid duplicates across batches\n• Response time: 2-10 seconds depending on lead count\n\n⏱️ PERFORMANCE:\n\n• 10 leads: ~2-3 seconds\n• 100 leads: ~3-5 seconds\n• 1,000 leads: ~5-10 seconds\n• Much faster than 1,000 individual create_lead calls (which would take 1,000+ seconds)\n\n🎯 BEST PRACTICES:\n\n1. Always set skip_if_in_campaign: true to avoid duplicates\n2. Use verify_leads_on_import: true for email validation\n3. Check response breakdown to identify issues\n4. For 1,000+ leads, batch into multiple requests\n5. Align custom_variables with existing campaign schema\n\nAdd up to 1,000 leads to a campaign or list in a single efficient API call with automatic validation and duplicate detection.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        // Leads array (1-1000 items)
+        leads: {
+          type: 'array',
+          description: 'Array of lead objects to create (1-1000 items). Each lead can contain: email, first_name, last_name, company_name, phone, website, personalization, lt_interest_status, pl_value_lead, assigned_to, custom_variables.',
+          items: {
+            type: 'object',
+            properties: {
+              email: { type: 'string', description: 'Email address (REQUIRED for campaigns, optional for lists). Example: "john@acme.com"' },
+              first_name: { type: 'string', description: 'First name. Example: "John"' },
+              last_name: { type: 'string', description: 'Last name. Example: "Doe"' },
+              company_name: { type: 'string', description: 'Company name. Example: "Acme Corp"' },
+              phone: { type: 'string', description: 'Phone number. Example: "+1-555-0123"' },
+              website: { type: 'string', description: 'Website URL. Example: "https://acme.com"' },
+              personalization: { type: 'string', description: 'Custom personalization message. Example: "Hi John, saw your post about AI"' },
+              lt_interest_status: { type: 'number', description: 'Interest status: -3=Not Interested, -2=Wrong Person, -1=Lost, 0=Out of Office, 1=Interested, 2=Meeting Booked, 3=Meeting Completed, 4=Closed', minimum: -3, maximum: 4 },
+              pl_value_lead: { type: 'string', description: 'Potential lead value. Example: "$5000"' },
+              assigned_to: { type: 'string', description: 'User UUID to assign this lead to. Example: "user-uuid-here"' },
+              custom_variables: {
+                type: 'object',
+                description: 'Custom metadata for campaign personalization. CRITICAL: Align with existing campaign variables! Example: {"headcount": "50-100", "revenue": "$1M-$5M", "industry": "SaaS"}',
+                additionalProperties: true
+              }
+            },
+            additionalProperties: false
+          },
+          minItems: 1,
+          maxItems: 1000
+        },
+
+        // Campaign or List (mutually exclusive)
+        campaign_id: { type: 'string', description: 'Campaign UUID to add leads to. Use this OR list_id (NOT both). Get from list_campaigns. Example: "campaign-uuid-here"' },
+        list_id: { type: 'string', description: 'List UUID to add leads to. Use this OR campaign_id (NOT both). Get from list_lead_lists. Example: "list-uuid-here"' },
+
+        // Optional parameters
+        blocklist_id: { type: 'string', description: 'Blocklist UUID to check leads against. If omitted, workspace default blocklist is used. Example: "blocklist-uuid-here"' },
+        assigned_to: { type: 'string', description: 'User UUID to assign ALL imported leads to. If omitted, leads assigned to campaign owner (for campaigns) or requesting user (for lists). Example: "user-uuid-here"' },
+        verify_leads_on_import: { type: 'boolean', description: 'If true, creates background job to verify email addresses. Recommended for better deliverability. Default: false', default: false },
+
+        // Skip flags for duplicate prevention
+        skip_if_in_workspace: { type: 'boolean', description: 'Skip if lead exists ANYWHERE in workspace (strictest). Overrides other skip flags. Default: false', default: false },
+        skip_if_in_campaign: { type: 'boolean', description: 'Skip if lead exists in ANY campaign. Recommended for campaign imports. Default: false', default: false },
+        skip_if_in_list: { type: 'boolean', description: 'Skip if lead exists in ANY list. Recommended for list imports. Default: false', default: false }
+      },
+      required: ['leads'],
       additionalProperties: false
     }
   },

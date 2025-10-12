@@ -1222,6 +1222,80 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
       };
     }
 
+    case 'add_leads_to_campaign_or_list_bulk': {
+      console.error('[Instantly MCP] 📦 Executing add_leads_to_campaign_or_list_bulk...');
+
+      // Validate required parameters
+      if (!args.leads || !Array.isArray(args.leads) || args.leads.length === 0) {
+        throw new McpError(ErrorCode.InvalidParams, 'leads array is required and must contain at least 1 lead');
+      }
+
+      if (args.leads.length > 1000) {
+        throw new McpError(ErrorCode.InvalidParams, 'Maximum 1,000 leads per request. Please split into multiple batches.');
+      }
+
+      // Validate mutually exclusive campaign_id and list_id
+      if (!args.campaign_id && !args.list_id) {
+        throw new McpError(ErrorCode.InvalidParams, 'Either campaign_id or list_id is required (but not both)');
+      }
+
+      if (args.campaign_id && args.list_id) {
+        throw new McpError(ErrorCode.InvalidParams, 'Cannot provide both campaign_id and list_id. Use one or the other.');
+      }
+
+      // Build request body matching Instantly.ai API v2 specification
+      const bulkData: any = {
+        leads: args.leads
+      };
+
+      // Add campaign_id or list_id (mutually exclusive)
+      if (args.campaign_id) bulkData.campaign_id = args.campaign_id;
+      if (args.list_id) bulkData.list_id = args.list_id;
+
+      // Add optional parameters
+      if (args.blocklist_id) bulkData.blocklist_id = args.blocklist_id;
+      if (args.assigned_to) bulkData.assigned_to = args.assigned_to;
+      if (args.verify_leads_on_import !== undefined) bulkData.verify_leads_on_import = args.verify_leads_on_import;
+
+      // Add skip flags
+      if (args.skip_if_in_workspace !== undefined) bulkData.skip_if_in_workspace = args.skip_if_in_workspace;
+      if (args.skip_if_in_campaign !== undefined) bulkData.skip_if_in_campaign = args.skip_if_in_campaign;
+      if (args.skip_if_in_list !== undefined) bulkData.skip_if_in_list = args.skip_if_in_list;
+
+      console.error(`[Instantly MCP] 📤 Creating ${args.leads.length} leads in bulk for ${args.campaign_id ? 'campaign' : 'list'}: ${args.campaign_id || args.list_id}`);
+      console.error(`[Instantly MCP] 📋 Bulk import settings: skip_if_in_workspace=${bulkData.skip_if_in_workspace}, skip_if_in_campaign=${bulkData.skip_if_in_campaign}, skip_if_in_list=${bulkData.skip_if_in_list}, verify=${bulkData.verify_leads_on_import}`);
+
+      const bulkResult = await makeInstantlyRequest(ENDPOINTS.LEADS_BULK_ADD, { method: 'POST', body: bulkData }, apiKey);
+
+      console.error(`[Instantly MCP] ✅ Bulk import complete: ${bulkResult.leads_uploaded}/${bulkResult.total_sent} leads uploaded successfully`);
+      console.error(`[Instantly MCP] 📊 Breakdown: in_blocklist=${bulkResult.in_blocklist}, duplicated=${bulkResult.duplicated_leads}, skipped=${bulkResult.skipped_count}, invalid_email=${bulkResult.invalid_email_count}, duplicate_email=${bulkResult.duplicate_email_count}`);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              result: bulkResult,
+              message: `Bulk import complete: ${bulkResult.leads_uploaded} of ${bulkResult.total_sent} leads uploaded successfully`,
+              summary: {
+                total_sent: bulkResult.total_sent,
+                leads_uploaded: bulkResult.leads_uploaded,
+                failed: bulkResult.total_sent - bulkResult.leads_uploaded,
+                in_blocklist: bulkResult.in_blocklist,
+                duplicated_leads: bulkResult.duplicated_leads,
+                skipped_count: bulkResult.skipped_count,
+                invalid_email_count: bulkResult.invalid_email_count,
+                incomplete_count: bulkResult.incomplete_count || 0,
+                duplicate_email_count: bulkResult.duplicate_email_count,
+                remaining_in_plan: bulkResult.remaining_in_plan
+              }
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
     case 'create_lead_list': {
       console.error('[Instantly MCP] 📋 Executing create_lead_list...');
 
