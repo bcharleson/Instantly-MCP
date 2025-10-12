@@ -13,7 +13,8 @@ import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { randomUUID } from 'node:crypto';
-import { TOOLS_DEFINITION, executeToolDirectly } from './index.js';
+import { TOOLS_DEFINITION } from './tools/index.js';
+import { executeToolDirectly } from './handlers/tool-executor.js';
 
 // Simple rate limiting interface
 interface RateLimitEntry {
