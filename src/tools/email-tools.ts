@@ -1,8 +1,8 @@
 /**
  * Instantly MCP Server - Email Tools
- * 
+ *
  * Tool definitions for email management and communication operations.
- * Total: 4 email tools
+ * Total: 5 email tools
  */
 
 export const emailTools = [
@@ -85,6 +85,19 @@ export const emailTools = [
     inputSchema: {
       type: 'object',
       properties: {},
+      additionalProperties: false
+    }
+  },
+
+  {
+    name: 'verify_email',
+    description: '✅ VERIFY EMAIL ADDRESS DELIVERABILITY\n\nVerifies email address deliverability with comprehensive validation checks. Uses robust polling to wait for complete verification results.\n\n**Validation Checks:**\n- Syntax validation (proper email format)\n- Domain validation (MX records exist)\n- Mailbox validation (mailbox exists, when possible)\n- Deliverability score (0-100)\n\n**Returns:**\n- `status`: "valid", "invalid", "risky", "unknown", "catch-all"\n- `score`: Quality score 0-100 (higher is better)\n- `reason`: Explanation of verification result\n- `is_disposable`: True if temporary/disposable email service\n- `is_role_based`: True if role-based email (info@, support@, etc.)\n\n**Status Meanings:**\n- "valid" or "deliverable": Email is good, safe to use\n- "risky" or "unknown": Email might work, use with caution\n- "invalid" or "undeliverable": Email will bounce\n- "catch-all": Domain accepts all emails, cannot verify mailbox\n\n**Performance:**\n- Most emails: 5-15 seconds (waits for complete verification)\n- Slow domains (gmail.com, outlook.com, instantly.ai, etc.): Up to 45 seconds\n- Uses intelligent polling with 2-second intervals\n- Real-time check against mail servers\n\n**Timeout Handling:**\n- If verification exceeds timeout (30-45s depending on domain), returns timeout status\n- Verification continues on Instantly servers - retry after 1-2 minutes\n\n**Note:** For bulk verification (10+ emails), use `verify_leads_on_import` parameter in `create_lead` instead of verifying individually.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        email: { type: 'string', description: 'Email address to verify (must be valid format: user@domain.com). Example: "john@acme.com"' }
+      },
+      required: ['email'],
       additionalProperties: false
     }
   },

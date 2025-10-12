@@ -10,16 +10,20 @@ All notable changes to the Instantly MCP Server project.
 - **Modular architecture** - Refactored monolithic 4,636-line index.ts into 34 modular files
 - **95% reduction** in main file size (4,636 → 163 lines)
 - **6 architectural layers** - Tool definitions, handlers, services, API client, utilities, configuration
-- **Zero regressions** - All 32 tools tested and validated
+- **Zero regressions** - All 33 tools tested and validated
 - **Production-ready** - Deployed and validated on personal DigitalOcean instance
 
 #### Tool Organization
-- **32 tools** across 5 categories:
+- **33 tools** across 5 categories:
   - Account Management: 11 tools
   - Campaign Management: 6 tools
   - Lead Management: 8 tools
-  - Email Management: 4 tools
+  - Email Management: 5 tools (including verify_email)
   - Analytics & Reporting: 3 tools
+
+#### Bug Fixes
+- **Fixed verify_email tool** - Restored missing tool definition (handler existed but tool was not exposed)
+- Tool was accidentally removed during refactoring, now fully functional again
 
 #### Pagination Verification
 - **All 5 list endpoints** tested with 3-page verification:
