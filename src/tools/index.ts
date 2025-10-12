@@ -4,10 +4,10 @@
  * Central registry that combines all tool definitions from different categories.
  * This file exports the complete TOOLS_DEFINITION array used by the MCP server.
  *
- * Total: 34 tools across 5 categories
+ * Total: 36 tools across 5 categories
  * - Account tools: 11 tools
  * - Campaign tools: 6 tools
- * - Lead tools: 9 tools (includes bulk import)
+ * - Lead tools: 11 tools (includes bulk import, delete, and move)
  * - Email tools: 5 tools
  * - Analytics tools: 3 tools
  */
@@ -31,7 +31,7 @@ export const TOOLS_DEFINITION = [
   // Campaign Management Tools (6 tools)
   ...campaignTools,
 
-  // Lead Management Tools (9 tools - includes bulk import)
+  // Lead Management Tools (11 tools - includes bulk import, delete, and move)
   ...leadTools,
 
   // Email Management Tools (5 tools)
@@ -86,8 +86,8 @@ export function validateToolDefinitions(): { valid: boolean; errors: string[] } 
   }
 
   // Validate expected count
-  if (TOOLS_DEFINITION.length !== 34) {
-    errors.push(`Expected 34 tools, found ${TOOLS_DEFINITION.length}`);
+  if (TOOLS_DEFINITION.length !== 36) {
+    errors.push(`Expected 36 tools, found ${TOOLS_DEFINITION.length}`);
   }
 
   return {

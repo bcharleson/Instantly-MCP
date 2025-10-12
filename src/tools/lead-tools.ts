@@ -2,7 +2,7 @@
  * Instantly MCP Server - Lead Tools
  *
  * Tool definitions for lead and lead list management operations.
- * Total: 9 lead tools (includes bulk import)
+ * Total: 11 lead tools (includes bulk import, delete, and move)
  */
 
 export const leadTools = [
@@ -248,6 +248,123 @@ export const leadTools = [
         skip_if_in_list: { type: 'boolean', description: 'Skip if lead exists in ANY list. Recommended for list imports. Default: false', default: false }
       },
       required: ['leads'],
+      additionalProperties: false
+    }
+  },
+
+  {
+    name: 'delete_lead',
+    description: '🗑️ EXTREMELY DESTRUCTIVE: PERMANENTLY DELETE LEAD - ⚠️ WARNING: This action CANNOT be undone! ⚠️\n\n✨ WHAT THIS TOOL DOES:\n\nPermanently deletes a lead from your Instantly.ai workspace. This action is IRREVERSIBLE and will:\n• ❌ Remove the lead from all campaigns and lists\n• ❌ Delete all associated email history and analytics\n• ❌ Remove all custom variables and lead data\n• ❌ Cannot be recovered after deletion\n\n⚠️ CRITICAL WARNINGS:\n\n1️⃣ **PERMANENT DELETION**:\n• This action CANNOT be undone\n• All lead data will be lost forever\n• Email history and analytics will be deleted\n• Custom variables will be removed\n\n2️⃣ **CONFIRM BEFORE USING**:\n• Always verify the lead_id before deletion\n• Double-check you have the correct lead\n• Consider exporting lead data first\n• Use with extreme caution\n\n3️⃣ **ALTERNATIVES TO DELETION**:\n• **Pause lead**: Use update_lead to change status instead\n• **Remove from campaign**: Use move_leads_to_campaign_or_list to move to a different list\n• **Mark as unsubscribed**: Update lead status instead of deleting\n\n📚 COMMON USER REQUEST EXAMPLES:\n\n1️⃣ "Delete lead X":\n   → Get lead_id from list_leads or get_lead\n   → CONFIRM with user: "Are you sure you want to permanently delete this lead?"\n   → Call delete_lead with lead_id\n   → Lead is permanently removed\n\n2️⃣ "Remove duplicate lead":\n   → Identify duplicate lead_id\n   → Verify it\'s truly a duplicate\n   → CONFIRM deletion with user\n   → Delete the duplicate lead\n\n3️⃣ "Clean up test leads":\n   → List test leads with list_leads\n   → Identify test lead IDs\n   → CONFIRM bulk deletion with user\n   → Delete each test lead individually\n\n💡 BEST PRACTICES:\n\n• Always confirm with user before deleting\n• Verify lead_id is correct\n• Export lead data before deletion if needed\n• Use alternatives (pause, move) when possible\n• Never delete leads in bulk without explicit confirmation\n\n⏱️ PERFORMANCE NOTE:\n• Deletion is instant (< 1 second)\n• Cannot be undone\n• Lead is immediately removed from all campaigns/lists\n\n🎯 WHEN TO USE:\n\n✅ **Use delete_lead when:**\n• Lead explicitly requested removal (GDPR/privacy)\n• Duplicate lead confirmed and verified\n• Test lead that should not exist in production\n• User explicitly confirms permanent deletion\n\n❌ **DO NOT use when:**\n• Just want to pause outreach → Use update_lead instead\n• Want to move to different campaign → Use move_leads_to_campaign_or_list\n• Unsure if deletion is needed → Ask user first\n• No explicit user confirmation → NEVER delete without confirmation\n\nDelete a lead permanently. This action CANNOT be undone. Always confirm with user before executing.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        lead_id: {
+          type: 'string',
+          description: 'Lead ID (UUID) to delete - REQUIRED. Get from list_leads or get_lead. Example: "01997ba3-0106-7bf4-8584-634349eecf07". ⚠️ WARNING: This lead will be permanently deleted and cannot be recovered!'
+        }
+      },
+      required: ['lead_id'],
+      additionalProperties: false
+    }
+  },
+
+  {
+    name: 'move_leads_to_campaign_or_list',
+    description: '🔄 MOVE LEADS TO CAMPAIGN OR LIST - BULK LEAD TRANSFER\n\n✨ WHAT THIS TOOL DOES:\n\nMoves leads from one campaign/list to another campaign/list in a single operation. This is a background job that processes the move asynchronously.\n\n**Key Features:**\n• ✅ Bulk move multiple leads at once\n• ✅ Move between campaigns, lists, or campaign ↔ list\n• ✅ Flexible lead selection (IDs, filters, search)\n• ✅ Duplicate checking and prevention\n• ✅ Background job processing (check status with /background-jobs/{id})\n• ✅ Optional copy instead of move\n\n⚠️ CRITICAL REQUIREMENTS:\n\n1️⃣ **DESTINATION (REQUIRED - MUTUALLY EXCLUSIVE)**:\n• Must provide EITHER to_campaign_id OR to_list_id (NOT both)\n• to_campaign_id: Move leads to a campaign for outreach\n• to_list_id: Move leads to a list for organization\n\n2️⃣ **LEAD SELECTION (AT LEAST ONE REQUIRED)**:\n• ids: Array of specific lead IDs to move\n• search: Search string (name, email)\n• filter: Contact status filter (FILTER_VAL_CONTACTED, etc.)\n• campaign: Source campaign ID\n• list_id: Source list ID\n• queries: Advanced query filters\n\n3️⃣ **BACKGROUND JOB**:\n• Returns immediately with background job ID\n• Move processes asynchronously\n• Use /background-jobs/{id} to check status\n• Job statuses: pending → in-progress → success/failed\n\n📚 COMMON USER REQUEST EXAMPLES:\n\n1️⃣ "Move all leads from campaign A to campaign B":\n   → Get campaign IDs from list_campaigns\n   → Call move_leads_to_campaign_or_list with:\n     - campaign: "campaign-A-id" (source)\n     - to_campaign_id: "campaign-B-id" (destination)\n   → Returns background job ID\n   → Check job status with /background-jobs/{id}\n\n2️⃣ "Move specific leads to a list":\n   → Get lead IDs from list_leads\n   → Call move_leads_to_campaign_or_list with:\n     - ids: ["lead-1-id", "lead-2-id", "lead-3-id"]\n     - to_list_id: "target-list-id"\n   → Leads moved to list\n\n3️⃣ "Move replied leads to a different campaign":\n   → Call move_leads_to_campaign_or_list with:\n     - campaign: "source-campaign-id"\n     - filter: "FILTER_VAL_CONTACTED"\n     - to_campaign_id: "replied-leads-campaign-id"\n   → All replied leads moved\n\n4️⃣ "Copy leads instead of moving":\n   → Set copy_leads: true\n   → Leads are copied to destination (not removed from source)\n   → Useful for testing or multi-campaign outreach\n\n💡 MOVE vs COPY:\n\n**Move** (copy_leads: false, default):\n• ✅ Leads removed from source\n• ✅ Leads added to destination\n• ✅ No duplicates in source\n• Use when: Transferring leads permanently\n\n**Copy** (copy_leads: true):\n• ✅ Leads remain in source\n• ✅ Leads added to destination\n• ✅ Leads exist in both locations\n• Use when: Testing, multi-campaign outreach\n\n📊 RESPONSE FORMAT:\n\nThe response is a background job object:\n```json\n{\n  "success": true,\n  "background_job": {\n    "id": "675266e304a8e55b17f0228b",\n    "workspace_id": "workspace-uuid",\n    "type": "move-leads",\n    "entity_id": "destination-id",\n    "entity_type": "campaign" or "list",\n    "progress": 0,\n    "status": "pending",\n    "created_at": "2025-01-12T...",\n    "updated_at": "2025-01-12T..."\n  },\n  "message": "Move operation initiated. Background job ID: 675266e304a8e55b17f0228b. Use /background-jobs/675266e304a8e55b17f0228b to check status."\n}\n```\n\n**Job Statuses:**\n• pending: Waiting in queue\n• in-progress: Currently processing\n• success: Move completed successfully\n• failed: Move failed (check job data for error)\n\n⚠️ IMPORTANT PARAMETERS:\n\n• **check_duplicates_in_campaigns**: Check for duplicates before moving (recommended: true)\n• **skip_leads_in_verification**: Skip leads currently being verified (recommended: true)\n• **limit**: Maximum number of leads to move (optional)\n• **assigned_to**: Assign moved leads to specific user (UUID)\n\n⏱️ PERFORMANCE:\n\n• API call: Instant (< 1 second)\n• Background job: Depends on lead count\n  - 10 leads: ~5-10 seconds\n  - 100 leads: ~30-60 seconds\n  - 1,000 leads: ~5-10 minutes\n• Check job status periodically\n\n🎯 WHEN TO USE:\n\n✅ **Use move_leads_to_campaign_or_list when:**\n• Moving leads between campaigns\n• Organizing leads into different lists\n• Transferring replied leads to nurture campaign\n• Consolidating leads from multiple sources\n• Copying leads for multi-campaign outreach\n\n❌ **DO NOT use when:**\n• Moving single lead → Use update_lead to change campaign/list\n• Deleting leads → Use delete_lead instead\n• Just updating lead data → Use update_lead\n\nMove leads to a different campaign or list. Returns a background job that processes the move asynchronously.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        // Destination (required - mutually exclusive)
+        to_campaign_id: {
+          type: 'string',
+          description: 'Campaign ID to move leads to (UUID). Mutually exclusive with to_list_id. Example: "0199d953-30b8-79f5-829b-6f09f4437ae1"'
+        },
+        to_list_id: {
+          type: 'string',
+          description: 'List ID to move leads to (UUID). Mutually exclusive with to_campaign_id. Example: "0199d953-30b8-79f5-829b-6f0aaea23954"'
+        },
+
+        // Lead selection (at least one required)
+        ids: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of lead IDs to move (UUIDs). Example: ["lead-1-id", "lead-2-id"]'
+        },
+        search: {
+          type: 'string',
+          description: 'Search string to filter leads (First Name, Last Name, or Email). Example: "John Doe"'
+        },
+        filter: {
+          type: 'string',
+          description: 'Contact status filter. Values: FILTER_VAL_CONTACTED (replied), FILTER_VAL_NOT_CONTACTED (not contacted), FILTER_VAL_COMPLETED (completed), FILTER_VAL_UNSUBSCRIBED (unsubscribed), FILTER_VAL_ACTIVE (active), FILTER_LEAD_INTERESTED (interested), FILTER_LEAD_MEETING_BOOKED (meeting booked), FILTER_LEAD_CLOSED (closed/won)'
+        },
+        campaign: {
+          type: 'string',
+          description: 'Source campaign ID to filter leads from (UUID). Example: "0199d953-2ba9-7f56-b08d-d13ac654d7d5"'
+        },
+        list_id: {
+          type: 'string',
+          description: 'Source list ID to filter leads from (UUID). Example: "0199d953-2ba9-7f56-b08d-d13bb46099cf"'
+        },
+        in_campaign: {
+          type: 'boolean',
+          description: 'Filter leads that are in a campaign (true) or not in a campaign (false)'
+        },
+        in_list: {
+          type: 'boolean',
+          description: 'Filter leads that are in a list (true) or not in a list (false)'
+        },
+        queries: {
+          type: 'array',
+          items: { type: 'object' },
+          description: 'Advanced query filters. Example: [{"actionType":"email-open","values":{"occurrence-days":1}}]'
+        },
+        excluded_ids: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of lead IDs to exclude from move (UUIDs). Example: ["lead-to-exclude-1", "lead-to-exclude-2"]'
+        },
+        contacts: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of email addresses to filter leads by. Example: ["test@test.com"]'
+        },
+
+        // Optional parameters
+        check_duplicates_in_campaigns: {
+          type: 'boolean',
+          description: 'Check for duplicates in destination campaign before moving (recommended: true). Default: false'
+        },
+        skip_leads_in_verification: {
+          type: 'boolean',
+          description: 'Skip leads currently being verified (recommended: true). Default: false'
+        },
+        limit: {
+          type: 'number',
+          description: 'Maximum number of leads to move. Example: 100'
+        },
+        assigned_to: {
+          type: 'string',
+          description: 'User ID (UUID) to assign moved leads to. Example: "0199d953-30b8-79f5-829b-6f0bc069a642"'
+        },
+        esp_code: {
+          type: 'number',
+          description: 'ESP code to filter leads by. Values: 0=In Queue, 1=Google, 2=Microsoft, 3=Zoho, 9=Yahoo, 10=Yandex, 12=Web.de, 13=Libero.it, 999=Other, 1000=Not Found'
+        },
+        esg_code: {
+          type: 'number',
+          description: 'ESG code to filter leads by. Values: 0=In Queue, 1=Barracuda, 2=Mimecast, 3=Proofpoint, 4=Cisco'
+        },
+        copy_leads: {
+          type: 'boolean',
+          description: 'Copy leads instead of moving (leads remain in source). Default: false (move)'
+        },
+        check_duplicates: {
+          type: 'boolean',
+          description: 'Check for duplicates before moving. Default: false'
+        }
+      },
+      required: [],
       additionalProperties: false
     }
   },
