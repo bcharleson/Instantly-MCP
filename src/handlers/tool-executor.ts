@@ -1037,6 +1037,25 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
       };
     }
 
+    case 'count_unread_emails': {
+      console.error('[Instantly MCP] 📧 Executing count_unread_emails...');
+
+      const unreadCountResult = await makeInstantlyRequest('/emails/unread/count', {}, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              unread_count: unreadCountResult,
+              message: 'Unread email count retrieved successfully'
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
     case 'check_feature_availability': {
       console.error('[Instantly MCP] 🔍 Executing check_feature_availability...');
 
