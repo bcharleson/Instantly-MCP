@@ -697,9 +697,12 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
         throw new McpError(ErrorCode.InvalidParams, 'campaign_id is required for pause_campaign');
       }
 
-      console.error(`[Instantly MCP] 🔧 Using endpoint: /campaigns/${args.campaign_id}/pause`);
-      const pauseCampaignResult = await makeInstantlyRequest(`/campaigns/${args.campaign_id}/pause`, {
-        method: 'POST'
+      // Pause campaign by updating status to 2 (Paused)
+      // The Instantly API doesn't have a dedicated /pause endpoint - use PATCH with status=2
+      console.error(`[Instantly MCP] 🔧 Using endpoint: PATCH /campaigns/${args.campaign_id} with status=2`);
+      const pauseCampaignResult = await makeInstantlyRequest(`/campaigns/${args.campaign_id}`, {
+        method: 'PATCH',
+        body: { status: 2 }
       }, apiKey);
 
       return {
