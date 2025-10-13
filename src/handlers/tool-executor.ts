@@ -662,6 +662,33 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
       };
     }
 
+    case 'pause_campaign': {
+      console.error('[Instantly MCP] ⏸️ Executing pause_campaign...');
+
+      if (!args?.campaign_id) {
+        throw new McpError(ErrorCode.InvalidParams, 'campaign_id is required for pause_campaign');
+      }
+
+      console.error(`[Instantly MCP] 🔧 Using endpoint: /campaigns/${args.campaign_id}/pause`);
+      const pauseCampaignResult = await makeInstantlyRequest(`/campaigns/${args.campaign_id}/pause`, {
+        method: 'POST'
+      }, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              result: pauseCampaignResult,
+              message: `Campaign ${args.campaign_id} paused successfully`,
+              note: 'Campaign status changed to Paused (2). Email sending stopped. Use activate_campaign to resume.'
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
     case 'update_account': {
       console.error('[Instantly MCP] 🔧 Executing update_account...');
 
