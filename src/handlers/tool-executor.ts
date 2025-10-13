@@ -360,6 +360,34 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
       }
     }
 
+    case 'get_daily_campaign_analytics': {
+      console.error('[Instantly MCP] 📊 Executing get_daily_campaign_analytics...');
+
+      // Build params object for makeInstantlyRequest
+      const params: any = {};
+      if (args?.campaign_id) params.campaign_id = args.campaign_id;
+      if (args?.start_date) params.start_date = args.start_date;
+      if (args?.end_date) params.end_date = args.end_date;
+      if (args?.campaign_status !== undefined) params.campaign_status = args.campaign_status;
+
+      console.error('[Instantly MCP] Parameters:', JSON.stringify(params, null, 2));
+
+      const result = await makeInstantlyRequest('/campaigns/analytics/daily', { params }, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              daily_analytics: result,
+              message: 'Daily campaign analytics retrieved successfully'
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
     case 'get_campaign_analytics_overview': {
       console.error('[Instantly MCP] 📊 Executing get_campaign_analytics_overview...');
 
@@ -1123,6 +1151,29 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
               account_details: accountResult,
               message: 'Account details retrieved successfully',
               note: 'This tool provides the same information as get_account_info'
+            }, null, 2)
+          }
+        ]
+      };
+    }
+
+    case 'get_account_info': {
+      console.error('[Instantly MCP] 👤 Executing get_account_info...');
+
+      if (!args.email) {
+        throw new McpError(ErrorCode.InvalidParams, 'Email parameter is required for get_account_info');
+      }
+
+      const accountInfoResult = await makeInstantlyRequest(`/accounts/${args.email}`, {}, apiKey);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              account: accountInfoResult,
+              message: 'Account information retrieved successfully'
             }, null, 2)
           }
         ]
