@@ -66,11 +66,11 @@ export const leadTools = [
 
   {
     name: 'get_lead',
-    description: 'Get details of a specific lead by ID using GET /leads/{id} endpoint',
+    description: 'Get lead details by ID',
     inputSchema: {
       type: 'object',
       properties: {
-        lead_id: { type: 'string', description: 'ID of the lead to retrieve' }
+        lead_id: { type: 'string', description: 'Lead ID (UUID)' }
       },
       required: ['lead_id'],
       additionalProperties: false
@@ -171,14 +171,14 @@ export const leadTools = [
 
   {
     name: 'update_lead_list',
-    description: '✏️ UPDATE LEAD LIST - MODIFY EXISTING LEAD LIST\n\n**What this tool does:**\nUpdates properties of an existing lead list (name, enrichment settings, owner).\n\n**Required:**\n- `list_id`: Lead list UUID (get from list_lead_lists)\n\n**Optional parameters (only provide what you want to change):**\n- `name`: New name for the list\n- `has_enrichment_task`: Enable/disable automatic enrichment (true/false)\n- `owned_by`: Transfer ownership to different user (user UUID)\n\n**Common use cases:**\n1️⃣ "Rename a lead list":\n   → Call update_lead_list with list_id and new name\n   → Example: {list_id: "uuid", name: "Q1 2025 Prospects"}\n\n2️⃣ "Enable enrichment for existing list":\n   → Call update_lead_list with list_id and has_enrichment_task: true\n   → All future leads added to this list will be auto-enriched\n\n3️⃣ "Transfer list ownership":\n   → Call update_lead_list with list_id and owned_by: "user-uuid"\n   → List ownership transfers to specified user\n\n**Performance:**\n- Update is instant (< 1 second)\n- Changes take effect immediately\n- Does not affect existing leads in the list\n\nUpdate an existing lead list. Only provide the fields you want to change.',
+    description: 'Update lead list properties (name, enrichment settings, owner). Only provide fields to change.',
     inputSchema: {
       type: 'object',
       properties: {
-        list_id: { type: 'string', description: 'Lead list ID (UUID) to update - REQUIRED. Get from list_lead_lists. Example: "0199cf87-d1a7-7533-8218-782cda8d4e68"' },
-        name: { type: 'string', description: 'New name for the lead list (OPTIONAL). Only provide if you want to rename the list. Example: "Updated List Name"' },
-        has_enrichment_task: { type: 'boolean', description: 'Enable/disable automatic enrichment (OPTIONAL). Only provide if you want to change enrichment setting. true = enable, false = disable.' },
-        owned_by: { type: 'string', description: 'User ID (UUID) to transfer ownership to (OPTIONAL). Only provide if you want to change the owner. Example: "0199cf87-b33d-766b-833d-e326bc17066a"' }
+        list_id: { type: 'string', description: 'Lead list ID (UUID, required)' },
+        name: { type: 'string', description: 'New list name (optional)' },
+        has_enrichment_task: { type: 'boolean', description: 'Enable/disable enrichment (optional)' },
+        owned_by: { type: 'string', description: 'New owner user ID (optional)' }
       },
       required: ['list_id'],
       additionalProperties: false
@@ -187,11 +187,11 @@ export const leadTools = [
 
   {
     name: 'get_verification_stats_for_lead_list',
-    description: '📊 GET VERIFICATION STATS FOR LEAD LIST - EMAIL QUALITY ANALYTICS\n\n**What this tool does:**\nReturns email verification statistics for all leads in a specific lead list.\n\n**Required:**\n- `list_id`: Lead list UUID (get from list_lead_lists)\n\n**Returns:**\n- `stats` object with verification breakdown:\n  - `verified`: Count of verified/deliverable emails\n  - `invalid`: Count of invalid/undeliverable emails\n  - `risky`: Count of risky emails (might bounce)\n  - `catch_all`: Count of catch-all domain emails\n  - `job_change`: Count of leads with job changes detected\n  - `verification_job_pending_leadfinder`: Pending verification (leadfinder)\n  - `verification_job_pending_user`: Pending verification (user-initiated)\n- `total_leads`: Total number of leads in the list\n\n**Common use cases:**\n1️⃣ "Check email quality of my lead list":\n   → Call get_verification_stats_for_lead_list with list_id\n   → Review verified vs invalid counts\n   → High verified % = good quality list\n\n2️⃣ "See how many leads need verification":\n   → Check verification_job_pending counts\n   → These leads are queued for verification\n\n3️⃣ "Assess list deliverability before campaign":\n   → Get stats before launching campaign\n   → Remove/fix invalid emails to improve deliverability\n\n**Performance:**\n- Fast response (< 2 seconds)\n- Read-only operation (no changes to data)\n- Stats are real-time\n\n**Example response:**\n```json\n{\n  "stats": {\n    "verified": 150,\n    "invalid": 25,\n    "risky": 10,\n    "catch_all": 5,\n    "job_change": 2,\n    "verification_job_pending_leadfinder": 11,\n    "verification_job_pending_user": 12\n  },\n  "total_leads": 203\n}\n```\n\nGet email verification statistics for a lead list to assess email quality and deliverability.',
+    description: 'Get email verification statistics for lead list (verified, invalid, risky, catch-all, pending counts)',
     inputSchema: {
       type: 'object',
       properties: {
-        list_id: { type: 'string', description: 'Lead list ID (UUID) - REQUIRED. Get from list_lead_lists. Example: "0199cf87-d1a7-7533-8218-782cda8d4e68"' }
+        list_id: { type: 'string', description: 'Lead list ID (UUID)' }
       },
       required: ['list_id'],
       additionalProperties: false

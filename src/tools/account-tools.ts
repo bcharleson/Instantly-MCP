@@ -47,11 +47,11 @@ export const accountTools = [
 
   {
     name: 'get_account_details',
-    description: 'Get detailed information about a specific account including warmup status and campaign eligibility',
+    description: 'Get account details including warmup status and campaign eligibility',
     inputSchema: {
       type: 'object',
       properties: {
-        email: { type: 'string', description: 'Email address of the account to inspect' }
+        email: { type: 'string', description: 'Account email address' }
       },
       required: ['email'],
       additionalProperties: false
@@ -60,11 +60,11 @@ export const accountTools = [
 
   {
     name: 'get_account_info',
-    description: 'Get detailed account information and status - Safe read-only account inspection',
+    description: 'Get account information and status (read-only)',
     inputSchema: {
       type: 'object',
       properties: {
-        email: { type: 'string', description: 'Email address of the account to retrieve information for' }
+        email: { type: 'string', description: 'Account email address' }
       },
       required: ['email'],
       additionalProperties: false
@@ -97,11 +97,11 @@ export const accountTools = [
 
   {
     name: 'pause_account',
-    description: 'Pause a sending account - Account state management',
+    description: 'Pause sending account',
     inputSchema: {
       type: 'object',
       properties: {
-        email: { type: 'string', description: 'Email address of the account to pause' }
+        email: { type: 'string', description: 'Account email' }
       },
       required: ['email'],
       additionalProperties: false
@@ -110,11 +110,11 @@ export const accountTools = [
 
   {
     name: 'resume_account',
-    description: 'Resume a paused sending account - Account state management',
+    description: 'Resume paused sending account',
     inputSchema: {
       type: 'object',
       properties: {
-        email: { type: 'string', description: 'Email address of the account to resume' }
+        email: { type: 'string', description: 'Account email' }
       },
       required: ['email'],
       additionalProperties: false
@@ -123,11 +123,11 @@ export const accountTools = [
 
   {
     name: 'enable_warmup',
-    description: 'Enable email warmup for an account to improve deliverability',
+    description: 'Enable email warmup to improve deliverability',
     inputSchema: {
       type: 'object',
       properties: {
-        email: { type: 'string', description: 'Email address of the account to enable warmup for' }
+        email: { type: 'string', description: 'Account email' }
       },
       required: ['email'],
       additionalProperties: false
@@ -136,11 +136,11 @@ export const accountTools = [
 
   {
     name: 'disable_warmup',
-    description: 'Disable email warmup for an account',
+    description: 'Disable email warmup',
     inputSchema: {
       type: 'object',
       properties: {
-        email: { type: 'string', description: 'Email address of the account to disable warmup for' }
+        email: { type: 'string', description: 'Account email' }
       },
       required: ['email'],
       additionalProperties: false
@@ -149,11 +149,11 @@ export const accountTools = [
 
   {
     name: 'test_account_vitals',
-    description: 'Test account vitals and connectivity - Diagnostic tool for account health',
+    description: 'Test account connectivity and health',
     inputSchema: {
       type: 'object',
       properties: {
-        email: { type: 'string', description: 'Email address of the account to test' }
+        email: { type: 'string', description: 'Account email' }
       },
       required: ['email'],
       additionalProperties: false

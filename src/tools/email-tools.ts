@@ -36,7 +36,7 @@ export const emailTools = [
 
   {
     name: 'get_email',
-    description: 'Get details of a specific email',
+    description: 'Get email details by ID',
     inputSchema: {
       type: 'object',
       properties: {
@@ -81,7 +81,7 @@ export const emailTools = [
 
   {
     name: 'count_unread_emails',
-    description: 'Count unread emails in inbox - Safe read-only monitoring tool for production testing',
+    description: 'Count unread emails in inbox (read-only)',
     inputSchema: {
       type: 'object',
       properties: {},
