@@ -37,12 +37,12 @@ export function setApiKey(apiKey: string): void {
 
 /**
  * Core API request function
- * 
+ *
  * Makes HTTP requests to the Instantly.ai API with proper authentication,
  * error handling, and rate limiting.
- * 
+ *
  * @param endpoint - API endpoint path (e.g., '/accounts', '/campaigns/{id}')
- * @param options - Request options (method, body, params)
+ * @param options - Request options (method, body, params, timeout)
  * @param apiKey - Optional API key (overrides environment variable)
  * @returns Parsed API response
  */
@@ -52,21 +52,39 @@ export async function makeInstantlyRequest(
   apiKey?: string
 ): Promise<any> {
   const method = options.method || 'GET';
-  
+
   // Use provided API key or fall back to environment variable
   const useApiKey = apiKey || INSTANTLY_API_KEY;
-  
+
   if (!useApiKey) {
     throw new Error('Instantly API key is required - provide via parameter or INSTANTLY_API_KEY environment variable');
   }
-  
+
+  // Determine timeout based on endpoint and operation
+  // Search operations and large list operations need longer timeouts
+  let timeoutMs = 60000; // Default 60 seconds
+
+  if (endpoint === '/leads/list' && options.body?.search) {
+    // Search queries can be very slow on large datasets (10k+ leads)
+    timeoutMs = 120000; // 120 seconds for lead search
+    console.error('[Instantly MCP] ⏱️  Using extended 120s timeout for lead search operation');
+  } else if (endpoint === '/leads/list') {
+    // Regular list operations without search are faster but can still be slow
+    timeoutMs = 90000; // 90 seconds for lead list
+    console.error('[Instantly MCP] ⏱️  Using extended 90s timeout for lead list operation');
+  } else if (options.timeout) {
+    // Allow caller to override timeout
+    timeoutMs = options.timeout;
+    console.error(`[Instantly MCP] ⏱️  Using custom timeout: ${timeoutMs}ms`);
+  }
+
   const requestOptions: any = {
     method,
     headers: {
       'Authorization': `Bearer ${useApiKey}`,
     },
-    // Add 60-second timeout for all API requests (increased for campaign creation)
-    signal: AbortSignal.timeout(60000),
+    // Dynamic timeout based on operation type
+    signal: AbortSignal.timeout(timeoutMs),
   };
 
   if (method !== 'GET' && options.body) {

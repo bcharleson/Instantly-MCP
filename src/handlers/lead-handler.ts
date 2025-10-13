@@ -99,6 +99,13 @@ async function handleListLeads(args: any, apiKey: string) {
   console.error(`[Instantly MCP] 📤 POST body: ${JSON.stringify(requestBody, null, 2)}`);
   console.error(`[Instantly MCP] 🌐 Making request to: POST /leads/list`);
 
+  // Warn user if search query is present (can be slow)
+  if (requestBody.search) {
+    console.error(`[Instantly MCP] ⚠️  Search query detected: "${requestBody.search}"`);
+    console.error(`[Instantly MCP] ⏱️  Search operations can take 60-120 seconds on large lead databases`);
+    console.error(`[Instantly MCP] 💡 Tip: Use campaign or list_id filters to narrow results and improve performance`);
+  }
+
   try {
     const result = await makeInstantlyRequest('/leads/list', {
       method: 'POST',
