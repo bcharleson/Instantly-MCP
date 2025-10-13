@@ -795,13 +795,6 @@ export function validateGetAccountDetailsData(args: unknown): z.infer<typeof Get
   return validateWithSchema(GetAccountDetailsSchema, args, 'get_account_details');
 }
 
-/**
- * Validate get campaign analytics overview parameters
- */
-export function validateGetCampaignAnalyticsOverviewData(args: unknown): z.infer<typeof GetCampaignAnalyticsSchema> {
-  return validateWithSchema(GetCampaignAnalyticsSchema, args, 'get_campaign_analytics_overview');
-}
-
 // ============================================================================
 // LEGACY COMPATIBILITY
 // ============================================================================
@@ -820,7 +813,6 @@ export const TOOL_VALIDATORS = {
   'get_campaign': validateGetCampaignData,
   'update_campaign': validateUpdateCampaignData,
   'get_campaign_analytics': validateGetCampaignAnalyticsData,
-  'get_campaign_analytics_overview': validateGetCampaignAnalyticsOverviewData,
 
   // Account Management
   'list_accounts': validateListAccountsData,
@@ -853,9 +845,7 @@ export const TOOL_VALIDATORS = {
   'get_account_details': validateGetAccountDetailsData,
 
   // Tools with no parameters (empty validation)
-  'activate_campaign': () => ({}),
-  'list_api_keys': () => ({}),
-  'check_feature_availability': () => ({})
+  'activate_campaign': () => ({})
 } as const;
 
 /**

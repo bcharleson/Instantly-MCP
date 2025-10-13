@@ -46,7 +46,6 @@ import {
   validateCampaignData,
   validateCampaignPrerequisiteData,
   validateGetCampaignAnalyticsData,
-  validateGetCampaignAnalyticsOverviewData,
   validateWarmupAnalyticsData,
   validateEmailVerificationData,
   validateListAccountsData,
@@ -385,29 +384,6 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
             }, null, 2)
           }
         ]
-      };
-    }
-
-    case 'get_campaign_analytics_overview': {
-      console.error('[Instantly MCP] 📊 Executing get_campaign_analytics_overview...');
-
-      // Build params object for makeInstantlyRequest
-      const params: any = {};
-      if (args?.start_date) params.start_date = args.start_date;
-      if (args?.end_date) params.end_date = args.end_date;
-      if (args?.campaign_status !== undefined) params.campaign_status = args.campaign_status;
-
-      console.error('[Instantly MCP] Parameters:', JSON.stringify(params, null, 2));
-
-      const result = await makeInstantlyRequest('/campaigns/analytics/overview', { params }, apiKey);
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
       };
     }
 
@@ -1105,27 +1081,6 @@ export async function executeToolDirectly(name: string, args: any, apiKey?: stri
               success: true,
               unread_count: unreadCountResult,
               message: 'Unread email count retrieved successfully'
-            }, null, 2)
-          }
-        ]
-      };
-    }
-
-    case 'check_feature_availability': {
-      console.error('[Instantly MCP] 🔍 Executing check_feature_availability...');
-
-      // This tool checks current plan features - no specific endpoint, return plan info
-      const accountResult = await makeInstantlyRequest('/accounts', {}, apiKey);
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              message: 'Feature availability check - this tool provides account information to determine available features',
-              note: 'Feature availability depends on your Instantly.ai plan. Check account details for plan information.',
-              account_count: Array.isArray(accountResult) ? accountResult.length : 'N/A'
             }, null, 2)
           }
         ]
