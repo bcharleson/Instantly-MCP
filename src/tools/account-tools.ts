@@ -8,7 +8,7 @@
 export const accountTools = [
   {
     name: 'list_accounts',
-    description: '📧 LIST EMAIL ACCOUNTS - Sequential Pagination\n\nReturns email accounts with sequential pagination support. Each call returns one page of results (default 100 accounts, max 100).\n\n**Pagination:**\n- Response includes `pagination.next_starting_after` cursor if more results available\n- To get next page: Use the EXACT cursor value from `response.pagination.next_starting_after` as `starting_after` parameter\n- CRITICAL: Do NOT use email addresses or IDs from the data - only use the cursor from pagination field\n- No cursor in response means you have all results\n- Fast response: ~2-5 seconds per page\n\n**Pagination Example:**\nPage 1: Call with no starting_after → Response has "next_starting_after": "cursor123"\nPage 2: Call with starting_after="cursor123" → Response has "next_starting_after": "cursor456"\nPage 3: Call with starting_after="cursor456" → Response has no next_starting_after (complete)\n\n**Filtering Options:**\n- `search`: Filter by email domain (e.g., "gmail.com", "company.com")\n- `status`: Filter by account status (1=Active, 2=Paused, -1=Connection Error, etc.)\n- `provider_code`: Filter by email provider (1=Custom IMAP/SMTP, 2=Google, 3=Microsoft, 4=AWS)\n- `tag_ids`: Filter by tag IDs (comma-separated)\n- `limit`: Items per page (1-100, default: 100)\n\n**Common Usage:**\n- List all accounts: Call repeatedly with cursor from pagination.next_starting_after until no cursor returned\n- Count accounts: Iterate through all pages, sum the counts\n- Filter accounts: Use search/status/provider_code parameters to narrow results\n- Active accounts only: Use `status=1`\n\n**Note:** For large account lists, consider using filtering parameters to narrow results.',
+    description: 'List email accounts with pagination (limit, starting_after from next_starting_after). Filter by search (domain), status (1=Active, 2=Paused, -1=Error), provider_code (1=IMAP/SMTP, 2=Google, 3=Microsoft, 4=AWS), tag_ids. Use next_starting_after cursor for next page.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -162,7 +162,7 @@ export const accountTools = [
 
   {
     name: 'update_account',
-    description: 'Update a sending account settings with comprehensive parameter support matching Instantly.ai API v2 PATCH /api/v2/accounts/{email} specification. Supports updating account details, warmup configuration, tracking domains, and sending limits.',
+    description: 'Update account settings (partial updates). Requires email. Supports: name, warmup config, daily_limit, sending_gap, tracking_domain, inbox_placement_test_limit.',
     inputSchema: {
       type: 'object',
       properties: {
