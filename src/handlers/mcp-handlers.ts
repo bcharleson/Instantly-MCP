@@ -29,12 +29,12 @@ import { handleInstantlyError } from '../error-handler.js';
  * Icons are displayed in MCP clients like Claude Desktop and Claude.ai
  * to provide visual branding for the server.
  */
-function loadInstantlyIcons(): Array<{src: string, mimeType: string, sizes: string}> {
+function loadInstantlyIcons(): Array<{src: string, mimeType: string, sizes: string[]}> {
   const INSTANTLY_ICONS = [
     {
       src: 'https://cdn.prod.website-files.com/63860c8c65e7bef4a1eeebeb/63f62e4f7dc7e3426e9b7874_cleaned_rounded_favicon.png',
       mimeType: 'image/png',
-      sizes: 'any'
+      sizes: ['any']
     }
   ];
   return INSTANTLY_ICONS;
