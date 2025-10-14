@@ -79,31 +79,31 @@ export const leadTools = [
 
   {
     name: 'create_lead',
-    description: '📋 CREATE NEW LEAD WITH CUSTOM VARIABLES SUPPORT\n\n✨ RECOMMENDED WORKFLOW:\n\n1️⃣ Basic Lead Creation:\n• Provide email (required for identification)\n• Add first_name, last_name, company_name for personalization\n• Lead will be created and can be added to campaigns\n\n2️⃣ Advanced Lead Creation with Custom Variables:\n• Use custom_variables parameter for campaign-specific data\n• CRITICAL: Always check existing campaign custom variables FIRST\n• Align your custom_variables with campaign\'s existing fields\n• Example: If campaign uses {{headcount}}, include headcount in custom_variables\n\n⚠️ CRITICAL REQUIREMENTS:\n\n1️⃣ EMAIL VALIDATION:\n• Email must be valid format (user@domain.com)\n• Email is the primary identifier for leads\n• Duplicate emails are handled by skip_if_* parameters\n\n2️⃣ CUSTOM VARIABLES - ALIGNMENT IS CRITICAL:\n• ALWAYS ask user about custom_variables when campaign_id is provided\n• Check what variables the campaign already uses ({{headcount}}, {{revenue}}, etc.)\n• Match the EXACT field names from the campaign\n• Do NOT arbitrarily create new custom variable names\n• Example: If campaign uses {{companyRevenue}}, use "companyRevenue" not "revenue"\n\n3️⃣ SKIP PARAMETERS:\n• skip_if_in_workspace: Skip if email exists anywhere in workspace\n• skip_if_in_campaign: Skip if email exists in THIS campaign\n• skip_if_in_list: Skip if email exists in THIS list\n• Use these to prevent duplicates\n\n📚 COMMON USER REQUEST EXAMPLES:\n\n1️⃣ "Add a lead to campaign X":\n   → Get campaign_id from user or list_campaigns\n   → Ask user: "Does this campaign use custom variables like headcount, revenue, etc.?"\n   → Collect email, first_name, last_name, company_name\n   → If custom variables exist, collect those values\n   → Create lead with aligned custom_variables\n\n2️⃣ "Import lead with custom fields":\n   → Ask: "What custom fields does your campaign expect?"\n   → Example response: "headcount, company_revenue, industry"\n   → Create custom_variables object: {"headcount": "50-100", "company_revenue": "$1M-$5M", "industry": "SaaS"}\n   → NEVER use arbitrary field names\n\n3️⃣ "Add lead and skip if duplicate":\n   → Set skip_if_in_campaign: true (most common)\n   → Or skip_if_in_workspace: true (stricter)\n   → Lead creation will be skipped if email already exists\n\n4️⃣ "Create lead with verification":\n   → Set verify_leads_on_import: true\n   → Email will be verified before adding to campaign\n   → Improves deliverability\n\n💡 CUSTOM VARIABLES BEST PRACTICES:\n\n• Custom variables enable personalization: "Hi {{firstName}}, I see {{companyName}} has {{headcount}} employees"\n• Common custom variables: headcount, revenue, industry, location, job_title, pain_point\n• Always use camelCase or snake_case consistently\n• Values should be strings, even for numbers: "50-100" not 50\n• Ask user for campaign context before creating custom variables\n\n⏱️ PERFORMANCE NOTE:\n• Lead creation is fast (< 1 second)\n• Verification (if enabled) adds 2-5 seconds\n• Batch imports should use skip_if_* to avoid duplicate errors\n\nCreate a new lead with full support for custom variables, campaign association, and duplicate prevention.',
+    description: 'Create lead with custom variables. ⚠️ CRITICAL: When using campaign_id, ALWAYS ask user about custom_variables to align with existing campaign fields (e.g., headcount, revenue). Match EXACT field names. Use skip_if_in_campaign to prevent duplicates. Set verify_leads_on_import for email validation.',
     inputSchema: {
       type: 'object',
       properties: {
-        campaign: { type: 'string', description: 'Campaign ID (UUID) to associate the lead with. Get this from list_campaigns or user.' },
-        email: { type: 'string', description: 'Lead email address (REQUIRED for lead identification). Must be valid format: user@domain.com' },
-        first_name: { type: 'string', description: 'Lead first name for personalization (e.g., "John")' },
-        last_name: { type: 'string', description: 'Lead last name for personalization (e.g., "Smith")' },
-        company_name: { type: 'string', description: 'Lead company name for personalization (e.g., "Acme Corp")' },
-        phone: { type: 'string', description: 'Lead phone number (optional)' },
-        website: { type: 'string', description: 'Lead website URL (optional, e.g., "https://acme.com")' },
-        personalization: { type: 'string', description: 'Custom personalization message for this specific lead (optional)' },
-        lt_interest_status: { type: 'number', description: 'Lead interest status enum: -3 (Not Interested) to 4 (Meeting Completed). Optional.', minimum: -3, maximum: 4 },
-        pl_value_lead: { type: 'string', description: 'Potential lead value (optional, e.g., "$5000")' },
-        list_id: { type: 'string', description: 'List ID (UUID) to associate lead with. Use create_lead_list first if needed.' },
-        assigned_to: { type: 'string', description: 'User ID (UUID) to assign this lead to for follow-up (optional)' },
-        skip_if_in_workspace: { type: 'boolean', description: 'Skip creation if email exists ANYWHERE in workspace (strictest duplicate check)', default: false },
-        skip_if_in_campaign: { type: 'boolean', description: 'Skip creation if email exists in THIS campaign (recommended for campaign imports)', default: false },
-        skip_if_in_list: { type: 'boolean', description: 'Skip creation if email exists in THIS list (recommended for list imports)', default: false },
-        blocklist_id: { type: 'string', description: 'Blocklist ID (UUID) to check against before creating lead (optional)' },
-        verify_leads_for_lead_finder: { type: 'boolean', description: 'Enable lead finder verification (optional, adds processing time)', default: false },
-        verify_leads_on_import: { type: 'boolean', description: 'Verify email deliverability before import (recommended, adds 2-5 seconds)', default: false },
+        campaign: { type: 'string', description: 'Campaign ID (UUID)' },
+        email: { type: 'string', description: 'Email (required, user@domain.com)' },
+        first_name: { type: 'string', description: 'First name' },
+        last_name: { type: 'string', description: 'Last name' },
+        company_name: { type: 'string', description: 'Company name' },
+        phone: { type: 'string', description: 'Phone' },
+        website: { type: 'string', description: 'Website URL' },
+        personalization: { type: 'string', description: 'Custom message' },
+        lt_interest_status: { type: 'number', description: 'Interest status (-3 to 4)', minimum: -3, maximum: 4 },
+        pl_value_lead: { type: 'string', description: 'Lead value (e.g., "$5000")' },
+        list_id: { type: 'string', description: 'List ID (UUID)' },
+        assigned_to: { type: 'string', description: 'User ID to assign' },
+        skip_if_in_workspace: { type: 'boolean', description: 'Skip if email exists in workspace', default: false },
+        skip_if_in_campaign: { type: 'boolean', description: 'Skip if email exists in campaign (recommended)', default: false },
+        skip_if_in_list: { type: 'boolean', description: 'Skip if email exists in list', default: false },
+        blocklist_id: { type: 'string', description: 'Blocklist ID to check' },
+        verify_leads_for_lead_finder: { type: 'boolean', description: 'Enable lead finder verification', default: false },
+        verify_leads_on_import: { type: 'boolean', description: 'Verify email before import (adds 2-5s)', default: false },
         custom_variables: {
           type: 'object',
-          description: '⚠️ CRITICAL: Custom metadata for campaign personalization. ALWAYS ask user about existing campaign variables FIRST!\n\nExamples:\n• {"headcount": "50-100", "revenue": "$1M-$5M", "industry": "SaaS"}\n• {"job_title": "CEO", "pain_point": "scaling sales", "location": "San Francisco"}\n• {"company_size": "Mid-market", "tech_stack": "Salesforce, HubSpot"}\n\nBest Practices:\n1. Ask: "What custom variables does your campaign use?"\n2. Match EXACT field names from campaign (case-sensitive)\n3. Use string values even for numbers: "100" not 100\n4. Common fields: headcount, revenue, industry, location, job_title, pain_point\n5. These enable personalization: {{headcount}}, {{revenue}} in email templates',
+          description: '⚠️ Ask user about campaign variables first! Match exact field names. Examples: {"headcount": "50-100", "revenue": "$1M-$5M"}',
           additionalProperties: true
         }
       },
@@ -114,23 +114,23 @@ export const leadTools = [
 
   {
     name: 'update_lead',
-    description: '✏️ UPDATE EXISTING LEAD WITH CUSTOM VARIABLES SUPPORT\n\n✨ RECOMMENDED WORKFLOW:\n\n1️⃣ Get Lead ID:\n• Use list_leads or get_lead to find the lead you want to update\n• Lead ID is required (UUID format)\n\n2️⃣ Partial Updates Supported:\n• Only provide the fields you want to CHANGE\n• Omitted fields will remain unchanged\n• Example: Update only custom_variables without changing name\n\n3️⃣ Custom Variables Updates:\n• Can add NEW custom variables to existing lead\n• Can modify EXISTING custom variable values\n• Can replace entire custom_variables object\n• Maintains alignment with campaign variables\n\n⚠️ CRITICAL REQUIREMENTS:\n\n1️⃣ LEAD ID REQUIRED:\n• Must provide valid lead_id (UUID)\n• Get from list_leads, get_lead, or create_lead response\n• Example: "01997ba3-0106-7bf4-8584-634349eecf07"\n\n2️⃣ PARTIAL UPDATES:\n• Only include parameters you want to UPDATE\n• Do NOT include all fields if only changing one\n• Example: To update just phone, only send {lead_id, phone}\n\n3️⃣ CUSTOM VARIABLES UPDATES:\n• Updating custom_variables REPLACES the entire object\n• To add a field: Include ALL existing fields + new field\n• To modify a field: Include ALL fields with updated value\n• To remove a field: Omit it from the custom_variables object\n\n📚 COMMON USER REQUEST EXAMPLES:\n\n1️⃣ "Update lead\'s custom variables":\n   → Get current lead data with get_lead first\n   → See existing custom_variables: {"headcount": "50-100", "revenue": "$1M"}\n   → To add industry: {"headcount": "50-100", "revenue": "$1M", "industry": "SaaS"}\n   → To update revenue: {"headcount": "50-100", "revenue": "$5M", "industry": "SaaS"}\n\n2️⃣ "Change lead\'s interest status":\n   → Set lt_interest_status to appropriate value:\n     • -3 = Not Interested\n     • 0 = Neutral/Unknown\n     • 1 = Interested\n     • 2 = Very Interested\n     • 3 = Meeting Booked\n     • 4 = Meeting Completed\n   → Only send {lead_id, lt_interest_status}\n\n3️⃣ "Update lead contact info":\n   → Update first_name, last_name, company_name, phone, website\n   → Only include fields that changed\n   → Example: {lead_id, phone: "+1-555-0123", website: "https://newdomain.com"}\n\n4️⃣ "Assign lead to team member":\n   → Set assigned_to to user UUID\n   → Get user UUID from workspace settings or team list\n   → Example: {lead_id, assigned_to: "user-uuid-here"}\n\n💡 CUSTOM VARIABLES UPDATE PATTERNS:\n\nPattern 1 - Add New Field:\n• Current: {"headcount": "50"}\n• Update: {"headcount": "50", "industry": "SaaS"}\n• Result: Both fields present\n\nPattern 2 - Modify Existing Field:\n• Current: {"revenue": "$1M"}\n• Update: {"revenue": "$5M"}\n• Result: Revenue updated\n\nPattern 3 - Replace All Variables:\n• Current: {"old_field": "value"}\n• Update: {"new_field": "value"}\n• Result: old_field removed, new_field added\n\n⏱️ PERFORMANCE NOTE:\n• Updates are instant (< 1 second)\n• No verification delay\n• Safe to update multiple leads in sequence\n\nUpdate an existing lead with support for partial updates and custom variables management.',
+    description: 'Update lead (partial updates supported). ⚠️ custom_variables REPLACES entire object - include ALL existing fields + changes. Get current data with get_lead first.',
     inputSchema: {
       type: 'object',
       properties: {
-        lead_id: { type: 'string', description: 'Lead ID (UUID) - REQUIRED. Get from list_leads or get_lead. Example: "01997ba3-0106-7bf4-8584-634349eecf07"' },
-        personalization: { type: 'string', description: 'Custom personalization message for this lead (optional). Overrides campaign default.' },
-        website: { type: 'string', description: 'Website URL (optional). Example: "https://acme.com"' },
-        last_name: { type: 'string', description: 'Last name (optional). Example: "Smith"' },
-        first_name: { type: 'string', description: 'First name (optional). Example: "John"' },
-        company_name: { type: 'string', description: 'Company name (optional). Example: "Acme Corp"' },
-        phone: { type: 'string', description: 'Phone number (optional). Example: "+1-555-0123"' },
-        lt_interest_status: { type: 'number', description: 'Lead interest status (optional): -3=Not Interested, 0=Neutral, 1=Interested, 2=Very Interested, 3=Meeting Booked, 4=Meeting Completed', minimum: -3, maximum: 4 },
-        pl_value_lead: { type: 'string', description: 'Potential lead value (optional). Example: "$5000"' },
-        assigned_to: { type: 'string', description: 'User UUID to assign lead to (optional). Get from workspace team list.' },
+        lead_id: { type: 'string', description: 'Lead ID (UUID, required)' },
+        personalization: { type: 'string', description: 'Custom message' },
+        website: { type: 'string', description: 'Website URL' },
+        last_name: { type: 'string', description: 'Last name' },
+        first_name: { type: 'string', description: 'First name' },
+        company_name: { type: 'string', description: 'Company name' },
+        phone: { type: 'string', description: 'Phone' },
+        lt_interest_status: { type: 'number', description: 'Interest status (-3 to 4)', minimum: -3, maximum: 4 },
+        pl_value_lead: { type: 'string', description: 'Lead value' },
+        assigned_to: { type: 'string', description: 'User UUID to assign' },
         custom_variables: {
           type: 'object',
-          description: '⚠️ REPLACES entire custom_variables object! To add/modify fields, include ALL existing fields + changes.\n\nUpdate Patterns:\n1. Add field: Include all current fields + new field\n2. Modify field: Include all fields with updated value\n3. Remove field: Omit from object\n\nExample - Add industry to existing variables:\n• Current: {"headcount": "50-100", "revenue": "$1M"}\n• Update: {"headcount": "50-100", "revenue": "$1M", "industry": "SaaS"}\n\nGet current custom_variables with get_lead first!',
+          description: '⚠️ REPLACES entire object! Include ALL existing + new fields. Get current with get_lead first.',
           additionalProperties: true
         }
       },
@@ -156,13 +156,13 @@ export const leadTools = [
 
   {
     name: 'create_lead_list',
-    description: '📝 CREATE LEAD LIST - ORGANIZE LEADS INTO COLLECTIONS\n\n✨ WHAT ARE LEAD LISTS?\n\nLead lists are collections/groups of leads that can be:\n• Organized by source (e.g., "LinkedIn Prospects", "Conference Attendees")\n• Organized by segment (e.g., "Enterprise Leads", "SMB Leads")\n• Used for batch operations (import, export, assign to campaigns)\n• Tracked separately for analytics\n\n✨ WHEN TO USE LEAD LISTS:\n\n✅ USE create_lead_list when:\n• Organizing leads by source or segment\n• Importing leads in batches\n• Want to track lead groups separately\n• Need to assign multiple leads to campaigns together\n• Building targeted prospect lists\n\n❌ DO NOT USE when:\n• Adding single leads directly to campaigns → Use create_lead with campaign_id instead\n• Just want to add leads to existing campaign → Use create_lead with campaign_id\n\n⚠️ LEAD LISTS vs DIRECT CAMPAIGN ADD:\n\n**Lead Lists** (create_lead_list + create_lead with list_id):\n• ✅ Organize leads before adding to campaigns\n• ✅ Reuse same list across multiple campaigns\n• ✅ Track lead source/segment\n• ✅ Batch operations\n• Use when: Organizing large prospect databases\n\n**Direct Campaign Add** (create_lead with campaign_id):\n• ✅ Faster - one step instead of two\n• ✅ Simpler - no list management needed\n• ✅ Direct association with campaign\n• Use when: Adding leads directly to specific campaign\n\n📚 COMMON USER REQUEST EXAMPLES:\n\n1️⃣ "Create a list for LinkedIn prospects":\n   → Call create_lead_list with name: "LinkedIn Prospects"\n   → Returns list_id\n   → Use list_id when creating leads with create_lead\n\n2️⃣ "Organize leads by industry":\n   → Create multiple lists: "SaaS Leads", "E-commerce Leads", "Healthcare Leads"\n   → Add leads to appropriate list using create_lead with list_id\n\n3️⃣ "Import leads from CSV":\n   → Create lead list first: "CSV Import - Jan 2025"\n   → Import leads with create_lead using list_id\n   → Assign entire list to campaign later\n\n💡 ENRICHMENT (has_enrichment_task parameter):\n\n**What is enrichment?**\n• Automatically enriches lead data when leads are added to this list\n• Finds missing info: company data, social profiles, phone numbers\n• Runs in background for each lead added to the list\n• Optional - set has_enrichment_task: true to enable\n\n**When to enable enrichment:**\n• Have partial lead data (just email, need company info)\n• Want to auto-fill missing fields for all leads in this list\n• Building prospect lists from minimal data\n\n**When NOT to enable:**\n• Already have complete lead data\n• Don\'t need additional enrichment\n• Most standard use cases (default: false)\n\n⏱️ PERFORMANCE NOTE:\n• List creation is instant (< 1 second)\n• Enrichment (if enabled) runs in background per lead\n• Can add leads to list immediately after creation\n\n🎯 RECOMMENDED WORKFLOW:\n\n**Option A - Using Lead Lists**:\n1. Create lead list with create_lead_list\n2. Add leads with create_lead (use list_id parameter)\n3. Assign list to campaign (leads inherit campaign association)\n\n**Option B - Direct Campaign Add** (Simpler):\n1. Create campaign with create_campaign\n2. Add leads directly with create_lead (use campaign_id parameter)\n3. Skip list creation entirely\n\nCreate a new lead list for organizing leads into collections. Use list_id when creating leads to associate them with this list.',
+    description: 'Create lead list to organize leads by source/segment. Use for batch imports or organizing prospects. Alternative: Add leads directly to campaigns with create_lead (campaign_id) - faster and simpler. Set has_enrichment_task=true to auto-enrich lead data.',
     inputSchema: {
       type: 'object',
       properties: {
-        name: { type: 'string', description: 'Name of the lead list (REQUIRED). Be descriptive! Examples: "LinkedIn Prospects Q1 2025", "Conference Attendees - SaaStr", "Enterprise SaaS Leads"' },
-        has_enrichment_task: { type: 'boolean', description: 'Enable automatic enrichment for leads added to this list (OPTIONAL, default: false). Set to true to auto-enrich lead data (find missing company info, social profiles, etc.). Most users should leave this false.', default: false },
-        owned_by: { type: 'string', description: 'User ID (UUID) of the owner of this lead list (OPTIONAL). Defaults to the user that created the list. Only specify if assigning to different team member.' }
+        name: { type: 'string', description: 'List name (e.g., "LinkedIn Prospects Q1 2025")' },
+        has_enrichment_task: { type: 'boolean', description: 'Auto-enrich lead data (default: false)', default: false },
+        owned_by: { type: 'string', description: 'Owner user ID (UUID)' }
       },
       required: ['name'],
       additionalProperties: false
@@ -171,14 +171,14 @@ export const leadTools = [
 
   {
     name: 'update_lead_list',
-    description: 'Update lead list properties (name, enrichment settings, owner). Only provide fields to change.',
+    description: 'Update lead list (name, enrichment, owner). Partial updates supported.',
     inputSchema: {
       type: 'object',
       properties: {
-        list_id: { type: 'string', description: 'Lead list ID (UUID, required)' },
-        name: { type: 'string', description: 'New list name (optional)' },
-        has_enrichment_task: { type: 'boolean', description: 'Enable/disable enrichment (optional)' },
-        owned_by: { type: 'string', description: 'New owner user ID (optional)' }
+        list_id: { type: 'string', description: 'Lead list ID (UUID)' },
+        name: { type: 'string', description: 'New name' },
+        has_enrichment_task: { type: 'boolean', description: 'Enable/disable enrichment' },
+        owned_by: { type: 'string', description: 'New owner user ID' }
       },
       required: ['list_id'],
       additionalProperties: false
@@ -200,30 +200,29 @@ export const leadTools = [
 
   {
     name: 'add_leads_to_campaign_or_list_bulk',
-    description: '📦 ADD LEADS IN BULK TO CAMPAIGN OR LIST - BATCH IMPORT UP TO 1,000 LEADS\n\n✨ WHAT THIS TOOL DOES:\n\nAdds up to 1,000 leads to either a campaign or a list in a single API call. This is the RECOMMENDED way to import multiple leads, as it:\n• ✅ Avoids rate limiting issues from concurrent requests\n• ✅ Provides detailed success/failure breakdown\n• ✅ Validates emails and checks blocklists automatically\n• ✅ Handles duplicates intelligently with skip flags\n• ✅ Supports custom variables for personalization\n• ✅ Is 10-100x faster than individual create_lead calls\n\n⚠️ CRITICAL REQUIREMENTS:\n\n1️⃣ CAMPAIGN OR LIST (MUTUALLY EXCLUSIVE):\n• Must provide EITHER campaign_id OR list_id (NOT both)\n• campaign_id: Adds leads to a campaign for outreach\n• list_id: Adds leads to a list for organization\n\n2️⃣ LEAD REQUIREMENTS:\n• For campaigns: Each lead MUST have an email address\n• For lists: Each lead MUST have at least one of: email, first_name, or last_name\n• Maximum 1,000 leads per request\n• Minimum 1 lead per request\n\n3️⃣ CUSTOM VARIABLES:\n• ALWAYS check existing campaign custom variables FIRST\n• Align custom_variables with campaign\'s existing fields\n• Example: If campaign uses {{headcount}}, include headcount in custom_variables\n• Custom variables update the campaign schema for ALL leads\n\n📚 COMMON USER REQUEST EXAMPLES:\n\n1️⃣ "Add multiple leads to campaign X":\n   → Get campaign_id from list_campaigns\n   → Build leads array with email, first_name, last_name, company_name\n   → Set skip_if_in_campaign: true to avoid duplicates\n   → Call add_leads_to_campaign_or_list_bulk\n\n2️⃣ "Import 100 leads with custom variables":\n   → Ask: "What custom variables does your campaign use?"\n   → Build leads array with custom_variables for each lead\n   → Example: {"headcount": "50-100", "revenue": "$1M-$5M"}\n   → Set campaign_id and call tool\n\n3️⃣ "Add leads and verify emails":\n   → Set verify_leads_on_import: true\n   → Background job will verify all emails\n   → Check response for verification job status\n\n4️⃣ "Import to list for later use":\n   → Use list_id instead of campaign_id\n   → Leads stored in list without sending\n   → Can add to campaign later\n\n💡 WHEN TO USE BULK vs INDIVIDUAL create_lead:\n\n**Use add_leads_to_campaign_or_list_bulk when:**\n• ✅ Adding 2+ leads at once\n• ✅ Importing from CSV or external source\n• ✅ Need detailed success/failure reporting\n• ✅ Want to avoid rate limiting\n• ✅ Batch operations in n8n or automation tools\n\n**Use create_lead when:**\n• ❌ Adding only 1 lead\n• ❌ Interactive lead-by-lead creation\n• ❌ Need immediate per-lead feedback\n\n📊 RESPONSE FORMAT:\n\nThe response provides detailed breakdown:\n```json\n{\n  "status": "success",\n  "total_sent": 10,\n  "leads_uploaded": 7,\n  "in_blocklist": 1,\n  "blocklist_used": "blocklist-uuid",\n  "duplicated_leads": 0,\n  "skipped_count": 1,\n  "invalid_email_count": 1,\n  "incomplete_count": 0,\n  "duplicate_email_count": 0,\n  "remaining_in_plan": 9993\n}\n```\n\n**Response Fields:**\n• total_sent: Total leads in request\n• leads_uploaded: Successfully created leads ✅\n• in_blocklist: Leads skipped (on blocklist) 🚫\n• duplicated_leads: Leads already in campaign/list 🔄\n• skipped_count: Leads skipped due to skip_if_* flags ⏭️\n• invalid_email_count: Invalid email format ❌\n• incomplete_count: Missing required fields (lists only) ⚠️\n• duplicate_email_count: Duplicate emails within request 🔁\n• remaining_in_plan: Remaining lead quota (campaigns only) 📊\n\n⚠️ IMPORTANT LIMITS:\n\n• Maximum 1,000 leads per request\n• For larger imports, split into multiple batches\n• Use skip_if_in_campaign to avoid duplicates across batches\n• Response time: 2-10 seconds depending on lead count\n\n⏱️ PERFORMANCE:\n\n• 10 leads: ~2-3 seconds\n• 100 leads: ~3-5 seconds\n• 1,000 leads: ~5-10 seconds\n• Much faster than 1,000 individual create_lead calls (which would take 1,000+ seconds)\n\n🎯 BEST PRACTICES:\n\n1. Always set skip_if_in_campaign: true to avoid duplicates\n2. Use verify_leads_on_import: true for email validation\n3. Check response breakdown to identify issues\n4. For 1,000+ leads, batch into multiple requests\n5. Align custom_variables with existing campaign schema\n\nAdd up to 1,000 leads to a campaign or list in a single efficient API call with automatic validation and duplicate detection.',
+    description: 'Bulk add up to 1,000 leads to campaign OR list (not both). 10-100x faster than individual create_lead. Use skip_if_in_campaign to prevent duplicates. Set verify_leads_on_import for email validation. Response shows detailed breakdown (uploaded, duplicates, invalid, etc.).',
     inputSchema: {
       type: 'object',
       properties: {
-        // Leads array (1-1000 items)
         leads: {
           type: 'array',
-          description: 'Array of lead objects to create (1-1000 items). Each lead can contain: email, first_name, last_name, company_name, phone, website, personalization, lt_interest_status, pl_value_lead, assigned_to, custom_variables.',
+          description: 'Lead objects (1-1000). Each: email, first_name, last_name, company_name, phone, website, personalization, lt_interest_status, pl_value_lead, assigned_to, custom_variables.',
           items: {
             type: 'object',
             properties: {
-              email: { type: 'string', description: 'Email address (REQUIRED for campaigns, optional for lists). Example: "john@acme.com"' },
-              first_name: { type: 'string', description: 'First name. Example: "John"' },
-              last_name: { type: 'string', description: 'Last name. Example: "Doe"' },
-              company_name: { type: 'string', description: 'Company name. Example: "Acme Corp"' },
-              phone: { type: 'string', description: 'Phone number. Example: "+1-555-0123"' },
-              website: { type: 'string', description: 'Website URL. Example: "https://acme.com"' },
-              personalization: { type: 'string', description: 'Custom personalization message. Example: "Hi John, saw your post about AI"' },
-              lt_interest_status: { type: 'number', description: 'Interest status: -3=Not Interested, -2=Wrong Person, -1=Lost, 0=Out of Office, 1=Interested, 2=Meeting Booked, 3=Meeting Completed, 4=Closed', minimum: -3, maximum: 4 },
-              pl_value_lead: { type: 'string', description: 'Potential lead value. Example: "$5000"' },
-              assigned_to: { type: 'string', description: 'User UUID to assign this lead to. Example: "user-uuid-here"' },
+              email: { type: 'string', description: 'Email (required for campaigns)' },
+              first_name: { type: 'string', description: 'First name' },
+              last_name: { type: 'string', description: 'Last name' },
+              company_name: { type: 'string', description: 'Company' },
+              phone: { type: 'string', description: 'Phone' },
+              website: { type: 'string', description: 'Website' },
+              personalization: { type: 'string', description: 'Custom message' },
+              lt_interest_status: { type: 'number', description: 'Interest status (-3 to 4)', minimum: -3, maximum: 4 },
+              pl_value_lead: { type: 'string', description: 'Lead value' },
+              assigned_to: { type: 'string', description: 'User UUID' },
               custom_variables: {
                 type: 'object',
-                description: 'Custom metadata for campaign personalization. CRITICAL: Align with existing campaign variables! Example: {"headcount": "50-100", "revenue": "$1M-$5M", "industry": "SaaS"}',
+                description: '⚠️ Align with campaign variables!',
                 additionalProperties: true
               }
             },
@@ -232,20 +231,14 @@ export const leadTools = [
           minItems: 1,
           maxItems: 1000
         },
-
-        // Campaign or List (mutually exclusive)
-        campaign_id: { type: 'string', description: 'Campaign UUID to add leads to. Use this OR list_id (NOT both). Get from list_campaigns. Example: "campaign-uuid-here"' },
-        list_id: { type: 'string', description: 'List UUID to add leads to. Use this OR campaign_id (NOT both). Get from list_lead_lists. Example: "list-uuid-here"' },
-
-        // Optional parameters
-        blocklist_id: { type: 'string', description: 'Blocklist UUID to check leads against. If omitted, workspace default blocklist is used. Example: "blocklist-uuid-here"' },
-        assigned_to: { type: 'string', description: 'User UUID to assign ALL imported leads to. If omitted, leads assigned to campaign owner (for campaigns) or requesting user (for lists). Example: "user-uuid-here"' },
-        verify_leads_on_import: { type: 'boolean', description: 'If true, creates background job to verify email addresses. Recommended for better deliverability. Default: false', default: false },
-
-        // Skip flags for duplicate prevention
-        skip_if_in_workspace: { type: 'boolean', description: 'Skip if lead exists ANYWHERE in workspace (strictest). Overrides other skip flags. Default: false', default: false },
-        skip_if_in_campaign: { type: 'boolean', description: 'Skip if lead exists in ANY campaign. Recommended for campaign imports. Default: false', default: false },
-        skip_if_in_list: { type: 'boolean', description: 'Skip if lead exists in ANY list. Recommended for list imports. Default: false', default: false }
+        campaign_id: { type: 'string', description: 'Campaign UUID (use this OR list_id)' },
+        list_id: { type: 'string', description: 'List UUID (use this OR campaign_id)' },
+        blocklist_id: { type: 'string', description: 'Blocklist UUID' },
+        assigned_to: { type: 'string', description: 'User UUID for all leads' },
+        verify_leads_on_import: { type: 'boolean', description: 'Verify emails (recommended)', default: false },
+        skip_if_in_workspace: { type: 'boolean', description: 'Skip if exists in workspace', default: false },
+        skip_if_in_campaign: { type: 'boolean', description: 'Skip if exists in campaign (recommended)', default: false },
+        skip_if_in_list: { type: 'boolean', description: 'Skip if exists in list', default: false }
       },
       required: ['leads'],
       additionalProperties: false
@@ -254,13 +247,13 @@ export const leadTools = [
 
   {
     name: 'delete_lead',
-    description: '🗑️ EXTREMELY DESTRUCTIVE: PERMANENTLY DELETE LEAD - ⚠️ WARNING: This action CANNOT be undone! ⚠️\n\n✨ WHAT THIS TOOL DOES:\n\nPermanently deletes a lead from your Instantly.ai workspace. This action is IRREVERSIBLE and will:\n• ❌ Remove the lead from all campaigns and lists\n• ❌ Delete all associated email history and analytics\n• ❌ Remove all custom variables and lead data\n• ❌ Cannot be recovered after deletion\n\n⚠️ CRITICAL WARNINGS:\n\n1️⃣ **PERMANENT DELETION**:\n• This action CANNOT be undone\n• All lead data will be lost forever\n• Email history and analytics will be deleted\n• Custom variables will be removed\n\n2️⃣ **CONFIRM BEFORE USING**:\n• Always verify the lead_id before deletion\n• Double-check you have the correct lead\n• Consider exporting lead data first\n• Use with extreme caution\n\n3️⃣ **ALTERNATIVES TO DELETION**:\n• **Pause lead**: Use update_lead to change status instead\n• **Remove from campaign**: Use move_leads_to_campaign_or_list to move to a different list\n• **Mark as unsubscribed**: Update lead status instead of deleting\n\n📚 COMMON USER REQUEST EXAMPLES:\n\n1️⃣ "Delete lead X":\n   → Get lead_id from list_leads or get_lead\n   → CONFIRM with user: "Are you sure you want to permanently delete this lead?"\n   → Call delete_lead with lead_id\n   → Lead is permanently removed\n\n2️⃣ "Remove duplicate lead":\n   → Identify duplicate lead_id\n   → Verify it\'s truly a duplicate\n   → CONFIRM deletion with user\n   → Delete the duplicate lead\n\n3️⃣ "Clean up test leads":\n   → List test leads with list_leads\n   → Identify test lead IDs\n   → CONFIRM bulk deletion with user\n   → Delete each test lead individually\n\n💡 BEST PRACTICES:\n\n• Always confirm with user before deleting\n• Verify lead_id is correct\n• Export lead data before deletion if needed\n• Use alternatives (pause, move) when possible\n• Never delete leads in bulk without explicit confirmation\n\n⏱️ PERFORMANCE NOTE:\n• Deletion is instant (< 1 second)\n• Cannot be undone\n• Lead is immediately removed from all campaigns/lists\n\n🎯 WHEN TO USE:\n\n✅ **Use delete_lead when:**\n• Lead explicitly requested removal (GDPR/privacy)\n• Duplicate lead confirmed and verified\n• Test lead that should not exist in production\n• User explicitly confirms permanent deletion\n\n❌ **DO NOT use when:**\n• Just want to pause outreach → Use update_lead instead\n• Want to move to different campaign → Use move_leads_to_campaign_or_list\n• Unsure if deletion is needed → Ask user first\n• No explicit user confirmation → NEVER delete without confirmation\n\nDelete a lead permanently. This action CANNOT be undone. Always confirm with user before executing.',
+    description: '🗑️ DESTRUCTIVE: Permanently delete lead. ⚠️ CANNOT BE UNDONE! Removes from all campaigns/lists, deletes email history and analytics. Always confirm with user first. Alternatives: update_lead (pause), move_leads_to_campaign_or_list (move).',
     inputSchema: {
       type: 'object',
       properties: {
         lead_id: {
           type: 'string',
-          description: 'Lead ID (UUID) to delete - REQUIRED. Get from list_leads or get_lead. Example: "01997ba3-0106-7bf4-8584-634349eecf07". ⚠️ WARNING: This lead will be permanently deleted and cannot be recovered!'
+          description: '⚠️ Lead ID to DELETE PERMANENTLY (cannot recover!)'
         }
       },
       required: ['lead_id'],
@@ -270,98 +263,93 @@ export const leadTools = [
 
   {
     name: 'move_leads_to_campaign_or_list',
-    description: '🔄 MOVE LEADS TO CAMPAIGN OR LIST - BULK LEAD TRANSFER\n\n✨ WHAT THIS TOOL DOES:\n\nMoves leads from one campaign/list to another campaign/list in a single operation. This is a background job that processes the move asynchronously.\n\n**Key Features:**\n• ✅ Bulk move multiple leads at once\n• ✅ Move between campaigns, lists, or campaign ↔ list\n• ✅ Flexible lead selection (IDs, filters, search)\n• ✅ Duplicate checking and prevention\n• ✅ Background job processing (check status with /background-jobs/{id})\n• ✅ Optional copy instead of move\n\n⚠️ CRITICAL REQUIREMENTS:\n\n1️⃣ **DESTINATION (REQUIRED - MUTUALLY EXCLUSIVE)**:\n• Must provide EITHER to_campaign_id OR to_list_id (NOT both)\n• to_campaign_id: Move leads to a campaign for outreach\n• to_list_id: Move leads to a list for organization\n\n2️⃣ **LEAD SELECTION (AT LEAST ONE REQUIRED)**:\n• ids: Array of specific lead IDs to move\n• search: Search string (name, email)\n• filter: Contact status filter (FILTER_VAL_CONTACTED, etc.)\n• campaign: Source campaign ID\n• list_id: Source list ID\n• queries: Advanced query filters\n\n3️⃣ **BACKGROUND JOB**:\n• Returns immediately with background job ID\n• Move processes asynchronously\n• Use /background-jobs/{id} to check status\n• Job statuses: pending → in-progress → success/failed\n\n📚 COMMON USER REQUEST EXAMPLES:\n\n1️⃣ "Move all leads from campaign A to campaign B":\n   → Get campaign IDs from list_campaigns\n   → Call move_leads_to_campaign_or_list with:\n     - campaign: "campaign-A-id" (source)\n     - to_campaign_id: "campaign-B-id" (destination)\n   → Returns background job ID\n   → Check job status with /background-jobs/{id}\n\n2️⃣ "Move specific leads to a list":\n   → Get lead IDs from list_leads\n   → Call move_leads_to_campaign_or_list with:\n     - ids: ["lead-1-id", "lead-2-id", "lead-3-id"]\n     - to_list_id: "target-list-id"\n   → Leads moved to list\n\n3️⃣ "Move replied leads to a different campaign":\n   → Call move_leads_to_campaign_or_list with:\n     - campaign: "source-campaign-id"\n     - filter: "FILTER_VAL_CONTACTED"\n     - to_campaign_id: "replied-leads-campaign-id"\n   → All replied leads moved\n\n4️⃣ "Copy leads instead of moving":\n   → Set copy_leads: true\n   → Leads are copied to destination (not removed from source)\n   → Useful for testing or multi-campaign outreach\n\n💡 MOVE vs COPY:\n\n**Move** (copy_leads: false, default):\n• ✅ Leads removed from source\n• ✅ Leads added to destination\n• ✅ No duplicates in source\n• Use when: Transferring leads permanently\n\n**Copy** (copy_leads: true):\n• ✅ Leads remain in source\n• ✅ Leads added to destination\n• ✅ Leads exist in both locations\n• Use when: Testing, multi-campaign outreach\n\n📊 RESPONSE FORMAT:\n\nThe response is a background job object:\n```json\n{\n  "success": true,\n  "background_job": {\n    "id": "675266e304a8e55b17f0228b",\n    "workspace_id": "workspace-uuid",\n    "type": "move-leads",\n    "entity_id": "destination-id",\n    "entity_type": "campaign" or "list",\n    "progress": 0,\n    "status": "pending",\n    "created_at": "2025-01-12T...",\n    "updated_at": "2025-01-12T..."\n  },\n  "message": "Move operation initiated. Background job ID: 675266e304a8e55b17f0228b. Use /background-jobs/675266e304a8e55b17f0228b to check status."\n}\n```\n\n**Job Statuses:**\n• pending: Waiting in queue\n• in-progress: Currently processing\n• success: Move completed successfully\n• failed: Move failed (check job data for error)\n\n⚠️ IMPORTANT PARAMETERS:\n\n• **check_duplicates_in_campaigns**: Check for duplicates before moving (recommended: true)\n• **skip_leads_in_verification**: Skip leads currently being verified (recommended: true)\n• **limit**: Maximum number of leads to move (optional)\n• **assigned_to**: Assign moved leads to specific user (UUID)\n\n⏱️ PERFORMANCE:\n\n• API call: Instant (< 1 second)\n• Background job: Depends on lead count\n  - 10 leads: ~5-10 seconds\n  - 100 leads: ~30-60 seconds\n  - 1,000 leads: ~5-10 minutes\n• Check job status periodically\n\n🎯 WHEN TO USE:\n\n✅ **Use move_leads_to_campaign_or_list when:**\n• Moving leads between campaigns\n• Organizing leads into different lists\n• Transferring replied leads to nurture campaign\n• Consolidating leads from multiple sources\n• Copying leads for multi-campaign outreach\n\n❌ **DO NOT use when:**\n• Moving single lead → Use update_lead to change campaign/list\n• Deleting leads → Use delete_lead instead\n• Just updating lead data → Use update_lead\n\nMove leads to a different campaign or list. Returns a background job that processes the move asynchronously.',
+    description: 'Move/copy leads between campaigns/lists (background job). Requires to_campaign_id OR to_list_id (not both). Select leads via: ids, search, filter, campaign, list_id. Set copy_leads=true to copy instead of move. Returns background job ID - check status with /background-jobs/{id}.',
     inputSchema: {
       type: 'object',
       properties: {
-        // Destination (required - mutually exclusive)
         to_campaign_id: {
           type: 'string',
-          description: 'Campaign ID to move leads to (UUID). Mutually exclusive with to_list_id. Example: "0199d953-30b8-79f5-829b-6f09f4437ae1"'
+          description: 'Destination campaign ID (use this OR to_list_id)'
         },
         to_list_id: {
           type: 'string',
-          description: 'List ID to move leads to (UUID). Mutually exclusive with to_campaign_id. Example: "0199d953-30b8-79f5-829b-6f0aaea23954"'
+          description: 'Destination list ID (use this OR to_campaign_id)'
         },
-
-        // Lead selection (at least one required)
         ids: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Array of lead IDs to move (UUIDs). Example: ["lead-1-id", "lead-2-id"]'
+          description: 'Lead IDs to move'
         },
         search: {
           type: 'string',
-          description: 'Search string to filter leads (First Name, Last Name, or Email). Example: "John Doe"'
+          description: 'Search string (name/email)'
         },
         filter: {
           type: 'string',
-          description: 'Contact status filter. Values: FILTER_VAL_CONTACTED (replied), FILTER_VAL_NOT_CONTACTED (not contacted), FILTER_VAL_COMPLETED (completed), FILTER_VAL_UNSUBSCRIBED (unsubscribed), FILTER_VAL_ACTIVE (active), FILTER_LEAD_INTERESTED (interested), FILTER_LEAD_MEETING_BOOKED (meeting booked), FILTER_LEAD_CLOSED (closed/won)'
+          description: 'Contact status: FILTER_VAL_CONTACTED, FILTER_VAL_NOT_CONTACTED, FILTER_VAL_COMPLETED, FILTER_VAL_UNSUBSCRIBED, FILTER_VAL_ACTIVE, FILTER_LEAD_INTERESTED, FILTER_LEAD_MEETING_BOOKED, FILTER_LEAD_CLOSED'
         },
         campaign: {
           type: 'string',
-          description: 'Source campaign ID to filter leads from (UUID). Example: "0199d953-2ba9-7f56-b08d-d13ac654d7d5"'
+          description: 'Source campaign ID'
         },
         list_id: {
           type: 'string',
-          description: 'Source list ID to filter leads from (UUID). Example: "0199d953-2ba9-7f56-b08d-d13bb46099cf"'
+          description: 'Source list ID'
         },
         in_campaign: {
           type: 'boolean',
-          description: 'Filter leads that are in a campaign (true) or not in a campaign (false)'
+          description: 'Filter: in campaign (true/false)'
         },
         in_list: {
           type: 'boolean',
-          description: 'Filter leads that are in a list (true) or not in a list (false)'
+          description: 'Filter: in list (true/false)'
         },
         queries: {
           type: 'array',
           items: { type: 'object' },
-          description: 'Advanced query filters. Example: [{"actionType":"email-open","values":{"occurrence-days":1}}]'
+          description: 'Advanced filters'
         },
         excluded_ids: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Array of lead IDs to exclude from move (UUIDs). Example: ["lead-to-exclude-1", "lead-to-exclude-2"]'
+          description: 'Lead IDs to exclude'
         },
         contacts: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Array of email addresses to filter leads by. Example: ["test@test.com"]'
+          description: 'Email addresses to filter'
         },
-
-        // Optional parameters
         check_duplicates_in_campaigns: {
           type: 'boolean',
-          description: 'Check for duplicates in destination campaign before moving (recommended: true). Default: false'
+          description: 'Check duplicates (recommended: true)'
         },
         skip_leads_in_verification: {
           type: 'boolean',
-          description: 'Skip leads currently being verified (recommended: true). Default: false'
+          description: 'Skip leads being verified (recommended: true)'
         },
         limit: {
           type: 'number',
-          description: 'Maximum number of leads to move. Example: 100'
+          description: 'Max leads to move'
         },
         assigned_to: {
           type: 'string',
-          description: 'User ID (UUID) to assign moved leads to. Example: "0199d953-30b8-79f5-829b-6f0bc069a642"'
+          description: 'User ID to assign moved leads'
         },
         esp_code: {
           type: 'number',
-          description: 'ESP code to filter leads by. Values: 0=In Queue, 1=Google, 2=Microsoft, 3=Zoho, 9=Yahoo, 10=Yandex, 12=Web.de, 13=Libero.it, 999=Other, 1000=Not Found'
+          description: 'ESP code: 0=Queue, 1=Google, 2=Microsoft, 3=Zoho, 9=Yahoo, 10=Yandex, 12=Web.de, 13=Libero.it, 999=Other, 1000=Not Found'
         },
         esg_code: {
           type: 'number',
-          description: 'ESG code to filter leads by. Values: 0=In Queue, 1=Barracuda, 2=Mimecast, 3=Proofpoint, 4=Cisco'
+          description: 'ESG code: 0=Queue, 1=Barracuda, 2=Mimecast, 3=Proofpoint, 4=Cisco'
         },
         copy_leads: {
           type: 'boolean',
-          description: 'Copy leads instead of moving (leads remain in source). Default: false (move)'
+          description: 'Copy instead of move (default: false)'
         },
         check_duplicates: {
           type: 'boolean',
-          description: 'Check for duplicates before moving. Default: false'
+          description: 'Check duplicates (default: false)'
         }
       },
       required: [],

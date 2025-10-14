@@ -73,22 +73,22 @@ export const accountTools = [
 
   {
     name: 'create_account',
-    description: 'Create a new email account for sending campaigns - Account creation with full IMAP/SMTP configuration',
+    description: 'Create email account with IMAP/SMTP config. Requires email, name, provider_code, IMAP (username, password, host, port), SMTP (username, password, host, port).',
     inputSchema: {
       type: 'object',
       properties: {
-        email: { type: 'string', description: 'Email address for the new account' },
-        first_name: { type: 'string', description: 'First name associated with the account' },
-        last_name: { type: 'string', description: 'Last name associated with the account' },
-        provider_code: { type: 'number', description: 'Email provider code (required by API)' },
-        imap_username: { type: 'string', description: 'IMAP username for receiving emails' },
-        imap_password: { type: 'string', description: 'IMAP password for receiving emails' },
-        imap_host: { type: 'string', description: 'IMAP server host (e.g., imap.gmail.com)' },
-        imap_port: { type: 'number', description: 'IMAP server port (e.g., 993)' },
-        smtp_username: { type: 'string', description: 'SMTP username for sending emails' },
-        smtp_password: { type: 'string', description: 'SMTP password for sending emails' },
-        smtp_host: { type: 'string', description: 'SMTP server host (e.g., smtp.gmail.com)' },
-        smtp_port: { type: 'number', description: 'SMTP server port (e.g., 587)' }
+        email: { type: 'string', description: 'Email address' },
+        first_name: { type: 'string', description: 'First name' },
+        last_name: { type: 'string', description: 'Last name' },
+        provider_code: { type: 'number', description: 'Email provider code' },
+        imap_username: { type: 'string', description: 'IMAP username' },
+        imap_password: { type: 'string', description: 'IMAP password' },
+        imap_host: { type: 'string', description: 'IMAP host (e.g., imap.gmail.com)' },
+        imap_port: { type: 'number', description: 'IMAP port (e.g., 993)' },
+        smtp_username: { type: 'string', description: 'SMTP username' },
+        smtp_password: { type: 'string', description: 'SMTP password' },
+        smtp_host: { type: 'string', description: 'SMTP host (e.g., smtp.gmail.com)' },
+        smtp_port: { type: 'number', description: 'SMTP port (e.g., 587)' }
       },
       required: ['email', 'first_name', 'last_name', 'provider_code', 'imap_username', 'imap_password', 'imap_host', 'imap_port', 'smtp_username', 'smtp_password', 'smtp_host', 'smtp_port'],
       additionalProperties: false
@@ -217,11 +217,11 @@ export const accountTools = [
 
   {
     name: 'delete_account',
-    description: '🚨 EXTREMELY DESTRUCTIVE: PERMANENTLY DELETE EMAIL ACCOUNT - ⚠️ WARNING: This action CANNOT be undone! ⚠️ WARNING: All campaign data, emails, and account settings will be lost forever! ⚠️ WARNING: Use with extreme caution!',
+    description: '🚨 DESTRUCTIVE: Permanently delete email account. ⚠️ CANNOT BE UNDONE! All campaign data, emails, and settings lost forever. Use with extreme caution!',
     inputSchema: {
       type: 'object',
       properties: {
-        email: { type: 'string', description: '⚠️ DANGER: Email address of the account to DELETE PERMANENTLY AND IRREVERSIBLY' }
+        email: { type: 'string', description: '⚠️ Email to DELETE PERMANENTLY' }
       },
       required: ['email'],
       additionalProperties: false
